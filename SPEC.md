@@ -10,6 +10,8 @@
 | v1.4 | **管理者に限り「1ジャン」「期」を修正可能**に(登録ミス救済。usernameは自動追従、本人は変更不可のまま。§6.5.1)。admin_audit_logs新設 |
 | v1.5 | タブ①に**「今日の練習場所」施錠状況ボード**を追加(room_status新設。○=開錠済/×=施錠中、既定×、誰でも切替可。§6.1.1) |
 | v1.6 | **OB/OGロールを追加**。卒業者はアカウント削除ではなくOBへ移行し、タブ②③(ナンバー・マイカレンダー)のみ利用可能に。縦イベでのナンバー参加を継続できる(§3.6) |
+| v1.6.2 | 実装時の修正(仕様変更なし)。§5.2に**GRANTセクションを追加**。Supabaseプロジェクト既定の権限付与に暗黙依存していたため、環境によっては`permission denied for table`となっていた。GRANT(テーブル単位)とRLS(行単位)の二段構えを明示 |
+| v1.6.1 | 実装時の修正(仕様変更なし)。§5.2のSQLで**RLSヘルパー関数(`app_role`/`is_number_member`)の定義位置を全テーブル作成後へ移動**(先頭に置くと参照先テーブル未作成で`42P01`エラー。`language sql`の関数は作成時に本体が検証されるため)。あわせて`set search_path = public, extensions;`を冒頭に追加(Supabaseで`btree_gist`が`extensions`スキーマにある場合に`claims`の排他制約が解決できないため) |
 
 > 本書は VS Code + Claude Code で開発することを前提に、**この文書単体で開発着手できる**ことを目指した仕様書である。
 > 読者(実装者)はサークルの事情を一切知らない前提で書く。
@@ -211,23 +213,17 @@ CRON_SECRET=                      # Vercel Cron認証用ランダム文字列
 -- =========================================================
 -- 0001_init.sql  ダンスサークル練習管理  初期スキーマ
 -- =========================================================
+-- Supabase では拡張が extensions スキーマに入っていることがある。
+-- claims の排他制約が btree_gist の演算子クラスを解決できるよう、
+-- 両スキーマを検索パスに入れておく(存在しないスキーマ名は無視されるので安全)。
+set search_path = public, extensions;
+
 create extension if not exists pgcrypto;
 
--- ---------- ヘルパー ----------
--- ログインユーザーのロール取得(RLS内で使用)
-create or replace function public.app_role()
-returns text language sql stable security definer set search_path = public as $$
-  select role from public.profiles where user_id = auth.uid()
-$$;
-
--- ナンバーのメンバー判定(RLS再帰回避のため security definer)
-create or replace function public.is_number_member(p_number uuid, p_user uuid)
-returns boolean language sql stable security definer set search_path = public as $$
-  select exists (
-    select 1 from public.number_members
-    where number_id = p_number and user_id = p_user
-  )
-$$;
+-- 注: RLS ヘルパー関数 (app_role / is_number_member) は、参照するテーブルを
+--     作った後でなければ作成できないため、テーブル定義の後・RLS の前に置いてある。
+--     language sql の関数は作成時に本体が検証されるため
+--     (check_function_bodies は既定 on)、先に書くと 42P01 で失敗する。
 
 -- ---------- マスタ ----------
 create table public.genres (
@@ -494,6 +490,56 @@ create table public.app_settings (
 );
 
 -- =========================================================
+-- 権限 (GRANT)
+-- Supabase の既定権限に依存せず、このマイグレーション単体で完結させる。
+--
+-- 二段構えになっている点に注意:
+--   GRANT  = 「テーブルに触れるか」というテーブル単位の許可
+--   RLS    = 「どの行に触れるか」という行単位の許可
+-- authenticated には GRANT を広めに与え、**実際の可否は RLS ポリシーで決める**
+-- (Supabase の標準的な設計)。ポリシーを持たないテーブル
+-- (app_settings / calendar_tokens) は RLS が全拒否するため、
+-- GRANT があってもクライアントからは一切読めない。
+-- =========================================================
+grant usage on schema public to anon, authenticated, service_role;
+
+-- service_role: サーバー専用。RLS をバイパスして全操作できる
+grant all privileges on all tables    in schema public to service_role;
+grant all privileges on all sequences in schema public to service_role;
+
+-- authenticated: ログイン済みユーザー。行の可否は RLS が決める
+grant select, insert, update, delete on all tables in schema public to authenticated;
+grant usage, select on all sequences in schema public to authenticated;
+
+-- anon(未ログイン)にはテーブル権限を与えない。
+-- 認証不要なのは購読ics (§8.6) だけで、そこは service_role で処理するため。
+
+-- 今後このスキーマに追加するテーブルにも同じ権限が付くようにしておく
+alter default privileges in schema public
+  grant all privileges on tables to service_role;
+alter default privileges in schema public
+  grant select, insert, update, delete on tables to authenticated;
+
+-- =========================================================
+-- RLS ヘルパー
+-- 参照先テーブルが揃ってから作る必要があるため、ここに置く(冒頭の注記を参照)
+-- =========================================================
+-- ログインユーザーのロール取得(RLS内で使用)
+create or replace function public.app_role()
+returns text language sql stable security definer set search_path = public as $$
+  select role from public.profiles where user_id = auth.uid()
+$$;
+
+-- ナンバーのメンバー判定(RLS再帰回避のため security definer)
+create or replace function public.is_number_member(p_number uuid, p_user uuid)
+returns boolean language sql stable security definer set search_path = public as $$
+  select exists (
+    select 1 from public.number_members
+    where number_id = p_number and user_id = p_user
+  )
+$$;
+
+-- =========================================================
 -- RLS
 -- =========================================================
 alter table public.genres          enable row level security;
@@ -544,7 +590,6 @@ create policy all_resv on public.reservations for all to authenticated
   using (public.app_role() in ('coordinator','admin'))
   with check (public.app_role() in ('coordinator','admin'));
 
--- slots: 公開済は全員閲覧可 / 下書き含む全操作は折衝以上
 -- slots: 公開済は現役のみ閲覧可(OBは公式練を見られない) / 下書き含む全操作は折衝以上
 create policy sel_slots_pub on public.slots for select to authenticated
   using (
