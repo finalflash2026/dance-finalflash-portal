@@ -1,3 +1,5 @@
+"use client";
+
 import Link from "next/link";
 
 import {
@@ -6,7 +8,6 @@ import {
   formatDate,
   getWeekday,
   parseDate,
-  todayInTokyo,
 } from "@/lib/time";
 import type { DateString } from "@/lib/types";
 
@@ -18,25 +19,39 @@ import type { DateString } from "@/lib/types";
  * - 月送り(前月/翌月)
  * - 初期値は当日を含む月・当日選択
  *
- * 状態は URL (?date=YYYY-MM-DD) が持つため、クライアント JS を使わず
- * Link だけで組む。戻る/進むや共有もそのまま効く。
+ * **日付と月でナビゲーションの扱いが違う**:
+ *   日付 … 同じ月のデータは既に取得済みなので、サーバーへ行かず
+ *          onSelectDate で親の state を更新する (往復ゼロ)
+ *   月送り … 新しい月のデータが要るので実際に遷移する。
+ *          ただし prefetch を明示して RSC ペイロードごと先読みさせる
+ *          (既定の prefetch は loading 境界までしか先読みしない)
+ *
+ * 日付は `<a href>` のままにしてあるので、JS が無効でも従来どおり遷移でき、
+ * 中クリックで別タブに開くこともできる。
  */
 
 const WEEKDAYS = ["日", "月", "火", "水", "木", "金", "土"];
 
 export function MiniCalendar({
   basePath,
+  monthAnchor,
   selectedDate,
+  today,
   markedDates,
+  onSelectDate,
 }: {
   /** 日付リンクの遷移先 (例: "/") */
   basePath: string;
+  /** 表示中の月 (この月の日を並べる) */
+  monthAnchor: DateString;
   selectedDate: DateString;
+  /** JST の今日。サーバーで求めた値を渡す (クライアントの時計に依存させない) */
+  today: DateString;
   /** ドットを出す日 */
   markedDates: DateString[];
+  onSelectDate: (date: DateString) => void;
 }) {
-  const { year, month } = parseDate(selectedDate);
-  const today = todayInTokyo();
+  const { year, month } = parseDate(monthAnchor);
   const marked = new Set(markedDates);
 
   const total = daysInMonth(year, month);
@@ -53,7 +68,8 @@ export function MiniCalendar({
     <section className="rounded-xl border border-[var(--border)] p-3">
       <header className="flex items-center justify-between">
         <Link
-          href={href(addMonths(selectedDate, -1))}
+          href={href(addMonths(monthAnchor, -1))}
+          prefetch
           aria-label="前の月"
           className="px-3 py-1 text-lg"
         >
@@ -63,7 +79,8 @@ export function MiniCalendar({
           {year}年{month}月
         </h2>
         <Link
-          href={href(addMonths(selectedDate, 1))}
+          href={href(addMonths(monthAnchor, 1))}
+          prefetch
           aria-label="次の月"
           className="px-3 py-1 text-lg"
         >
@@ -95,10 +112,23 @@ export function MiniCalendar({
           const day = parseDate(date).day;
 
           return (
-            <Link
+            <a
               key={date}
               href={href(date)}
               aria-current={isSelected ? "date" : undefined}
+              onClick={(event) => {
+                // 修飾キー付き(別タブで開く等)は既定の動作に任せる
+                if (
+                  event.metaKey ||
+                  event.ctrlKey ||
+                  event.shiftKey ||
+                  event.altKey
+                ) {
+                  return;
+                }
+                event.preventDefault();
+                onSelectDate(date);
+              }}
               className="flex flex-col items-center py-1"
             >
               <span
@@ -118,7 +148,7 @@ export function MiniCalendar({
                   marked.has(date) ? "bg-[var(--muted)]" : "bg-transparent"
                 }`}
               />
-            </Link>
+            </a>
           );
         })}
       </div>
