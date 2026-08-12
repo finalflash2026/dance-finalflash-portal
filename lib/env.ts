@@ -32,17 +32,35 @@ export function requireServiceRoleKey(): string {
   return key;
 }
 
-/** ics の UID ドメイン・購読URL生成に使う (SPEC §10)。未設定ならローカル既定 */
+/**
+ * ics の UID ドメイン・購読URL生成に使う (SPEC §10)。未設定ならローカル既定。
+ *
+ * 手入力される値なので、ありがちな2つの揺れを吸収する:
+ *   - 末尾スラッシュ … 購読URL生成で `...app//api/cal/...` と二重になる
+ *   - スキーム無し   … Vercel の環境変数に `xxx.vercel.app` とだけ入れがち
+ */
 export function appBaseUrl(): string {
-  return process.env.APP_BASE_URL ?? "http://localhost:3000";
+  const raw = (process.env.APP_BASE_URL ?? "http://localhost:3000").trim();
+  const trimmed = raw.replace(/\/+$/, "");
+  return /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
 }
 
-/** APP_BASE_URL のホスト部分。ics の UID に使う (例: `slot-{id}@{host}`) */
+/**
+ * APP_BASE_URL のホスト部分。ics の UID に使う (例: `slot-{id}@{host}`)。
+ *
+ * **ここでエラーを握り潰してはならない。** UID は恒久固定が最重要ルールで
+ * (SPEC §10)、誤ったホストのまま購読URLを配ると、後で直したときに
+ * 購読者全員のカレンダーで予定が重複する。しかも購読者側で登録し直すまで
+ * 直らない。設定ミスは黙って動かすより、落として気付かせるほうが安全。
+ */
 export function appHost(): string {
+  const base = appBaseUrl();
   try {
-    return new URL(appBaseUrl()).host;
+    return new URL(base).host;
   } catch {
-    return "localhost";
+    throw new Error(
+      `APP_BASE_URL が URL として不正です: ${JSON.stringify(base)} — https://example.com の形式で設定してください (SPEC §2.1)`,
+    );
   }
 }
 
