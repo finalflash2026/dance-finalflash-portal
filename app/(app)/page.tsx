@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 
-import { DayGrid, type DayBlock } from "@/components/DayGrid";
-import { MiniCalendar } from "@/components/MiniCalendar";
+import { CalendarView } from "@/components/CalendarView";
+import type { DayBlock } from "@/components/DayGrid";
 import { SetupNotice } from "@/components/SetupNotice";
 import { getCurrentProfile } from "@/lib/auth/session";
 import { GENRE_BY_ID } from "@/lib/constants";
@@ -9,7 +9,6 @@ import { hasSupabaseEnv } from "@/lib/env";
 import { createClient } from "@/lib/supabase/server";
 import {
   endOfMonth,
-  formatDateLabel,
   normalizeTime,
   startOfMonth,
   todayInTokyo,
@@ -20,7 +19,11 @@ import type { DateString, SlotStatus } from "@/lib/types";
  * タブ① 全体カレンダー (SPEC.md §6.1)
  *
  * 折衝が公開した slots を「ミニカレンダー → 日別ビュー」で見せる。
- * 選択中の日付は URL (?date=) が持つので、Server Component だけで完結する。
+ *
+ * サーバーは**その月ぶんをまとめて1クエリ**で取り (SPEC §13.1)、
+ * 日付の選択は CalendarView がクライアント側で行う。同じ月なら取りに行く
+ * データが無いため、日付切り替えでサーバー往復を起こさないようにしている。
+ * URL の ?date= はどちらの経路でも有効 (共有・リロード・月送りの起点)。
  *
  * Phase 2 で追加するもの: 施錠状況ボード (§6.1.1)、空き申請と claims の描画。
  */
@@ -56,8 +59,8 @@ export default async function OverviewCalendarPage({
   }
 
   const { date } = await searchParams;
-  const selectedDate =
-    date && DATE_PATTERN.test(date) ? date : todayInTokyo();
+  const today = todayInTokyo();
+  const selectedDate = date && DATE_PATTERN.test(date) ? date : today;
 
   // その月ぶんを1クエリで取得する (SPEC §13.1)
   const supabase = await createClient();
@@ -70,11 +73,10 @@ export default async function OverviewCalendarPage({
     .gte("date", startOfMonth(selectedDate))
     .lte("date", endOfMonth(selectedDate));
 
-  const rows = (data ?? []) as SlotRow[];
-  const markedDates = [...new Set(rows.map((row) => row.date))];
-  const blocks: DayBlock[] = rows
-    .filter((row) => row.date === selectedDate)
-    .map((row) => ({
+  // 日付ごとにまとめておく。クライアント側は選択日で引くだけで済む
+  const blocksByDate: Record<DateString, DayBlock[]> = {};
+  for (const row of (data ?? []) as SlotRow[]) {
+    (blocksByDate[row.date] ??= []).push({
       id: row.id,
       roomId: row.room_id,
       startTime: normalizeTime(row.start_time),
@@ -85,7 +87,8 @@ export default async function OverviewCalendarPage({
         : null,
       targetGenerations: row.target_generations,
       note: row.note,
-    }));
+    });
+  }
 
   return (
     <main className="mx-auto max-w-2xl space-y-4 px-4 py-4">
@@ -100,18 +103,20 @@ export default async function OverviewCalendarPage({
         </p>
       ) : null}
 
-      <MiniCalendar
-        basePath="/"
-        selectedDate={selectedDate}
-        markedDates={markedDates}
+      {/*
+        key を渡して、サーバーが別の日付を返したときに CalendarView を作り直す。
+        これが無いと、月送りやブラウザの戻るでサーバーの選択日が変わっても
+        クライアント state に前の日付が残り、表示中の月に無い日を選んだ状態になる
+        (useState の初期値は再レンダーでは効かないため)。
+      */}
+      <CalendarView
+        key={selectedDate}
+        monthAnchor={startOfMonth(selectedDate)}
+        initialDate={selectedDate}
+        today={today}
+        markedDates={Object.keys(blocksByDate)}
+        blocksByDate={blocksByDate}
       />
-
-      <section className="space-y-2">
-        <h2 className="text-base font-bold">
-          {formatDateLabel(selectedDate)} の練習
-        </h2>
-        <DayGrid date={selectedDate} blocks={blocks} />
-      </section>
     </main>
   );
 }
