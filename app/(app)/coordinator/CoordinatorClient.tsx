@@ -3,12 +3,14 @@
 import { useState } from "react";
 
 import { ImportStep } from "./ImportStep";
+import { PublishStep } from "./PublishStep";
+import { SlotStep } from "./SlotStep";
 
 /**
  * 折衝ワークフローの Step 切り替え (SPEC.md §6.2)
  *
- * Step2 (コマ割りエディタ) と Step3 (公開) は次の PR で実装する。
- * Step1 だけでも「予約枠を DB に入れる」までは通せるので、先に出しておく。
+ * ①CSV取込 → ②コマ割り → ③公開 の順に進む前提だが、
+ * 後から個別に直すことも多いので行き来は自由にしている。
  */
 const STEPS = [
   { id: 1, label: "① CSV取込" },
@@ -41,20 +43,7 @@ export function CoordinatorClient() {
         ))}
       </nav>
 
-      {step === 1 ? <ImportStep /> : <ComingSoon step={step} />}
+      {step === 1 ? <ImportStep /> : step === 2 ? <SlotStep /> : <PublishStep />}
     </main>
-  );
-}
-
-function ComingSoon({ step }: { step: 2 | 3 }) {
-  return (
-    <section className="rounded-xl border border-[var(--border)] px-4 py-8 text-center">
-      <p className="text-sm font-medium">
-        {step === 2 ? "コマ割りエディタ" : "月一括公開"}
-      </p>
-      <p className="mt-2 text-sm text-[var(--muted)]">
-        SPEC.md §6.2 Step{step} — 次のPRで実装します
-      </p>
-    </section>
   );
 }

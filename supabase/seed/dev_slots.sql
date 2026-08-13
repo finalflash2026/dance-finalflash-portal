@@ -18,6 +18,7 @@ declare
   v_kendo uuid;   -- 剣道場(体育館)   room_id=12
   v_rehe  uuid;   -- リハーサル室      room_id=5
   v_prac1 uuid;   -- 練習室1(フレスコ) room_id=2
+  v_prac1_next uuid; -- 同上の翌日ぶん (下書き検証用)
 begin
   select user_id into v_user from public.profiles order by created_at limit 1;
   if v_user is null then
@@ -61,12 +62,23 @@ begin
   -- ---------- 下書きコマ (published=false) ----------
   -- SPEC §16「member が slots の下書きを読めないこと」の検証用。
   -- member セッションではこの行が見えないのが正しい。
+  --
+  -- **翌日ぶんの予約枠を別に作る。** コマの date は親予約枠の date と
+  -- 一致していなければならない (slots.date は表示用の非正規化コピー)。
+  -- v_date の枠に v_date+1 のコマをぶら下げると、
+  --   - タブ①は slots.date で引くので翌日に出るが、親は前日の枠
+  --   - slots_no_overlap は reservation_id + 時刻で見るので、
+  --     同じ枠の 18:00-19:30 が2つある扱いになり制約に違反する
+  -- という不整合になる。
+  insert into public.reservations (date, start_time, end_time, room_id, created_by)
+  values (v_date + 1, '18:00', '22:00', 2, v_user) returning id into v_prac1_next;
+
   insert into public.slots
     (reservation_id, date, start_time, end_time, room_id, status, genre_id, target_generations, published, note)
   values
-    (v_prac1, v_date + 1, '18:00', '19:30', 2, 'genre', 3, null, false, '下書き(RLS検証用)');
+    (v_prac1_next, v_date + 1, '18:00', '19:30', 2, 'genre', 3, null, false, '下書き(RLS検証用)');
 
-  raise notice '投入しました: date=%  reservations=3  slots=9(うち下書き1)', v_date;
+  raise notice '投入しました: date=%  reservations=4  slots=9(うち下書き1)', v_date;
 end $$;
 
 -- ---------- クリーンアップ (必要なときにコメント解除して実行) ----------

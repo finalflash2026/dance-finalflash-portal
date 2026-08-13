@@ -66,6 +66,68 @@ export function isOnStep(time: string, step: number = CLAIM_STEP_MINUTES) {
   return toMinutes(time) % step === 0;
 }
 
+/** splitRange() の返り値。`gap` は inner に埋まっていない空白区間 */
+export type Split<T> =
+  | { kind: "filled"; item: T; startTime: TimeString; endTime: TimeString }
+  | { kind: "gap"; startTime: TimeString; endTime: TimeString };
+
+/**
+ * 外側の時間帯を、内側の時間帯たちとその隙間に分割する。
+ *
+ * 2箇所で必要になる同じ計算をここに集約している:
+ *   - 空きコマ → 申請済み区間 と 空き区間 (SPEC §6.1)
+ *   - 予約枠   → コマ         と 未割当区間 (SPEC §6.2 Step2-4)
+ * 区間計算は端点の扱いを一箇所間違えるだけで表示と検証がズレるため、
+ * 実装を2つ持たない。
+ *
+ * inner 同士は重ならない前提 (どちらの用途もDBの排他制約で保証されている)。
+ * 外側からはみ出す inner は端で切り、切った結果が空になるものは捨てる。
+ */
+export function splitRange<T extends { startTime: string; endTime: string }>(
+  outer: { startTime: string; endTime: string },
+  inner: T[],
+): Split<T>[] {
+  const outerStart = toMinutes(outer.startTime);
+  const outerEnd = toMinutes(outer.endTime);
+  const result: Split<T>[] = [];
+  let cursor = outerStart;
+
+  const sorted = [...inner].sort(
+    (a, b) => toMinutes(a.startTime) - toMinutes(b.startTime),
+  );
+
+  for (const item of sorted) {
+    const start = Math.max(toMinutes(item.startTime), outerStart);
+    const end = Math.min(toMinutes(item.endTime), outerEnd);
+    if (end <= start) continue; // 外側と全く重ならない要素は無視する
+
+    if (start > cursor) {
+      result.push({
+        kind: "gap",
+        startTime: fromMinutes(cursor),
+        endTime: fromMinutes(start),
+      });
+    }
+    result.push({
+      kind: "filled",
+      item,
+      startTime: fromMinutes(start),
+      endTime: fromMinutes(end),
+    });
+    cursor = end;
+  }
+
+  if (cursor < outerEnd) {
+    result.push({
+      kind: "gap",
+      startTime: fromMinutes(cursor),
+      endTime: fromMinutes(outerEnd),
+    });
+  }
+
+  return result;
+}
+
 /** 2つの時間帯が重なるか (端点の一致は重なりとみなさない) */
 export function overlaps(
   aStart: string,
