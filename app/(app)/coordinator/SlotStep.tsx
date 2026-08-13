@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 
 import { ErrorMessage, buttonClass, secondaryButtonClass } from "@/components/ui";
-import { GENRES, ROOM_BY_ID } from "@/lib/constants";
+import { GENRES, PRACTICE_WEEKDAYS, ROOM_BY_ID } from "@/lib/constants";
 import {
   SLOT_PRESET_MINUTES,
   SLOT_STATUS_LABELS,
@@ -21,6 +21,7 @@ import {
   finalizeTimeInput,
   formatDateLabel,
   formatTimeRange,
+  getWeekday,
   normalizeTimeInput,
   startOfMonth,
   todayInTokyo,
@@ -59,6 +60,14 @@ export function SlotStep() {
     gap: { startTime: string; endTime: string };
   } | null>(null);
   const [pending, setPending] = useState(false);
+
+  // 公式練は月・水・木にしか入らないので既定でその3曜日だけ出す。
+  // ただし他の曜日の枠にも「空き」コマを置きたい場合があるため隠しきらない
+  const [practiceDaysOnly, setPracticeDaysOnly] = useState(true);
+  const visibleReservations = practiceDaysOnly
+    ? reservations.filter((r) => PRACTICE_WEEKDAYS.includes(getWeekday(r.date)))
+    : reservations;
+  const hiddenCount = reservations.length - visibleReservations.length;
 
   const derived = deriveMonthGenerations(
     reservations.flatMap((r) => r.slots),
@@ -257,18 +266,27 @@ export function SlotStep() {
 
       <ErrorMessage>{error}</ErrorMessage>
 
+      <WeekdayFilter
+        practiceDaysOnly={practiceDaysOnly}
+        hiddenCount={hiddenCount}
+        onChange={setPracticeDaysOnly}
+        disabled={pending}
+      />
+
       {/* 保存のたびに一覧が消えるとスクロール位置が飛ぶので、
           「読み込み中」に差し替えるのは月を切り替えた直後だけにする */}
-      {reservations.length === 0 ? (
+      {visibleReservations.length === 0 ? (
         <p className="rounded-xl border border-[var(--border)] px-4 py-8 text-center text-sm text-[var(--muted)]">
           {loading
             ? "読み込み中…"
-            : "この月の予約枠はありません。①CSV取込 から登録してください"}
+            : reservations.length > 0
+              ? "月・水・木の予約枠はありません。他の曜日は「すべての曜日」で見られます"
+              : "この月の予約枠はありません。①CSV取込 から登録してください"}
         </p>
       ) : (
         <>
           <SlotTimeline
-            reservations={reservations}
+            reservations={visibleReservations}
             disabled={pending}
             onSelectSlot={(reservation, slot) => {
               setError(null);
@@ -322,6 +340,57 @@ export function SlotStep() {
           }}
           onClose={() => setEditing(null)}
         />
+      ) : null}
+    </div>
+  );
+}
+
+/**
+ * 曜日の絞り込み (SPEC §6.2 Step2-1 / v1.9.1)
+ *
+ * 公式練は月・水・木にしか入らないので既定でその3曜日だけ出す。
+ * ただし**隠している件数を必ず出す**こと。金土日の予約枠にも「空き」コマを
+ * 置いて個人練に開放できるので、「無い」のではなく「隠れている」と分かる
+ * 必要がある。
+ */
+function WeekdayFilter({
+  practiceDaysOnly,
+  hiddenCount,
+  onChange,
+  disabled,
+}: {
+  practiceDaysOnly: boolean;
+  hiddenCount: number;
+  onChange: (value: boolean) => void;
+  disabled: boolean;
+}) {
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      {(
+        [
+          { value: true, label: "月・水・木" },
+          { value: false, label: "すべての曜日" },
+        ] as const
+      ).map((option) => (
+        <button
+          key={String(option.value)}
+          type="button"
+          disabled={disabled}
+          onClick={() => onChange(option.value)}
+          aria-pressed={practiceDaysOnly === option.value}
+          className={`rounded-full border px-3 py-1 text-sm disabled:opacity-50 ${
+            practiceDaysOnly === option.value
+              ? "border-[var(--foreground)] bg-[var(--foreground)] font-bold text-white"
+              : "border-[var(--border)]"
+          }`}
+        >
+          {option.label}
+        </button>
+      ))}
+      {practiceDaysOnly && hiddenCount > 0 ? (
+        <span className="text-xs text-[var(--muted)]">
+          他の曜日の予約枠 {hiddenCount}件を隠しています
+        </span>
       ) : null}
     </div>
   );

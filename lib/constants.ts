@@ -97,6 +97,18 @@ export function shortRoomName(name: string): string {
 /** 取込確認タイムラインの予約枠ブロック色 (SPEC §6.2 Step1-3)。コマの色とは別物 */
 export const RESERVATION_BLOCK_COLOR = { bg: "#334155", fg: "#FFFFFF" };
 
+// ---------- 練習曜日 (SPEC §6.2 Step2-1 / v1.9.1) ----------
+
+/**
+ * 公式練が入る曜日 (0=日 … 6=土)。月・水・木。
+ *
+ * コマ割りエディタの既定の絞り込みにだけ使う**表示上の都合**であり、
+ * 他の曜日にコマを作ることを禁止するものではない。
+ * 金土日の予約枠にも「空き」コマを置いて個人練に開放したい場合があるため、
+ * 画面側で全曜日に切り替えられるようにしておくこと。
+ */
+export const PRACTICE_WEEKDAYS: readonly number[] = [1, 3, 4];
+
 // ---------- ロール (SPEC §3.1) ----------
 
 export const ROLE_LABELS: Record<Role, string> = {
