@@ -13,8 +13,8 @@
 import { normalizeTime, splitRange, toMinutes } from "@/lib/time";
 import type { SlotStatus, TimeString } from "@/lib/types";
 
-/** コマ長のプリセット (SPEC §6.2 Step2-2: 90分・110分・手入力) */
-export const SLOT_PRESET_MINUTES = [90, 110] as const;
+/** コマ長のプリセット (SPEC §6.2 Step2-3: 70分・90分・110分・手入力。v1.9で70分を追加) */
+export const SLOT_PRESET_MINUTES = [70, 90, 110] as const;
 
 export const SLOT_STATUS_LABELS: Record<SlotStatus, string> = {
   genre: "公式練",
@@ -75,6 +75,13 @@ export function splitReservation(
   );
 }
 
+/**
+ * 編集中のコマ。
+ *
+ * **対象期は持たない。** v1.9 で対象期は月単位になり、ページ上部の設定が
+ * その月の公式練コマすべてに適用されるため、コマ個別には選ばせない
+ * (SPEC §6.2 Step2-2)。
+ */
 export interface SlotDraft {
   /** 編集中の既存コマ。重なり判定から自分自身を除くために使う */
   id: string | null;
@@ -82,7 +89,6 @@ export interface SlotDraft {
   endTime: string;
   status: SlotStatus;
   genreId: number | null;
-  targetGenerations: number[] | null;
 }
 
 export type SlotValidation = { ok: true } | { ok: false; message: string };
@@ -133,6 +139,58 @@ export function validateSlot(
   }
 
   return { ok: true };
+}
+
+/**
+ * コマを伸ばせる限界 (SPEC §6.2 Step2-3)。
+ * 予約枠の終わりか、次のコマの開始のうち早いほう。
+ *
+ * プリセット (70/90/110分) をここで頭打ちにしておけば、押した結果が
+ * 必ず妥当な範囲になる。「押したら必ずエラーになるボタン」を作らないため。
+ */
+export function maxSlotEnd(
+  reservation: TimeRange,
+  slots: SlotInfo[],
+  draftId: string | null,
+  startMinutes: number,
+): number {
+  const nextStarts = slots
+    .filter((s) => s.id !== draftId && toMinutes(s.startTime) >= startMinutes)
+    .map((s) => toMinutes(s.startTime));
+  return Math.min(toMinutes(reservation.endTime), ...nextStarts);
+}
+
+/** 対象期の比較キー。null と空配列はどちらも「全期」として同一視する */
+export function generationsKey(value: number[] | null): string {
+  return value && value.length > 0
+    ? [...value].sort((a, b) => a - b).join(",")
+    : "";
+}
+
+/**
+ * その月の公式練コマから対象期を読み取る (SPEC §6.2 Step2-2 / v1.9)。
+ *
+ * 対象期は月単位で決まるので、通常は全コマが同じ値を持つ。
+ * v1.9 より前に作ったコマが混ざっていると食い違うことがあるため、
+ * その場合は `mixed` を立てて画面で警告できるようにする。
+ */
+export function deriveMonthGenerations(slots: SlotInfo[]): {
+  value: number[] | null;
+  mixed: boolean;
+  count: number;
+} {
+  const genreSlots = slots.filter((s) => s.status === "genre");
+  if (genreSlots.length === 0) return { value: null, mixed: false, count: 0 };
+
+  const first = generationsKey(genreSlots[0].targetGenerations);
+  const mixed = genreSlots.some(
+    (s) => generationsKey(s.targetGenerations) !== first,
+  );
+  return {
+    value: mixed ? null : genreSlots[0].targetGenerations,
+    mixed,
+    count: genreSlots.length,
+  };
 }
 
 /**
