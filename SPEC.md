@@ -11,6 +11,7 @@
 | v1.5 | タブ①に**「今日の練習場所」施錠状況ボード**を追加(room_status新設。○=開錠済/×=施錠中、既定×、誰でも切替可。§6.1.1) |
 | v1.6 | **OB/OGロールを追加**。卒業者はアカウント削除ではなくOBへ移行し、タブ②③(ナンバー・マイカレンダー)のみ利用可能に。縦イベでのナンバー参加を継続できる(§3.6) |
 | v1.7 | **仕様変更2件**。①空き申請の時間粒度を**15分刻み→10分刻み**に変更(§6.1)。UI で丸めるだけでなく`claims`のCHECK制約でDB側でも強制する(クライアントからRLS経由で直接insertする設計のため、UIだけでは回避できてしまう)。②**タブ③のミニカレンダーをドット表示→予定ラベル表示**に変更(§6.0/§6.4)。タブ①②はドットのまま。あわせて`room_status.updated_at`をUPDATE時に更新するトリガを追加(§6.1.1の「3時間以上経過」判定が既定値のままでは機能しないため) |
+| v1.7.1 | 実装時の追加(仕様変更なし)。§5.2に`reservations`の**部分ユニークインデックス**(`status='active'`のみ対象)を追加。§9.4の重複ガードは「selectしてからinsert」の2段階のため、折衝係2人が同時に同じCSVを確定すると両方通ってしまう。`claims`の排他制約と同じくDB側にも一意性を持たせる |
 | v1.6.2 | 実装時の修正(仕様変更なし)。§5.2に**GRANTセクションを追加**。Supabaseプロジェクト既定の権限付与に暗黙依存していたため、環境によっては`permission denied for table`となっていた。GRANT(テーブル単位)とRLS(行単位)の二段構えを明示 |
 | v1.6.1 | 実装時の修正(仕様変更なし)。§5.2のSQLで**RLSヘルパー関数(`app_role`/`is_number_member`)の定義位置を全テーブル作成後へ移動**(先頭に置くと参照先テーブル未作成で`42P01`エラー。`language sql`の関数は作成時に本体が検証されるため)。あわせて`set search_path = public, extensions;`を冒頭に追加(Supabaseで`btree_gist`が`extensions`スキーマにある場合に`claims`の排他制約が解決できないため) |
 
@@ -213,8 +214,9 @@ CRON_SECRET=                      # Vercel Cron認証用ランダム文字列
 既存環境への適用は `supabase/migrations/` の連番SQLで行う(§2.2)。適用済みのマイグレーションは**後から書き換えない**ため、本節と各ファイルの関係は次のとおり:
 - `0001_init.sql` … 初期スキーマ
 - `0002_claims_and_room_status.sql` … v1.7 の差分(claims の10分刻みCHECK / room_status の updated_at トリガ)
+- `0003_reservations_unique.sql` … v1.7.1 の差分(reservations の active 部分ユニークインデックス)
 
-本節 = 0001 + 0002 を適用した状態。
+本節 = 0001 + 0002 + 0003 を適用した状態。
 
 ```sql
 -- =========================================================
@@ -292,6 +294,11 @@ create table public.reservations (
   created_at timestamptz not null default now(),
   check (start_time < end_time)
 );
+-- 同一枠の二重取込を DB でも禁止する(§9.4の重複ガードはselect→insertの2段階で、
+-- 折衝係2人の同時確定を防げないため)。取消済を取り直すのは正当なので active のみ対象。
+create unique index reservations_active_unique
+  on public.reservations (date, room_id, start_time, end_time)
+  where status = 'active';
 
 -- ---------- 第2層: コマ ----------
 create table public.slots (

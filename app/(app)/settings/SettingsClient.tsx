@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
@@ -10,7 +11,12 @@ import {
   inputClass,
   secondaryButtonClass,
 } from "@/components/ui";
-import { GENRES, GENRE_BY_ID } from "@/lib/constants";
+import {
+  GENRES,
+  GENRE_BY_ID,
+  ROLE_LABELS,
+  isCoordinatorOrAbove,
+} from "@/lib/constants";
 import { createClient } from "@/lib/supabase/client";
 import type { Profile } from "@/lib/types";
 
@@ -163,6 +169,15 @@ export function SettingsClient({
         </button>
       </section>
 
+      {/* OB は合言葉が正しくても昇格できない (SPEC §3.6)。欄自体を出さない */}
+      {profile.role !== "ob" ? (
+        <RoleSection
+          role={profile.role}
+          onError={setError}
+          onNotice={setNotice}
+        />
+      ) : null}
+
       <section className="space-y-3">
         <h2 className="text-base font-bold">ログアウト</h2>
         <button
@@ -210,6 +225,104 @@ function UrlRow({ label, url }: { label: string; url: string }) {
         </button>
       </div>
     </div>
+  );
+}
+
+/**
+ * ロール昇格と、折衝・管理画面への入口 (SPEC §6.4.1 / §3.4 / §7)
+ *
+ * 下部タブバーは ①全体 / ②ナンバー / ③マイ の3タブ固定なので、
+ * **`/coordinator` と `/admin` への導線はここにしか無い** (SPEC §7)。
+ *
+ * 昇格の照合は /api/role/elevate (service role) が行う。
+ * ここは合言葉を送って結果を表示するだけで、権限の判断は一切しない。
+ */
+function RoleSection({
+  role,
+  onError,
+  onNotice,
+}: {
+  role: Profile["role"];
+  onError: (message: string | null) => void;
+  onNotice: (message: string | null) => void;
+}) {
+  const router = useRouter();
+  const [rolePassword, setRolePassword] = useState("");
+  const [pending, setPending] = useState(false);
+
+  async function elevate(e: React.FormEvent) {
+    e.preventDefault();
+    setPending(true);
+    onError(null);
+    onNotice(null);
+    try {
+      const res = await fetch("/api/role/elevate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ rolePassword }),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        onError(body.error ?? "昇格に失敗しました");
+        return;
+      }
+      setRolePassword("");
+      onNotice(body.message ?? "ロールを更新しました");
+      // ヘッダのロール表示と、下の折衝・管理リンクを反映させる
+      router.refresh();
+    } finally {
+      setPending(false);
+    }
+  }
+
+  return (
+    <section className="space-y-3">
+      <h2 className="text-base font-bold">ロール</h2>
+      <p className="text-sm text-[var(--muted)]">
+        現在: <strong>{ROLE_LABELS[role]}</strong>
+      </p>
+
+      {isCoordinatorOrAbove(role) ? (
+        <div className="space-y-2">
+          <Link
+            href="/coordinator"
+            className={`${secondaryButtonClass} block text-center`}
+          >
+            折衝ワークフローを開く
+          </Link>
+          {role === "admin" ? (
+            <Link
+              href="/admin"
+              className={`${secondaryButtonClass} block text-center`}
+            >
+              管理者画面を開く
+            </Link>
+          ) : null}
+        </div>
+      ) : null}
+
+      <form onSubmit={elevate} className="space-y-3">
+        <Field
+          label="合言葉で昇格する"
+          hint="折衝または管理者の合言葉を入力してください。現在より下位のロールには変わりません。"
+        >
+          <input
+            type="password"
+            className={inputClass}
+            value={rolePassword}
+            autoComplete="off"
+            onChange={(e) => setRolePassword(e.target.value)}
+          />
+        </Field>
+        <button
+          type="submit"
+          disabled={pending || rolePassword.length === 0}
+          className={secondaryButtonClass}
+        >
+          昇格する
+        </button>
+      </form>
+    </section>
   );
 }
 

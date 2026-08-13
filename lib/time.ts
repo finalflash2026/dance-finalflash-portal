@@ -121,6 +121,18 @@ export function formatDate(year: number, month: number, day: number): DateString
   return `${String(year).padStart(4, "0")}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
 }
 
+/**
+ * 'YYYY-MM-DD' が実在する日付か。
+ * 形式が合っていても 2026-02-30 のような値は DB の date 型が拒否するため、
+ * CSV 取込では**保存前にここで弾いて行単位のエラーとして返す** (SPEC §9.4)。
+ */
+export function isValidDateString(date: string): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return false;
+  const { year, month, day } = parseDate(date);
+  if (month < 1 || month > 12 || day < 1) return false;
+  return day <= daysInMonth(year, month);
+}
+
 /** 曜日番号 (0=日 … 6=土)。UTC で構築するのでローカル TZ の影響を受けない */
 export function getWeekday(date: DateString): number {
   const { year, month, day } = parseDate(date);
