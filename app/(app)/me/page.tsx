@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 
 import { SetupNotice } from "@/components/SetupNotice";
@@ -5,11 +6,22 @@ import { getCurrentProfile } from "@/lib/auth/session";
 import { hasSupabaseEnv } from "@/lib/env";
 import { getMyEvents } from "@/lib/events";
 import { createClient } from "@/lib/supabase/server";
-import { addDays, formatDateLabel, formatTimeRange, todayInTokyo } from "@/lib/time";
+import {
+  addMonths,
+  endOfMonth,
+  formatDateLabel,
+  formatTimeRange,
+  parseDate,
+  startOfMonth,
+  todayInTokyo,
+} from "@/lib/time";
 import type { DateString, MyEvent } from "@/lib/types";
 
 /**
  * タブ③ マイカレンダー (SPEC.md §6.4) — 簡易版
+ *
+ * **月単位で表示する**。タブ①と同じく URL の ?date= が表示中の月を決めるので、
+ * 過去の月に戻って自分の申請や公式練を振り返れる。
  *
  * 抽出は購読ics と同じ getMyEvents() を使う。片方だけ条件がズレると
  * 「サイトには出るが ics に出ない」という事故になるため、必ず共用する。
@@ -18,10 +30,13 @@ import type { DateString, MyEvent } from "@/lib/types";
  * ミニカレンダー(**ドットではなく予定ラベル表示**。v1.7 §6.4) / 出欠管理窓(§6.4.2)
  */
 
-/** 一覧に出す範囲 */
-const RANGE_DAYS = 30;
+const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 
-export default async function MyCalendarPage() {
+export default async function MyCalendarPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ date?: string }>;
+}) {
   if (!hasSupabaseEnv()) {
     return <SetupNotice />;
   }
@@ -31,13 +46,18 @@ export default async function MyCalendarPage() {
     redirect("/login");
   }
 
+  const { date } = await searchParams;
   const today = todayInTokyo();
+  const selectedDate = date && DATE_PATTERN.test(date) ? date : today;
+  const monthStart = startOfMonth(selectedDate);
+  const { year, month } = parseDate(monthStart);
+
   const supabase = await createClient();
   const events = await getMyEvents(
     supabase,
     profile,
-    today,
-    addDays(today, RANGE_DAYS),
+    monthStart,
+    endOfMonth(selectedDate),
   );
 
   // 日付ごとにまとめる (getMyEvents は日付→開始時刻の順で返す)
@@ -48,30 +68,57 @@ export default async function MyCalendarPage() {
     byDate.set(event.date, list);
   }
 
+  const href = (target: DateString) =>
+    `/me?date=${encodeURIComponent(target)}`;
+
   return (
     <main className="mx-auto max-w-2xl space-y-4 px-4 py-4">
       <h1 className="text-xl font-bold">マイカレンダー</h1>
+
+      {/* 月送り。新しい月のデータが要るので実際に遷移する。
+          prefetch を明示して RSC ペイロードごと先読みさせる */}
+      <nav className="flex items-center justify-between rounded-xl border border-[var(--border)] px-2 py-1">
+        <Link
+          href={href(addMonths(monthStart, -1))}
+          prefetch
+          aria-label="前の月"
+          className="px-3 py-1 text-lg"
+        >
+          ‹
+        </Link>
+        <h2 className="text-base font-bold">
+          {year}年{month}月
+        </h2>
+        <Link
+          href={href(addMonths(monthStart, 1))}
+          prefetch
+          aria-label="次の月"
+          className="px-3 py-1 text-lg"
+        >
+          ›
+        </Link>
+      </nav>
+
       <p className="text-sm text-[var(--muted)]">
-        今日からの{RANGE_DAYS}日間の自分の予定です。
         {profile.role === "ob"
           ? "ナンバーの予定のみ表示されます。"
-          : "1〜3ジャンの公式練と、自分の空き申請が含まれます。"}
+          : "1〜3ジャンの公式練と、自分の空き申請が表示されます。"}
       </p>
 
       {byDate.size === 0 ? (
         <p className="rounded-xl border border-[var(--border)] px-4 py-8 text-center text-sm text-[var(--muted)]">
-          予定はありません
+          この月の予定はありません
         </p>
       ) : (
         <ul className="space-y-4">
-          {[...byDate].map(([date, dayEvents]) => (
-            <li key={date}>
-              <h2
-                className={`text-sm font-bold ${date === today ? "" : "text-[var(--muted)]"}`}
+          {[...byDate].map(([eventDate, dayEvents]) => (
+            <li key={eventDate}>
+              <h3
+                className={`text-sm font-bold ${eventDate === today ? "" : "text-[var(--muted)]"}`}
               >
-                {formatDateLabel(date)}
-                {date === today ? " (今日)" : ""}
-              </h2>
+                {formatDateLabel(eventDate)}
+                {eventDate === today ? " (今日)" : ""}
+              </h3>
               <ul className="mt-1 divide-y divide-[var(--border)] rounded-xl border border-[var(--border)]">
                 {dayEvents.map((event) => (
                   <li
