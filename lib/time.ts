@@ -81,6 +81,37 @@ export function formatTimeRange(start: string, end: string): string {
   return `${normalizeTime(start)}〜${normalizeTime(end)}`;
 }
 
+// ---------- 手入力の正規化 ----------
+//
+// iOS の数字キーボードには `:` も `-` も無い。区切り文字を打てない前提で、
+// 数字だけの入力を受け付けて整える (取込確認画面の時刻・日付欄で使う)。
+//
+// **入力中 (onChange) と確定時 (onBlur) で規則を分ける**のが要点。
+// 入力中に3桁を変換すると、'1300' と打とうとした人が '130' の時点で
+// '01:30' にされ、続く '0' で '01:300' になってしまうため。
+
+/** 入力中の時刻正規化。桁数が確定する4桁だけ変換する ('1700' → '17:00') */
+export function normalizeTimeInput(value: string): string {
+  const v = value.trim();
+  return /^\d{4}$/.test(v) ? `${v.slice(0, 2)}:${v.slice(2)}` : value;
+}
+
+/** 入力確定時の時刻正規化。もう続きを打たないので3桁も受ける ('930' → '09:30') */
+export function finalizeTimeInput(value: string): string {
+  const v = value.trim();
+  if (/^\d{4}$/.test(v)) return `${v.slice(0, 2)}:${v.slice(2)}`;
+  if (/^\d{3}$/.test(v)) return `0${v.slice(0, 1)}:${v.slice(1)}`;
+  return value;
+}
+
+/** 日付の正規化。8桁だけ変換する ('20260806' → '2026-08-06') */
+export function normalizeDateInput(value: string): string {
+  const v = value.trim();
+  return /^\d{8}$/.test(v)
+    ? `${v.slice(0, 4)}-${v.slice(4, 6)}-${v.slice(6)}`
+    : value;
+}
+
 // ---------- 日付 ----------
 
 /** JST の今日を 'YYYY-MM-DD' で返す */
