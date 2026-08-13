@@ -1,27 +1,24 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { ErrorMessage, buttonClass, secondaryButtonClass } from "@/components/ui";
-import { ROOMS, ROOM_BY_ID, ROOM_SECTIONS } from "@/lib/constants";
-import {
-  COORDINATOR_PROMPT,
-  CSV_HEADER_LINE,
-  validateRow,
-} from "@/lib/import";
+import { ROOMS, ROOM_SECTIONS } from "@/lib/constants";
+import { COORDINATOR_PROMPT, CSV_HEADER_LINE } from "@/lib/import";
+
+import { ImportTimeline } from "./ImportTimeline";
+import { effectiveRoomRaw, findConflicts, rowError, type Row } from "./rows";
 
 /**
  * Step1: CSV取込 (SPEC.md §6.2 Step1 / §9)
  *
  * 折衝係が自前のAIに作らせたCSVを受け取り、**目視で直してから**確定させる。
  * AI の出力は必ず間違うという前提の画面なので、
- *   - 不正行は捨てずに赤くして残す (直せるようにする)
- *   - 未知の部屋は赤くしてプルダウンを強制する
- *   - エラーが1行でも残っていれば確定させない
- * の3点を守る。
- *
- * 行の検証は lib/import.ts の validateRow を使い、
- * /api/reservations/bulk のサーバー側検証と**同じルール**で赤表示する。
+ *   - 不正行は捨てずに「要修正」カードとして残す (直せるようにする)
+ *   - 未知の部屋は同じく要修正に出してプルダウンを強制する
+ *   - 正しく読めた行は月まとめタイムラインに並べ、抜け・重複・時刻ミスを目視させる
+ *   - 要修正が1行でも残っていれば確定させない
+ * の4点を守る。
  */
 
 interface ParseResponse {
@@ -38,41 +35,6 @@ interface ParseResponse {
   skipped: number;
 }
 
-interface Row {
-  /** React の key。行を消しても番号が振り直されないよう独立に持つ */
-  key: number;
-  importFileId: string | null;
-  date: string;
-  start: string;
-  end: string;
-  roomRaw: string;
-  roomId: number | null;
-}
-
-/**
- * 部屋名の生表記。空なら選んだ部屋の正式名で補う。
- * 手動で追加した行には元の表記が無いが、その場合の正式名は
- * 既に room_aliases 相当として解決できるのでエイリアス学習は起きない。
- */
-function effectiveRoomRaw(row: Row): string {
-  const raw = row.roomRaw.trim();
-  if (raw) return raw;
-  return row.roomId !== null ? (ROOM_BY_ID.get(row.roomId)?.name ?? "") : "";
-}
-
-/** サーバーの再検証と同じ判定。ここで赤く出た行はそのまま bulk でも弾かれる */
-function rowError(row: Row): string | null {
-  const checked = validateRow({
-    date: row.date,
-    start: row.start,
-    end: row.end,
-    room: effectiveRoomRaw(row),
-  });
-  if (checked.error) return checked.error;
-  if (row.roomId === null) return "部屋を選んでください";
-  return null;
-}
-
 export function ImportStep() {
   const nextKey = useRef(0);
   const fileInput = useRef<HTMLInputElement>(null);
@@ -83,9 +45,17 @@ export function ImportStep() {
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
+  const [editingKey, setEditingKey] = useState<number | null>(null);
 
-  const errorCount = rows.filter((row) => rowError(row) !== null).length;
-  const unresolvedCount = rows.filter((row) => row.roomId === null).length;
+  const invalidRows = rows.filter((row) => rowError(row) !== null);
+  const validRows = rows.filter((row) => rowError(row) === null);
+  const conflicts = findConflicts(validRows);
+  // 完全一致は確定時に自動スキップされるので、要注意の「重なり」とは分けて数える
+  const conflictValues = [...conflicts.values()];
+  const overlapCount = conflictValues.filter((v) => v === "overlap").length;
+  const duplicateCount = conflictValues.filter((v) => v === "duplicate").length;
+  // 「N行目」の表示は解析順のまま数える (CSVと突き合わせられるように)
+  const numberOf = new Map(rows.map((row, index) => [row.key, index + 1]));
 
   async function parse(files: FileList) {
     setPending(true);
@@ -172,6 +142,33 @@ export function ImportStep() {
     );
   }
 
+  function remove(key: number) {
+    setRows((prev) => prev.filter((row) => row.key !== key));
+    setEditingKey((prev) => (prev === key ? null : prev));
+  }
+
+  function addRow() {
+    const key = nextKey.current++;
+    setRows((prev) => [
+      ...prev,
+      {
+        key,
+        // 手動追加の行はどのファイル由来でもないので紐付けない
+        importFileId: null,
+        date: "",
+        start: "",
+        end: "",
+        roomRaw: "",
+        roomId: null,
+      },
+    ]);
+    // 空の行はタイムラインに置けず要修正カードとして下から生えるだけなので、
+    // 追加した本人が見失わないよう編集パネルを開いておく
+    setEditingKey(key);
+  }
+
+  const editing = rows.find((row) => row.key === editingKey) ?? null;
+
   return (
     <div className="space-y-6">
       <PromptCard />
@@ -222,45 +219,56 @@ export function ImportStep() {
         <section className="space-y-3">
           <h2 className="text-base font-bold">2. 内容を確認する</h2>
           <p className="text-sm text-[var(--muted)]">
-            {rows.length}行
-            {errorCount > 0 ? ` / 要修正 ${errorCount}行` : ""}
-            {unresolvedCount > 0 ? ` / 未対応の部屋 ${unresolvedCount}行` : ""}
+            {rows.length}件
+            {invalidRows.length > 0 ? ` / 要修正 ${invalidRows.length}件` : ""}
+            {overlapCount > 0 ? ` / 時間の重なり ${overlapCount}件` : ""}
+            {duplicateCount > 0 ? ` / 重複 ${duplicateCount}件` : ""}
           </p>
 
-          <ul className="space-y-2">
-            {rows.map((row, index) => (
-              <RowCard
-                key={row.key}
-                row={row}
-                index={index}
-                error={rowError(row)}
-                disabled={pending}
-                onChange={(patch) => update(row.key, patch)}
-                onRemove={() =>
-                  setRows((prev) => prev.filter((r) => r.key !== row.key))
-                }
-              />
-            ))}
-          </ul>
+          {/* 時刻や部屋が確定しない行はタイムラインに置けないので先に直させる */}
+          {invalidRows.length > 0 ? (
+            <div className="space-y-2">
+              <h3 className="text-sm font-bold text-[#8B1A10]">
+                要修正 ({invalidRows.length}件)
+              </h3>
+              <ul className="space-y-2">
+                {invalidRows.map((row) => (
+                  <li key={row.key}>
+                    <RowCard
+                      row={row}
+                      no={numberOf.get(row.key) ?? 0}
+                      error={rowError(row)}
+                      disabled={pending}
+                      onChange={(patch) => update(row.key, patch)}
+                      onRemove={() => remove(row.key)}
+                    />
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
+
+          <ImportTimeline
+            rows={validRows}
+            conflicts={conflicts}
+            onSelect={setEditingKey}
+          />
+          {validRows.length > 0 ? (
+            <p className="text-xs text-[var(--muted)]">
+              ブロックをタップすると日付・時刻・部屋を編集できます。
+              {overlapCount > 0
+                ? " ⚠ の枠は同じ部屋で時間が重なっています。読み取りミスの可能性があるので確認してください。"
+                : ""}
+              {duplicateCount > 0
+                ? " ⚠ の枠のうち完全に同じものは、確定時に自動でスキップされます。"
+                : ""}
+            </p>
+          ) : null}
 
           <button
             type="button"
             disabled={pending}
-            onClick={() =>
-              setRows((prev) => [
-                ...prev,
-                {
-                  key: nextKey.current++,
-                  // 手動追加の行はどのファイル由来でもないので紐付けない
-                  importFileId: null,
-                  date: "",
-                  start: "",
-                  end: "",
-                  roomRaw: "",
-                  roomId: null,
-                },
-              ])
-            }
+            onClick={addRow}
             className={secondaryButtonClass}
           >
             行を追加する
@@ -272,16 +280,27 @@ export function ImportStep() {
             </p>
             <button
               type="button"
-              disabled={pending || errorCount > 0}
+              disabled={pending || invalidRows.length > 0}
               onClick={confirm}
               className={buttonClass}
             >
-              {errorCount > 0
-                ? `要修正の行が${errorCount}件あります`
+              {invalidRows.length > 0
+                ? `要修正の行が${invalidRows.length}件あります`
                 : `${rows.length}件を確定する`}
             </button>
           </div>
         </section>
+      ) : null}
+
+      {editing ? (
+        <EditModal
+          row={editing}
+          no={numberOf.get(editing.key) ?? 0}
+          disabled={pending}
+          onChange={(patch) => update(editing.key, patch)}
+          onRemove={() => remove(editing.key)}
+          onClose={() => setEditingKey(null)}
+        />
       ) : null}
     </div>
   );
@@ -322,16 +341,76 @@ function PromptCard() {
   );
 }
 
+/** タイムラインのブロックをタップしたときの編集パネル */
+function EditModal({
+  row,
+  no,
+  disabled,
+  onChange,
+  onRemove,
+  onClose,
+}: {
+  row: Row;
+  no: number;
+  disabled: boolean;
+  onChange: (patch: Partial<Row>) => void;
+  onRemove: () => void;
+  onClose: () => void;
+}) {
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [onClose]);
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 sm:items-center">
+      <button
+        type="button"
+        aria-label="閉じる"
+        className="absolute inset-0 h-full w-full cursor-default"
+        onClick={onClose}
+      />
+      <div
+        role="dialog"
+        aria-modal="true"
+        className="relative z-10 w-full max-w-md rounded-t-2xl bg-[var(--background)] p-4 sm:rounded-2xl"
+      >
+        <RowCard
+          row={row}
+          no={no}
+          error={rowError(row)}
+          disabled={disabled}
+          onChange={onChange}
+          onRemove={() => {
+            onRemove();
+            onClose();
+          }}
+        />
+        <button
+          type="button"
+          onClick={onClose}
+          className={`${secondaryButtonClass} mt-3`}
+        >
+          閉じる
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function RowCard({
   row,
-  index,
+  no,
   error,
   disabled,
   onChange,
   onRemove,
 }: {
   row: Row;
-  index: number;
+  no: number;
   error: string | null;
   disabled: boolean;
   onChange: (patch: Partial<Row>) => void;
@@ -346,13 +425,13 @@ function RowCard({
     : "border-[var(--border)] focus:border-[var(--foreground)]";
 
   return (
-    <li
+    <div
       className={`space-y-2 rounded-xl border p-3 ${
         error ? "border-[#8B1A10] bg-[#FDECEA]" : "border-[var(--border)]"
       }`}
     >
       <div className="flex items-center justify-between text-xs text-[var(--muted)]">
-        <span>{index + 1}行目</span>
+        <span>{no}行目</span>
         <button
           type="button"
           onClick={onRemove}
@@ -433,6 +512,6 @@ function RowCard({
           {error}
         </p>
       ) : null}
-    </li>
+    </div>
   );
 }

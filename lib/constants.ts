@@ -85,6 +85,18 @@ export const ROOMS: ReadonlyArray<{
 
 export const ROOM_BY_ID = new Map(ROOMS.map((r) => [r.id, r]));
 
+/**
+ * 括弧書きの所在を落とした短い部屋名 (例: 「練習室1(フレスコ)」→「練習室1」)。
+ * 取込確認のタイムラインのように、行ラベルの幅が限られる場所で使う。
+ * section を別に見出しとして出している場面では所在は冗長になるため。
+ */
+export function shortRoomName(name: string): string {
+  return name.replace(/\([^)]*\)$/, "");
+}
+
+/** 取込確認タイムラインの予約枠ブロック色 (SPEC §6.2 Step1-3)。コマの色とは別物 */
+export const RESERVATION_BLOCK_COLOR = { bg: "#334155", fg: "#FFFFFF" };
+
 // ---------- ロール (SPEC §3.1) ----------
 
 export const ROLE_LABELS: Record<Role, string> = {
