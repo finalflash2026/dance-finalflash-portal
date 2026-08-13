@@ -10,7 +10,7 @@
  * 出すためのもので、認可・整合性の最終防衛線ではない (SPEC §13.2)。
  */
 
-import { normalizeTime, splitRange, toMinutes } from "@/lib/time";
+import { fromMinutes, normalizeTime, splitRange, toMinutes } from "@/lib/time";
 import type { SlotStatus, TimeString } from "@/lib/types";
 
 /** コマ長のプリセット (SPEC §6.2 Step2-3: 70分・90分・110分・手入力。v1.9で70分を追加) */
@@ -158,6 +158,29 @@ export function maxSlotEnd(
     .filter((s) => s.id !== draftId && toMinutes(s.startTime) >= startMinutes)
     .map((s) => toMinutes(s.startTime));
   return Math.min(toMinutes(reservation.endTime), ...nextStarts);
+}
+
+/**
+ * プリセット (70/90/110分) を押したときの時間帯を決める。
+ *
+ * 新規作成の時刻欄は**空で開く** (予約枠の時間が入ったままだと打ち直しに
+ * 一度消す手間がかかるため)。そのぶん、開始が空または書きかけのときは
+ * 押した未割当区間の先頭を起点にして、1タップで開始・終了とも埋まるようにする。
+ *
+ * 終了は maxSlotEnd() で頭打ちにするので、返す範囲は常に妥当。
+ */
+export function applySlotPreset(
+  reservation: TimeRange,
+  slots: SlotInfo[],
+  draft: Pick<SlotDraft, "id" | "startTime">,
+  gapStart: TimeString,
+  minutes: number,
+): { startTime: TimeString; endTime: TimeString } {
+  const typed = draft.startTime.trim();
+  const startTime = TIME_RE.test(typed) ? typed : gapStart;
+  const start = toMinutes(startTime);
+  const limit = maxSlotEnd(reservation, slots, draft.id, start);
+  return { startTime, endTime: fromMinutes(Math.min(start + minutes, limit)) };
 }
 
 /** 対象期の比較キー。null と空配列はどちらも「全期」として同一視する */

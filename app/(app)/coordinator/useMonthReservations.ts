@@ -127,6 +127,10 @@ export function useMonthReservations(month: DateString) {
   }, [month]);
 
   useEffect(() => {
+    // **月が変わったときだけ**前の月の内容を捨てる。
+    // reload() は中身を残したまま読み直すので、コマを保存しても
+    // 画面が「読み込み中」に切り替わらず、スクロール位置が保たれる
+    setReservations([]);
     load();
   }, [load]);
 
