@@ -37,9 +37,10 @@ export async function getMyEvents(
     events.push(...(await getGenrePracticeEvents(supabase, profile, from, to)));
   }
 
-  // ---- 2. 自分の空き申請 (Phase 2 で追加) ----
-  // claims を user_id=profile.user_id で引き、slots(published=true) と join する。
-  // 時刻は slots ではなく claims 自身の start/end を使うこと (SPEC §6.4-2)。
+  // ---- 2. 自分の空き申請 (現役のみ) ----
+  if (profile.role !== "ob") {
+    events.push(...(await getClaimEvents(supabase, profile, from, to)));
+  }
 
   // ---- 3. ナンバー練 (Phase 4 で追加) ----
   // number_events を number_members 経由で自分の所属分だけ引く。
@@ -96,6 +97,56 @@ async function getGenrePracticeEvents(
       endTime: normalizeTime(row.end_time),
       title: `${row.genres?.code ?? "?"} 公式練`,
       location: row.rooms?.name ?? "",
+    }));
+}
+
+/**
+ * SPEC §6.4-2: 自分の空き申請。
+ *
+ * **時刻は slots ではなく claims 自身の start/end を使う**。
+ * 空きコマ全体ではなく、自分が申請した時間帯だけが予定になるため。
+ *
+ * 公開が取り消されたコマの申請を出さないよう `slots.published` で絞る。
+ * service role 経由 (購読ics) では RLS が効かないので、
+ * user_id の条件をクエリに明示することが他人の申請混入を防ぐ唯一の砦になる。
+ */
+async function getClaimEvents(
+  supabase: SupabaseClient,
+  profile: Profile,
+  from: DateString,
+  to: DateString,
+): Promise<MyEvent[]> {
+  const { data, error } = await supabase
+    .from("claims")
+    .select(
+      "id, start_time, end_time, purpose, slots!inner(date, published, rooms(name))",
+    )
+    .eq("user_id", profile.user_id)
+    .eq("slots.published", true)
+    .gte("slots.date", from)
+    .lte("slots.date", to);
+
+  if (error) throw new Error(`claims の取得に失敗しました: ${error.message}`);
+
+  const rows = (data ?? []) as unknown as {
+    id: string;
+    start_time: string;
+    end_time: string;
+    purpose: string | null;
+    slots: { date: DateString; rooms: { name: string } | null } | null;
+  }[];
+
+  return rows
+    .filter((row) => row.slots !== null)
+    .map((row) => ({
+      kind: "claim" as const,
+      sourceId: row.id,
+      date: row.slots!.date,
+      startTime: normalizeTime(row.start_time),
+      endTime: normalizeTime(row.end_time),
+      // SPEC §10 の SUMMARY 形式
+      title: `空き使用(${row.purpose?.trim() || "個人練"})`,
+      location: row.slots!.rooms?.name ?? "",
     }));
 }
 

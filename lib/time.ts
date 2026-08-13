@@ -20,8 +20,12 @@ export const DAY_START_TIME: TimeString = "09:00";
 export const DAY_END_TIME: TimeString = "22:00";
 /** タイムラインの目盛 (SPEC §6.1: 30分刻み) */
 export const TIMELINE_STEP_MINUTES = 30;
-/** 空き申請の時間粒度 (SPEC §6.1: 15分刻み) */
-export const CLAIM_STEP_MINUTES = 15;
+/**
+ * 空き申請の時間粒度 (SPEC §6.1: 10分刻み。v1.7 で 15分から変更)
+ * DB 側も claims_ten_minutes CHECK 制約で同じ粒度を強制している。
+ * ここを変えるときはマイグレーションも必ず合わせること。
+ */
+export const CLAIM_STEP_MINUTES = 10;
 
 const WEEKDAY_LABELS = ["日", "月", "火", "水", "木", "金", "土"] as const;
 
@@ -45,7 +49,7 @@ export function fromMinutes(minutes: number): TimeString {
   return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
 }
 
-/** step 分単位に丸める (既定は空き申請の15分刻み) */
+/** step 分単位に丸める (既定は空き申請の刻み) */
 export function roundToStep(
   time: string,
   step: number = CLAIM_STEP_MINUTES,
@@ -89,11 +93,19 @@ export function todayInTokyo(): DateString {
 
 /** JST の現在時刻を 'HH:MM' で返す */
 export function nowTimeInTokyo(): TimeString {
+  return formatAsTokyoTime(new Date());
+}
+
+/**
+ * timestamptz (ISO文字列) や Date を JST の 'HH:MM' で表示する。
+ * 施錠ボードの最終更新表示・最終取得表示に使う (SPEC §6.1.1)。
+ */
+export function formatAsTokyoTime(value: string | Date): TimeString {
   return new Intl.DateTimeFormat("en-GB", {
     timeZone: TIMEZONE,
     hour: "2-digit",
     minute: "2-digit",
-  }).format(new Date());
+  }).format(typeof value === "string" ? new Date(value) : value);
 }
 
 export function parseDate(date: DateString): {

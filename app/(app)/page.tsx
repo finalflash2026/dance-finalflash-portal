@@ -2,9 +2,10 @@ import { redirect } from "next/navigation";
 
 import { CalendarView } from "@/components/CalendarView";
 import type { DayBlock } from "@/components/DayGrid";
+import { RoomStatusBoard, type RoomStatusRow } from "@/components/RoomStatusBoard";
 import { SetupNotice } from "@/components/SetupNotice";
 import { getCurrentProfile } from "@/lib/auth/session";
-import { GENRE_BY_ID } from "@/lib/constants";
+import { GENRE_BY_ID, isCoordinatorOrAbove } from "@/lib/constants";
 import { hasSupabaseEnv } from "@/lib/env";
 import { createClient } from "@/lib/supabase/server";
 import {
@@ -18,17 +19,26 @@ import type { DateString, SlotStatus } from "@/lib/types";
 /**
  * タブ① 全体カレンダー (SPEC.md §6.1)
  *
- * 折衝が公開した slots を「ミニカレンダー → 日別ビュー」で見せる。
+ * 折衝が公開した slots と申請 claims を「ミニカレンダー → 日別ビュー」で見せる。
  *
- * サーバーは**その月ぶんをまとめて1クエリ**で取り (SPEC §13.1)、
- * 日付の選択は CalendarView がクライアント側で行う。同じ月なら取りに行く
- * データが無いため、日付切り替えでサーバー往復を起こさないようにしている。
- * URL の ?date= はどちらの経路でも有効 (共有・リロード・月送りの起点)。
+ * サーバーは**その月ぶんをまとめて1クエリ**で取り (SPEC §13.1: slots+claims+profiles
+ * を join)、日付の選択は CalendarView がクライアント側で行う。同じ月なら取りに行く
+ * データが無いため、日付切り替えでサーバー往復を起こさない。
  *
- * Phase 2 で追加するもの: 施錠状況ボード (§6.1.1)、空き申請と claims の描画。
+ * 施錠状況ボード (§6.1.1) は**選択中の日付に関わらず常に今日**を見るため別クエリ。
+ * 3本を Promise.all で並列に投げる (直列だと1本ぶんの遅延が3倍になる)。
  */
 
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+
+type ClaimRow = {
+  id: string;
+  user_id: string;
+  start_time: string;
+  end_time: string;
+  purpose: string | null;
+  profiles: { username: string } | null;
+};
 
 type SlotRow = {
   id: string;
@@ -40,6 +50,7 @@ type SlotRow = {
   genre_id: number | null;
   target_generations: number[] | null;
   note: string | null;
+  claims: ClaimRow[] | null;
 };
 
 export default async function OverviewCalendarPage({
@@ -62,20 +73,37 @@ export default async function OverviewCalendarPage({
   const today = todayInTokyo();
   const selectedDate = date && DATE_PATTERN.test(date) ? date : today;
 
-  // その月ぶんを1クエリで取得する (SPEC §13.1)
   const supabase = await createClient();
-  const { data, error } = await supabase
-    .from("slots")
-    .select(
-      "id, date, start_time, end_time, room_id, status, genre_id, target_generations, note",
-    )
-    .eq("published", true)
-    .gte("date", startOfMonth(selectedDate))
-    .lte("date", endOfMonth(selectedDate));
+
+  const [monthResult, todayRoomsResult, roomStatusResult] = await Promise.all([
+    // 1. 選択月の slots + claims + 申請者名 (SPEC §13.1)
+    supabase
+      .from("slots")
+      .select(
+        "id, date, start_time, end_time, room_id, status, genre_id, target_generations, note," +
+          " claims(id, user_id, start_time, end_time, purpose, profiles(username))",
+      )
+      .eq("published", true)
+      .gte("date", startOfMonth(selectedDate))
+      .lte("date", endOfMonth(selectedDate)),
+
+    // 2. 施錠ボードに並べる部屋 = 今日、公開済み slots が1件以上ある部屋 (§6.1.1)
+    supabase
+      .from("slots")
+      .select("room_id")
+      .eq("published", true)
+      .eq("date", today),
+
+    // 3. 今日の施錠状況と、最後に切り替えた人
+    supabase
+      .from("room_status")
+      .select("room_id, is_unlocked, updated_at, profiles(username)")
+      .eq("date", today),
+  ]);
 
   // 日付ごとにまとめておく。クライアント側は選択日で引くだけで済む
   const blocksByDate: Record<DateString, DayBlock[]> = {};
-  for (const row of (data ?? []) as SlotRow[]) {
+  for (const row of (monthResult.data ?? []) as unknown as SlotRow[]) {
     (blocksByDate[row.date] ??= []).push({
       id: row.id,
       roomId: row.room_id,
@@ -87,8 +115,26 @@ export default async function OverviewCalendarPage({
         : null,
       targetGenerations: row.target_generations,
       note: row.note,
+      claims: (row.claims ?? []).map((claim) => ({
+        id: claim.id,
+        userId: claim.user_id,
+        username: claim.profiles?.username ?? "(不明)",
+        startTime: normalizeTime(claim.start_time),
+        endTime: normalizeTime(claim.end_time),
+        purpose: claim.purpose,
+      })),
     });
   }
+
+  const todayRoomIds = [
+    ...new Set(
+      ((todayRoomsResult.data ?? []) as { room_id: number }[]).map(
+        (r) => r.room_id,
+      ),
+    ),
+  ];
+
+  const error = monthResult.error ?? todayRoomsResult.error;
 
   return (
     <main className="mx-auto max-w-2xl space-y-4 px-4 py-4">
@@ -103,6 +149,16 @@ export default async function OverviewCalendarPage({
         </p>
       ) : null}
 
+      {/* 選択日に関わらず常に「今日」を示すカード。ミニカレンダーより上 (§6.1.1) */}
+      <RoomStatusBoard
+        today={today}
+        roomIds={todayRoomIds}
+        initialRows={
+          (roomStatusResult.data ?? []) as unknown as RoomStatusRow[]
+        }
+        currentUserId={profile?.user_id ?? ""}
+      />
+
       {/*
         key を渡して、サーバーが別の日付を返したときに CalendarView を作り直す。
         これが無いと、月送りやブラウザの戻るでサーバーの選択日が変わっても
@@ -116,6 +172,8 @@ export default async function OverviewCalendarPage({
         today={today}
         markedDates={Object.keys(blocksByDate)}
         blocksByDate={blocksByDate}
+        currentUserId={profile?.user_id ?? ""}
+        canManage={profile ? isCoordinatorOrAbove(profile.role) : false}
       />
     </main>
   );

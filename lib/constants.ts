@@ -53,6 +53,8 @@ export const GENRE_COLORS: Record<GenreCode, { bg: string; fg: string }> = {
 /** status='open'(空き) / 'unavailable'(使用不可) のブロック色 */
 export const SLOT_OPEN_COLOR = { bg: "#F1F5F9", fg: "#334155" };
 export const SLOT_UNAVAILABLE_COLOR = { bg: "#CBD5E1", fg: "#64748B" };
+/** 空きコマのうち申請済みの時間帯 (SPEC §6.1)。ジャンル色と混同しない中間色にする */
+export const SLOT_CLAIMED_COLOR = { bg: "#94A3B8", fg: "#FFFFFF" };
 
 // ---------- 部屋 (SPEC §4.2) ----------
 
