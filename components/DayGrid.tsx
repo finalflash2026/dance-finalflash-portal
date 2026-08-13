@@ -222,6 +222,7 @@ export function DayGrid({
           slot={claiming.slot}
           initialRange={claiming.range}
           roomBlocks={blocks.filter((b) => b.roomId === claiming.slot.roomId)}
+          currentUserId={currentUserId}
           onClose={() => setClaiming(null)}
         />
       ) : null}

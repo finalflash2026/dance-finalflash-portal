@@ -49,6 +49,7 @@ export function ClaimSheet({
   slot,
   initialRange,
   roomBlocks,
+  currentUserId,
   onClose,
 }: {
   date: DateString;
@@ -58,6 +59,8 @@ export function ClaimSheet({
   initialRange: { startTime: string; endTime: string };
   /** 同じ部屋・同じ日の全 slot。タイムバーの「塞がり」表示に使う */
   roomBlocks: DayBlock[];
+  /** 申請者。RLS ins_claims が auth.uid() との一致を要求する */
+  currentUserId: string;
   onClose: () => void;
 }) {
   const router = useRouter();
@@ -85,6 +88,19 @@ export function ClaimSheet({
     options[1] ?? options[options.length - 1] ?? range.endTime,
   );
 
+  /**
+   * 開始を変えたら終了も追従させる。
+   * 終了のプルダウンは「開始より後」で絞り込むため、補正しないと
+   * 選択肢に無い値が state に残り、表示と実態がズレる。
+   */
+  function changeStartTime(value: string) {
+    setStartTime(value);
+    if (toMinutes(endTime) <= toMinutes(value)) {
+      const next = options.find((time) => toMinutes(time) > toMinutes(value));
+      if (next) setEndTime(next);
+    }
+  }
+
   const room = ROOMS.find((r) => r.id === slot.roomId);
   const validation = validateClaim(slot, slot.claims, startTime, endTime);
 
@@ -95,9 +111,9 @@ export function ClaimSheet({
     const supabase = createClient();
     const { error: insertError } = await supabase.from("claims").insert({
       slot_id: slot.id,
-      // user_id は RLS の ins_claims が auth.uid() と一致を要求する。
-      // クライアントから渡すが、他人になりすました値は DB で弾かれる
-      user_id: (await supabase.auth.getUser()).data.user?.id,
+      // RLS の ins_claims が user_id = auth.uid() を要求するため、
+      // 他人になりすました値を入れても DB で弾かれる
+      user_id: currentUserId,
       start_time: startTime,
       end_time: endTime,
       purpose: purpose.trim() || null,
@@ -193,7 +209,7 @@ export function ClaimSheet({
                   <select
                     className={inputClass}
                     value={startTime}
-                    onChange={(e) => setStartTime(e.target.value)}
+                    onChange={(e) => changeStartTime(e.target.value)}
                   >
                     {options.slice(0, -1).map((time) => (
                       <option key={time} value={time}>
