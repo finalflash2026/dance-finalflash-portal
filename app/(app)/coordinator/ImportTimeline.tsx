@@ -104,10 +104,16 @@ export function ImportTimeline({
   const groups = groupRows(rows);
 
   return (
-    <div className="overflow-x-auto rounded-xl border border-[var(--border)]">
+    /*
+     * 高さを 70vh で頭打ちにして中で縦スクロールさせる。
+     * 全体を伸ばしたままだと**横スクロールバーが画面外の一番下に行ってしまい**、
+     * 遅い時間帯を見るのにいちいちページ末尾まで送る必要があった。
+     * ついでに時刻の目盛を sticky top-0 にできるので、縦に送っても軸を見失わない。
+     */
+    <div className="h-scroll max-h-[70vh] overflow-auto rounded-xl border border-[var(--border)]">
       <div className="w-max">
         {/* 時刻の目盛 */}
-        <div className="flex border-b border-[var(--border)] bg-[var(--surface)]">
+        <div className="sticky top-0 z-30 flex border-b border-[var(--border)] bg-[var(--surface)]">
           <div
             className="sticky left-0 z-20 shrink-0 bg-[var(--surface)]"
             style={{ width: LABEL_WIDTH }}

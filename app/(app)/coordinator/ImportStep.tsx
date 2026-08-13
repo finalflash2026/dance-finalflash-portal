@@ -5,6 +5,11 @@ import { useEffect, useRef, useState } from "react";
 import { ErrorMessage, buttonClass, secondaryButtonClass } from "@/components/ui";
 import { ROOMS, ROOM_SECTIONS } from "@/lib/constants";
 import { COORDINATOR_PROMPT, CSV_HEADER_LINE } from "@/lib/import";
+import {
+  finalizeTimeInput,
+  normalizeDateInput,
+  normalizeTimeInput,
+} from "@/lib/time";
 
 import { ImportTimeline } from "./ImportTimeline";
 import { effectiveRoomRaw, findConflicts, rowError, type Row } from "./rows";
@@ -449,7 +454,8 @@ function RowCard({
           placeholder="2026-08-06"
           inputMode="numeric"
           disabled={disabled}
-          onChange={(e) => onChange({ date: e.target.value })}
+          onChange={(e) => onChange({ date: normalizeDateInput(e.target.value) })}
+          onBlur={(e) => onChange({ date: normalizeDateInput(e.target.value) })}
           className={`${cell} ${border} flex-[2]`}
         />
         <input
@@ -458,7 +464,8 @@ function RowCard({
           placeholder="13:00"
           inputMode="numeric"
           disabled={disabled}
-          onChange={(e) => onChange({ start: e.target.value })}
+          onChange={(e) => onChange({ start: normalizeTimeInput(e.target.value) })}
+          onBlur={(e) => onChange({ start: finalizeTimeInput(e.target.value) })}
           className={`${cell} ${border} flex-1`}
         />
         <input
@@ -467,10 +474,16 @@ function RowCard({
           placeholder="21:30"
           inputMode="numeric"
           disabled={disabled}
-          onChange={(e) => onChange({ end: e.target.value })}
+          onChange={(e) => onChange({ end: normalizeTimeInput(e.target.value) })}
+          onBlur={(e) => onChange({ end: finalizeTimeInput(e.target.value) })}
           className={`${cell} ${border} flex-1`}
         />
       </div>
+
+      {/* iOS の数字キーボードには : も - も無いので、数字だけでも通ることを明示する */}
+      <p className="text-[11px] text-[var(--muted)]">
+        数字だけでも入力できます (1700 → 17:00 / 20260806 → 2026-08-06)
+      </p>
 
       <div className="flex gap-2">
         <input

@@ -21,6 +21,32 @@
   --color-surface: var(--surface);
 }
 
+/*
+ * 横スクロールする表・タイムライン用 (SPEC §12: スマホ最優先)
+ *
+ * iOS Safari / macOS の既定はオーバーレイ式で、**指を置くまでスクロールバーが出ない**。
+ * そのため「右側にまだ続きがある」ことに気付けない。
+ * `-webkit-appearance: none` と明示的な height を当てると常時表示のバーになる。
+ *
+ * あわせて `scrollbar-color` で標準プロパティ側 (Firefox 等) も指定しておく。
+ */
+.h-scroll {
+  scrollbar-color: #94a3b8 var(--surface);
+}
+.h-scroll::-webkit-scrollbar {
+  height: 8px;
+  width: 8px;
+  -webkit-appearance: none;
+}
+.h-scroll::-webkit-scrollbar-track {
+  background: var(--surface);
+  border-radius: 4px;
+}
+.h-scroll::-webkit-scrollbar-thumb {
+  background: #94a3b8;
+  border-radius: 4px;
+}
+
 body {
   background: var(--background);
   color: var(--foreground);

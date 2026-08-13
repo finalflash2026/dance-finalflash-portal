@@ -112,7 +112,8 @@ export function DayGrid({
 
   return (
     <>
-      <div className="overflow-x-auto rounded-xl border border-[var(--border)]">
+      {/* h-scroll: iOS の既定はオーバーレイ式で右に続きがあると気付けないため常時表示にする */}
+      <div className="h-scroll overflow-x-auto rounded-xl border border-[var(--border)]">
         <div className="w-max">
           {/* section 見出し */}
           <div className="flex border-b border-[var(--border)] bg-[var(--surface)]">
