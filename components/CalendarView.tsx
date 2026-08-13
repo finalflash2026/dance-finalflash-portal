@@ -54,10 +54,14 @@ export function CalendarView({
     setSelectedDate(date);
     // ナビゲーションを起こさずに URL だけ合わせる。
     // これでリロードや共有をしても同じ日が開く。
+    //
+    // **今日を選んだときは ?date= を消す。** 残したままだと、その URL で
+    // 次にアプリを開いたときに「今日」ではなく当時の日付が出てしまう。
+    // 既定の入口は常に今日であってほしい (SPEC §6.0「初期値=当日選択」)。
     window.history.replaceState(
       null,
       "",
-      `?date=${encodeURIComponent(date)}`,
+      date === today ? window.location.pathname : `?date=${encodeURIComponent(date)}`,
     );
   }
 
@@ -72,9 +76,12 @@ export function CalendarView({
         onSelectDate={selectDate}
       />
 
-      <section className="space-y-2">
-        <h2 className="text-base font-bold">
+      <section className="space-y-1">
+        <h2 className="text-sm font-bold">
           {formatDateLabel(selectedDate)} の練習
+          {selectedDate === today ? (
+            <span className="ml-1 font-normal text-[var(--muted)]">(今日)</span>
+          ) : null}
         </h2>
         <DayGrid
           date={selectedDate}

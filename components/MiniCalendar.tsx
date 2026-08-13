@@ -64,35 +64,62 @@ export function MiniCalendar({
   const href = (date: DateString) =>
     `${basePath}?date=${encodeURIComponent(date)}`;
 
+  // 今日がこの月にあるなら「今日」は往復ゼロで選べる。無ければ遷移が要る
+  const todayInThisMonth = cells.includes(today);
+
   return (
-    <section className="rounded-xl border border-[var(--border)] p-3">
+    <section className="rounded-xl border border-[var(--border)] px-2 py-1.5">
       <header className="flex items-center justify-between">
         <Link
           href={href(addMonths(monthAnchor, -1))}
           prefetch
           aria-label="前の月"
-          className="px-3 py-1 text-lg"
+          className="px-3 py-0.5 text-lg"
         >
           ‹
         </Link>
-        <h2 className="text-base font-bold">
-          {year}年{month}月
-        </h2>
+        <div className="flex items-baseline gap-2">
+          <h2 className="text-sm font-bold">
+            {year}年{month}月
+          </h2>
+          {/* 別の日を見た後に今日へ戻る導線。今日が表示中の月に無ければ遷移する */}
+          {selectedDate !== today ? (
+            <a
+              href={href(today)}
+              onClick={(event) => {
+                if (
+                  event.metaKey ||
+                  event.ctrlKey ||
+                  event.shiftKey ||
+                  event.altKey ||
+                  !todayInThisMonth
+                ) {
+                  return;
+                }
+                event.preventDefault();
+                onSelectDate(today);
+              }}
+              className="rounded border border-[var(--border)] px-1.5 py-0.5 text-[10px]"
+            >
+              今日
+            </a>
+          ) : null}
+        </div>
         <Link
           href={href(addMonths(monthAnchor, 1))}
           prefetch
           aria-label="次の月"
-          className="px-3 py-1 text-lg"
+          className="px-3 py-0.5 text-lg"
         >
           ›
         </Link>
       </header>
 
-      <div className="mt-2 grid grid-cols-7 gap-y-1 text-center">
+      <div className="mt-1 grid grid-cols-7 text-center">
         {WEEKDAYS.map((label, index) => (
           <div
             key={label}
-            className={`py-1 text-xs ${
+            className={`py-0.5 text-[10px] ${
               index === 0
                 ? "text-[#C0392B]"
                 : index === 6
@@ -129,10 +156,10 @@ export function MiniCalendar({
                 event.preventDefault();
                 onSelectDate(date);
               }}
-              className="flex flex-col items-center py-1"
+              className="flex flex-col items-center py-0.5"
             >
               <span
-                className={`flex h-8 w-8 items-center justify-center rounded-full text-sm ${
+                className={`flex h-7 w-7 items-center justify-center rounded-full text-sm ${
                   isSelected
                     ? "bg-[var(--foreground)] font-bold text-white"
                     : isToday
@@ -144,7 +171,7 @@ export function MiniCalendar({
               </span>
               <span
                 aria-hidden
-                className={`mt-0.5 h-1 w-1 rounded-full ${
+                className={`h-1 w-1 rounded-full ${
                   marked.has(date) ? "bg-[var(--muted)]" : "bg-transparent"
                 }`}
               />

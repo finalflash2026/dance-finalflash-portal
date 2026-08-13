@@ -137,8 +137,13 @@ export default async function OverviewCalendarPage({
   const error = monthResult.error ?? todayRoomsResult.error;
 
   return (
-    <main className="mx-auto max-w-2xl space-y-4 px-4 py-4">
-      <h1 className="text-xl font-bold">全体カレンダー</h1>
+    /*
+     * 縦を詰めるため見出しは sr-only にしてある。どのタブにいるかは
+     * 下部タブバーが示しており、画面内に大きな見出しを置くぶんだけ
+     * 日別ビューが下に押し出されていた。読み上げには残す。
+     */
+    <main className="mx-auto max-w-2xl space-y-2 px-4 py-2">
+      <h1 className="sr-only">全体カレンダー</h1>
 
       {error ? (
         <p

@@ -52,8 +52,15 @@ export interface DayBlock {
 }
 
 const COLUMN_WIDTH = 112;
-const TIME_COLUMN_WIDTH = 52;
-const PX_PER_MINUTE = 1.2;
+const TIME_COLUMN_WIDTH = 44;
+/**
+ * 縦の縮尺。09:00〜22:00 = 780分なので、この値が日別ビューの高さを決める。
+ * 1.2 だと 936px あり、施錠ボードとミニカレンダーの下でほぼ画面外だった。
+ * 0.8 = 624px なら、90分のコマでも 72px 取れて2行の文字が収まる。
+ */
+const PX_PER_MINUTE = 0.8;
+/** これより低いブロックは時刻の行を省く (label だけにする) */
+const COMPACT_BLOCK_HEIGHT = 30;
 
 /** グリッド上に描く1ブロック。slot そのものか、空きコマを分割した区間 */
 type Drawable = {
@@ -112,8 +119,14 @@ export function DayGrid({
 
   return (
     <>
-      {/* h-scroll: iOS の既定はオーバーレイ式で右に続きがあると気付けないため常時表示にする */}
-      <div className="h-scroll overflow-x-auto rounded-xl border border-[var(--border)]">
+      {/*
+       * h-scroll: iOS の既定はオーバーレイ式で右に続きがあると気付けないため常時表示にする。
+       * overflow-y-hidden を明示するのが重要 — CSS は overflow-x だけを auto に
+       * すると overflow-y の visible を auto に計算しなおすため、9:00〜22:00 が
+       * すべて収まっているのに数pxだけ縦スクロールできる状態になっていた。
+       * 高さは中身なりで、外から制限していないので隠れる部分は無い。
+       */}
+      <div className="h-scroll overflow-x-auto overflow-y-hidden rounded-xl border border-[var(--border)]">
         <div className="w-max">
           {/* section 見出し */}
           <div className="flex border-b border-[var(--border)] bg-[var(--surface)]">
@@ -141,7 +154,7 @@ export function DayGrid({
             {flatRooms.map((room) => (
               <div
                 key={room.id}
-                className="shrink-0 border-l border-[var(--border)] px-1 py-2 text-center text-[11px] leading-tight"
+                className="shrink-0 border-l border-[var(--border)] px-1 py-1 text-center text-[10px] leading-tight"
                 style={{ width: COLUMN_WIDTH }}
               >
                 {room.name}
@@ -279,22 +292,30 @@ function GridBlock({
   const end = Math.min(toMinutes(drawable.endTime), dayEnd);
   if (end <= start) return null;
 
+  const height = (end - start) * PX_PER_MINUTE;
+  // 短いコマで2行を描くと両方とも切れて読めなくなる。
+  // 名前のほうが情報量が多いので、入らないときは時刻を落とす
+  const compact = height < COMPACT_BLOCK_HEIGHT;
+
   return (
     <button
       type="button"
       onClick={() => onSelect(drawable)}
+      title={`${drawable.label} ${formatTimeRange(drawable.startTime, drawable.endTime)}`}
       className="absolute inset-x-0.5 overflow-hidden rounded px-1 py-0.5 text-left text-[11px] leading-tight"
       style={{
         top: (start - dayStart) * PX_PER_MINUTE,
-        height: (end - start) * PX_PER_MINUTE,
+        height,
         backgroundColor: drawable.color.bg,
         color: drawable.color.fg,
       }}
     >
       <span className="block truncate font-bold">{drawable.label}</span>
-      <span className="block opacity-80">
-        {formatTimeRange(drawable.startTime, drawable.endTime)}
-      </span>
+      {compact ? null : (
+        <span className="block opacity-80">
+          {formatTimeRange(drawable.startTime, drawable.endTime)}
+        </span>
+      )}
     </button>
   );
 }
