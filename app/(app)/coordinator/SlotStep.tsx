@@ -7,10 +7,10 @@ import { GENRES, ROOM_BY_ID } from "@/lib/constants";
 import {
   SLOT_PRESET_MINUTES,
   SLOT_STATUS_LABELS,
+  applySlotPreset,
   deriveMonthGenerations,
   generationsKey,
   invalidatedClaims,
-  maxSlotEnd,
   validateSlot,
   type SlotClaimInfo,
   type SlotDraft,
@@ -21,11 +21,9 @@ import {
   finalizeTimeInput,
   formatDateLabel,
   formatTimeRange,
-  fromMinutes,
   normalizeTimeInput,
   startOfMonth,
   todayInTokyo,
-  toMinutes,
 } from "@/lib/time";
 import type { DateString, SlotStatus } from "@/lib/types";
 
@@ -56,6 +54,9 @@ export function SlotStep() {
   const [editing, setEditing] = useState<{
     reservation: ReservationInfo;
     draft: SlotDraft;
+    /** 新規作成時に押した未割当区間。時刻欄は空で開くので、
+     *  プリセットの起点と「この範囲で入力してください」の案内に使う */
+    gap: { startTime: string; endTime: string };
   } | null>(null);
   const [pending, setPending] = useState(false);
 
@@ -256,13 +257,13 @@ export function SlotStep() {
 
       <ErrorMessage>{error}</ErrorMessage>
 
-      {loading ? (
+      {/* 保存のたびに一覧が消えるとスクロール位置が飛ぶので、
+          「読み込み中」に差し替えるのは月を切り替えた直後だけにする */}
+      {reservations.length === 0 ? (
         <p className="rounded-xl border border-[var(--border)] px-4 py-8 text-center text-sm text-[var(--muted)]">
-          読み込み中…
-        </p>
-      ) : reservations.length === 0 ? (
-        <p className="rounded-xl border border-[var(--border)] px-4 py-8 text-center text-sm text-[var(--muted)]">
-          この月の予約枠はありません。①CSV取込 から登録してください
+          {loading
+            ? "読み込み中…"
+            : "この月の予約枠はありません。①CSV取込 から登録してください"}
         </p>
       ) : (
         <>
@@ -273,6 +274,7 @@ export function SlotStep() {
               setError(null);
               setEditing({
                 reservation,
+                gap: { startTime: slot.startTime, endTime: slot.endTime },
                 draft: {
                   id: slot.id,
                   startTime: slot.startTime,
@@ -286,16 +288,13 @@ export function SlotStep() {
               setError(null);
               setEditing({
                 reservation,
+                gap,
+                // 時刻欄は空で開く。予約枠の時間が入ったままだと、
+                // 打ち直すのに一度消す手間がかかるため
                 draft: {
                   id: null,
-                  startTime: gap.startTime,
-                  // 既定は90分。未割当がそれより短ければその分だけ
-                  endTime: fromMinutes(
-                    Math.min(
-                      toMinutes(gap.startTime) + 90,
-                      toMinutes(gap.endTime),
-                    ),
-                  ),
+                  startTime: "",
+                  endTime: "",
                   status: "genre",
                   genreId: null,
                 },
@@ -311,6 +310,7 @@ export function SlotStep() {
         <SlotEditor
           reservation={editing.reservation}
           initial={editing.draft}
+          gap={editing.gap}
           monthGenerations={monthGenerations}
           disabled={pending}
           onSave={(draft) => saveSlot(editing.reservation, draft)}
@@ -437,6 +437,7 @@ function describeSlotError(error: { code?: string; message: string }): string {
 function SlotEditor({
   reservation,
   initial,
+  gap,
   monthGenerations,
   disabled,
   onSave,
@@ -445,6 +446,8 @@ function SlotEditor({
 }: {
   reservation: ReservationInfo;
   initial: SlotDraft;
+  /** 押した未割当区間 (既存コマの編集ならそのコマの範囲) */
+  gap: { startTime: string; endTime: string };
   monthGenerations: number[] | null;
   disabled: boolean;
   onSave: (draft: SlotDraft) => void;
@@ -465,14 +468,16 @@ function SlotEditor({
   const cell =
     "w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-2 py-1.5 text-sm outline-none focus:border-[var(--foreground)]";
 
-  /** プリセットは伸ばせる限界で頭打ちにする (押した結果が必ず妥当になるように) */
   function applyPreset(minutes: number) {
-    const start = toMinutes(draft.startTime);
-    if (Number.isNaN(start)) return;
-    const limit = maxSlotEnd(reservation, reservation.slots, draft.id, start);
     setDraft((prev) => ({
       ...prev,
-      endTime: fromMinutes(Math.min(start + minutes, limit)),
+      ...applySlotPreset(
+        reservation,
+        reservation.slots,
+        prev,
+        gap.startTime,
+        minutes,
+      ),
     }));
   }
 
@@ -554,10 +559,12 @@ function SlotEditor({
                 {minutes}分
               </button>
             ))}
-            <span className="self-center text-xs text-[var(--muted)]">
-              数字だけでも入力できます (1700 → 17:00)
-            </span>
           </div>
+          <p className="text-xs text-[var(--muted)]">
+            {draft.id
+              ? "数字だけでも入力できます (1700 → 17:00)"
+              : `${formatTimeRange(gap.startTime, gap.endTime)} が空いています。プリセットを押すと ${gap.startTime} から入ります (1700 のように数字だけでも入力できます)`}
+          </p>
         </div>
 
         <div className="space-y-1">
@@ -617,7 +624,9 @@ function SlotEditor({
           </>
         ) : null}
 
-        {!check.ok ? (
+        {/* 開いた直後の空欄で赤字を出さない。片方でも空なら「まだ入力途中」
+            とみなし、両方埋まってから検証結果を見せる */}
+        {draft.startTime.trim() && draft.endTime.trim() && !check.ok ? (
           <p role="alert" className="text-sm font-medium text-[#8B1A10]">
             {check.message}
           </p>
