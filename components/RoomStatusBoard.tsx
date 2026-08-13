@@ -114,32 +114,35 @@ export function RoomStatusBoard({
   const byRoomId = new Map(rows.map((row) => [row.room_id, row]));
 
   return (
-    <section className="rounded-xl border border-[var(--border)] p-3">
+    /*
+     * 縦を詰めるため2列のグリッドにしてある。1行1部屋の縦並びだと
+     * 部屋数ぶんそのまま高さになり、下の日別ビューが画面外まで押し出されていた。
+     * 「誰がいつ開けたか」は ○ のときだけ出す (× は既定値で、誰も触っていない
+     * ことがほとんどのため表示する価値が薄い)。
+     */
+    <section className="rounded-xl border border-[var(--border)] p-2">
       <header className="flex items-baseline justify-between gap-2">
-        <h2 className="text-base font-bold">今日の練習場所</h2>
-        <div className="flex items-center gap-2 text-xs text-[var(--muted)]">
-          {fetchedAt ? <span>最終取得 {formatAsTokyoTime(fetchedAt)}</span> : null}
+        <h2 className="text-sm font-bold">今日の練習場所</h2>
+        <div className="flex items-center gap-2 text-[10px] text-[var(--muted)]">
+          <span>○=開錠 ×=施錠</span>
+          {fetchedAt ? <span>{formatAsTokyoTime(fetchedAt)}</span> : null}
           <button
             type="button"
             onClick={refresh}
-            className="rounded border border-[var(--border)] px-2 py-0.5"
+            className="rounded border border-[var(--border)] px-1.5 py-0.5"
           >
             更新
           </button>
         </div>
       </header>
 
-      <p className="mt-1 text-xs text-[var(--muted)]">
-        ○ = 開錠済(そのまま入れる) / × = 施錠中(鍵を取りに行く)
-      </p>
-
       {error ? (
-        <p role="alert" className="mt-2 text-xs text-[#8B1A10]">
+        <p role="alert" className="mt-1 text-xs text-[#8B1A10]">
           {error}
         </p>
       ) : null}
 
-      <ul className="mt-2 divide-y divide-[var(--border)]">
+      <ul className="mt-1.5 grid grid-cols-2 gap-1">
         {rooms.map((room) => {
           const row = byRoomId.get(room.id);
           // 行が無い = 未設定。UI 上は × (施錠中) を既定とする
@@ -151,34 +154,38 @@ export function RoomStatusBoard({
               STALE_THRESHOLD_MS;
 
           return (
-            <li
-              key={room.id}
-              className={`flex items-center gap-3 py-2 ${stale ? "opacity-50" : ""}`}
-            >
-              <div className="min-w-0 flex-1">
-                <p className="truncate text-sm">{room.name}</p>
-                {row ? (
-                  <p className="truncate text-xs text-[var(--muted)]">
-                    {formatAsTokyoTime(row.updated_at)}{" "}
-                    {row.profiles?.username ?? ""}
-                    {stale ? " (情報が古い可能性)" : ""}
-                  </p>
-                ) : null}
-              </div>
-
+            <li key={room.id}>
               <button
                 type="button"
                 onClick={() => toggle(room.id, unlocked)}
                 disabled={pendingRoomId === room.id}
                 aria-label={`${room.name} を${unlocked ? "施錠中" : "開錠済"}に切り替える`}
                 aria-pressed={unlocked}
-                className={`h-10 w-10 shrink-0 rounded-full border text-lg font-bold disabled:opacity-40 ${
+                className={`flex w-full items-center gap-1.5 rounded-lg border px-2 py-1 text-left disabled:opacity-40 ${
                   unlocked
-                    ? "border-[#2E8B57] bg-[#E8F5EE] text-[#2E8B57]"
-                    : "border-[var(--border)] bg-[var(--surface)] text-[var(--muted)]"
-                }`}
+                    ? "border-[#2E8B57] bg-[#E8F5EE]"
+                    : "border-[var(--border)] bg-[var(--surface)]"
+                } ${stale ? "opacity-60" : ""}`}
               >
-                {unlocked ? "○" : "×"}
+                <span
+                  className={`shrink-0 text-base font-bold ${
+                    unlocked ? "text-[#2E8B57]" : "text-[var(--muted)]"
+                  }`}
+                >
+                  {unlocked ? "○" : "×"}
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-xs leading-tight">
+                    {room.name}
+                  </span>
+                  {unlocked && row ? (
+                    <span className="block truncate text-[10px] text-[var(--muted)]">
+                      {formatAsTokyoTime(row.updated_at)}{" "}
+                      {row.profiles?.username ?? ""}
+                      {stale ? " (古いかも)" : ""}
+                    </span>
+                  ) : null}
+                </span>
               </button>
             </li>
           );
