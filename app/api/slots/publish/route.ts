@@ -1,9 +1,16 @@
 import { z } from "zod";
 
 import { requireRole } from "@/lib/auth/guard";
+import { unassignedRanges } from "@/lib/slots";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
-import { endOfMonth, isValidDateString, parseDate, startOfMonth } from "@/lib/time";
+import {
+  endOfMonth,
+  isValidDateString,
+  normalizeTime,
+  parseDate,
+  startOfMonth,
+} from "@/lib/time";
 
 /**
  * POST /api/slots/publish  (SPEC.md §6.2 Step3)
@@ -57,6 +64,68 @@ export async function POST(request: Request) {
     );
   }
 
+  // ---- 未割当の時間帯を「空き」コマにする (SPEC §6.2 Step3 / v1.9.2) ----
+  //
+  // 申請は公開済の open コマにしか付けられないので、コマを作らないと
+  // **予約している部屋がタブ①に列すら出ず、空き申請ができない**。
+  // 予約枠は全日程・全部屋にわたるため、折衝係が1件ずつ「空き」を置く運用は
+  // 現実的でない。「予約した=使える」を既定にし、開放したくない時間帯は
+  // 折衝係が明示的に「使用不可」コマで塞ぐ。
+  //
+  // 下書きとして作り、この後の一括公開でまとめて published=true にする。
+  const { data: reservationRows, error: reservationError } = await supabase
+    .from("reservations")
+    .select("id, date, room_id, start_time, end_time, slots(start_time, end_time)")
+    .eq("status", "active")
+    .gte("date", monthStart)
+    .lte("date", monthEnd);
+
+  if (reservationError) {
+    return Response.json(
+      { error: `予約枠を確認できませんでした: ${reservationError.message}` },
+      { status: 503 },
+    );
+  }
+
+  const gapSlots = (
+    (reservationRows ?? []) as unknown as {
+      id: string;
+      date: string;
+      room_id: number;
+      start_time: string;
+      end_time: string;
+      slots: { start_time: string; end_time: string }[] | null;
+    }[]
+  ).flatMap((reservation) =>
+    unassignedRanges(
+      {
+        startTime: normalizeTime(reservation.start_time),
+        endTime: normalizeTime(reservation.end_time),
+      },
+      (reservation.slots ?? []).map((slot) => ({
+        startTime: normalizeTime(slot.start_time),
+        endTime: normalizeTime(slot.end_time),
+      })),
+    ).map((range) => ({
+      reservation_id: reservation.id,
+      date: reservation.date,
+      room_id: reservation.room_id,
+      start_time: range.startTime,
+      end_time: range.endTime,
+      status: "open" as const,
+    })),
+  );
+
+  if (gapSlots.length > 0) {
+    const { error: fillError } = await supabase.from("slots").insert(gapSlots);
+    if (fillError) {
+      return Response.json(
+        { error: `空きコマを作れませんでした: ${fillError.message}` },
+        { status: 500 },
+      );
+    }
+  }
+
   const { data: publishedRows, error: publishError } = await supabase
     .from("slots")
     .update({ published: true })
@@ -77,7 +146,12 @@ export async function POST(request: Request) {
 
   // 公開したものが無ければお知らせも出さない (毎回押しても通知が増えないように)
   if (published === 0) {
-    return Response.json({ published: 0, notified: 0, updated: isUpdate });
+    return Response.json({
+      published: 0,
+      filled: gapSlots.length,
+      notified: 0,
+      updated: isUpdate,
+    });
   }
 
   const admin = createAdminClient();
@@ -91,6 +165,7 @@ export async function POST(request: Request) {
     return Response.json(
       {
         published,
+        filled: gapSlots.length,
         notified: 0,
         updated: isUpdate,
         error: `公開しましたが、お知らせを配れませんでした: ${recipientError.message}`,
@@ -115,6 +190,7 @@ export async function POST(request: Request) {
     return Response.json(
       {
         published,
+        filled: gapSlots.length,
         notified: 0,
         updated: isUpdate,
         error: `公開しましたが、お知らせを配れませんでした: ${notifyError.message}`,
@@ -125,6 +201,7 @@ export async function POST(request: Request) {
 
   return Response.json({
     published,
+    filled: gapSlots.length,
     notified: rows.length,
     updated: isUpdate,
   });

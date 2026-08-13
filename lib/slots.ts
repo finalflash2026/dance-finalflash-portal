@@ -10,7 +10,13 @@
  * 出すためのもので、認可・整合性の最終防衛線ではない (SPEC §13.2)。
  */
 
-import { fromMinutes, normalizeTime, splitRange, toMinutes } from "@/lib/time";
+import {
+  CLAIM_STEP_MINUTES,
+  fromMinutes,
+  normalizeTime,
+  splitRange,
+  toMinutes,
+} from "@/lib/time";
 import type { SlotStatus, TimeString } from "@/lib/types";
 
 /** コマ長のプリセット (SPEC §6.2 Step2-3: 70分・90分・110分・手入力。v1.9で70分を追加) */
@@ -44,6 +50,32 @@ export interface SlotInfo {
 export interface TimeRange {
   startTime: TimeString;
   endTime: TimeString;
+}
+
+/**
+ * 予約枠のうちコマが割り当てられていない時間帯を返す (SPEC §6.2 Step3 / v1.9.2)。
+ *
+ * 公開時にここを `status='open'` のコマとして自動生成する。申請は公開済の
+ * `open` コマにしか付けられないため、コマを作らないと**予約している部屋が
+ * タブ①に列すら出ない**。
+ *
+ * 申請の最小粒度に満たない隙間は返さない。申請できないコマを作っても
+ * カレンダーが賑やかになるだけで、むしろ「空きなのに取れない」と誤解を生む。
+ * 判定は lib/claims.ts の freeRanges() と同じ閾値にしてある。
+ */
+export function unassignedRanges(
+  reservation: TimeRange,
+  slots: TimeRange[],
+  minimumMinutes: number = CLAIM_STEP_MINUTES,
+): TimeRange[] {
+  return splitRange(reservation, slots)
+    .filter((segment) => segment.kind === "gap")
+    .filter(
+      (segment) =>
+        toMinutes(segment.endTime) - toMinutes(segment.startTime) >=
+        minimumMinutes,
+    )
+    .map(({ startTime, endTime }) => ({ startTime, endTime }));
 }
 
 /** 予約枠を「コマ」と「未割当」に割った1区間 */
