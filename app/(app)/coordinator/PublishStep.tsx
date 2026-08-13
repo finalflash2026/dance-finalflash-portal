@@ -4,7 +4,7 @@ import { useState } from "react";
 
 import { ErrorMessage, buttonClass } from "@/components/ui";
 import { ROOM_BY_ID } from "@/lib/constants";
-import { SLOT_STATUS_LABELS } from "@/lib/slots";
+import { SLOT_STATUS_LABELS, unassignedRanges } from "@/lib/slots";
 import { formatDateLabel, formatTimeRange, startOfMonth, todayInTokyo } from "@/lib/time";
 import type { DateString } from "@/lib/types";
 
@@ -35,14 +35,20 @@ export function PublishStep() {
   const drafts = slots.filter(({ slot }) => !slot.published);
   const publishedCount = slots.length - drafts.length;
 
+  // 公開時に自動生成される「空き」コマ (SPEC §6.2 Step3 / v1.9.2)。
+  // API 側と同じ unassignedRanges() で数え、押す前に件数を見せる
+  const gaps = reservations.flatMap((r) => unassignedRanges(r, r.slots));
+  const total = drafts.length + gaps.length;
+
   async function publish() {
-    if (
-      !window.confirm(
-        `下書きのコマ ${drafts.length}件を公開し、OB以外の全員にお知らせを配ります。よろしいですか?`,
-      )
-    ) {
-      return;
+    const lines = [`${drafts.length}件の下書きコマを公開します。`];
+    if (gaps.length > 0) {
+      lines.push(
+        `あわせて、コマを割り当てていない時間帯 ${gaps.length}件を「空き」として公開します (個人練の申請ができるようになります)。`,
+      );
     }
+    lines.push("OB以外の全員にお知らせが配られます。よろしいですか?");
+    if (!window.confirm(lines.join("\n\n"))) return;
 
     setPending(true);
     setError(null);
@@ -62,9 +68,9 @@ export function PublishStep() {
       // 207 = 公開は済んだがお知らせで失敗。両方伝える
       if (body.error) setError(body.error);
       setResult(
-        `${body.published}件を公開しました${
-          body.notified ? ` / ${body.notified}人にお知らせを配りました` : ""
-        }`,
+        `${body.published}件を公開しました` +
+          (body.filled ? ` (うち自動生成の空き ${body.filled}件)` : "") +
+          (body.notified ? ` / ${body.notified}人にお知らせを配りました` : ""),
       );
       reload();
     } finally {
@@ -91,16 +97,26 @@ export function PublishStep() {
           <p className="text-sm text-[var(--muted)]">
             この月のコマ {slots.length}件 (下書き {drafts.length}件 / 公開済{" "}
             {publishedCount}件)
+            {gaps.length > 0 ? ` / 未割当 ${gaps.length}件` : ""}
           </p>
 
-          {drafts.length === 0 ? (
+          {total === 0 ? (
             <p className="rounded-xl border border-[var(--border)] px-4 py-8 text-center text-sm text-[var(--muted)]">
               {slots.length === 0
-                ? "この月のコマはありません。②コマ割り で作成してください"
+                ? "この月の予約枠がありません。①CSV取込 から登録してください"
                 : "公開していないコマはありません"}
             </p>
           ) : (
             <>
+              {gaps.length > 0 ? (
+                <p className="rounded-lg bg-[var(--surface)] px-3 py-2 text-sm">
+                  コマを割り当てていない時間帯 {gaps.length}件は、公開時に
+                  <strong>「空き」として自動で開放</strong>されます
+                  (予約している部屋を個人練に使えるようにするため)。
+                  開放したくない時間帯は、②コマ割り で「使用不可」を置いて塞いでください。
+                </p>
+              ) : null}
+
               <ul className="divide-y divide-[var(--border)] rounded-xl border border-[var(--border)]">
                 {drafts.map(({ slot, reservation }) => (
                   <li key={slot.id} className="px-3 py-2 text-sm">
@@ -133,7 +149,7 @@ export function PublishStep() {
                   onClick={publish}
                   className={buttonClass}
                 >
-                  {drafts.length}件を公開する
+                  {total}件を公開する
                 </button>
               </div>
             </>
