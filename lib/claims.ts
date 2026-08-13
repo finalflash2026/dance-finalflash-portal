@@ -14,6 +14,7 @@ import {
   fromMinutes,
   isOnStep,
   normalizeTime,
+  splitRange,
   toMinutes,
 } from "@/lib/time";
 import type { TimeString } from "@/lib/types";
@@ -37,13 +38,6 @@ export type OpenSegment =
   | ({ kind: "claimed"; claim: ClaimInfo } & TimeRange)
   | ({ kind: "free" } & TimeRange);
 
-/** 開始時刻順に並べ替える (計算はどれも整列前提) */
-function sortByStart<T extends TimeRange>(ranges: T[]): T[] {
-  return [...ranges].sort(
-    (a, b) => toMinutes(a.startTime) - toMinutes(b.startTime),
-  );
-}
-
 /**
  * 空きコマ (slots.status='open') を「申請済み」「空き」の区間に分割する。
  * SPEC §6.1「枠内をさらに分割表示: 申請済の時間帯は申請者username入りブロック、
@@ -51,46 +45,29 @@ function sortByStart<T extends TimeRange>(ranges: T[]): T[] {
  *
  * claims 同士は DB の排他制約で重ならないことが保証されているので、
  * ここでは重なりを考慮しない。
+ *
+ * 区間の切り出し自体は lib/time.ts の splitRange() が持つ。
+ * 「予約枠 → コマ + 未割当」(SPEC §6.2 Step2-4) がまったく同じ計算なので、
+ * 端点の扱いを2箇所で持たないようにしている。
  */
 export function splitOpenSlot(
   slot: TimeRange,
   claims: ClaimInfo[],
 ): OpenSegment[] {
-  const slotStart = toMinutes(slot.startTime);
-  const slotEnd = toMinutes(slot.endTime);
-  const segments: OpenSegment[] = [];
-  let cursor = slotStart;
-
-  for (const claim of sortByStart(claims)) {
-    const start = Math.max(toMinutes(claim.startTime), slotStart);
-    const end = Math.min(toMinutes(claim.endTime), slotEnd);
-    if (end <= start) continue; // コマ外の申請は無視 (通常は起きない)
-
-    if (start > cursor) {
-      segments.push({
-        kind: "free",
-        startTime: fromMinutes(cursor),
-        endTime: fromMinutes(start),
-      });
-    }
-    segments.push({
-      kind: "claimed",
-      claim,
-      startTime: fromMinutes(start),
-      endTime: fromMinutes(end),
-    });
-    cursor = end;
-  }
-
-  if (cursor < slotEnd) {
-    segments.push({
-      kind: "free",
-      startTime: fromMinutes(cursor),
-      endTime: fromMinutes(slotEnd),
-    });
-  }
-
-  return segments;
+  return splitRange(slot, claims).map((segment) =>
+    segment.kind === "filled"
+      ? {
+          kind: "claimed" as const,
+          claim: segment.item,
+          startTime: segment.startTime,
+          endTime: segment.endTime,
+        }
+      : {
+          kind: "free" as const,
+          startTime: segment.startTime,
+          endTime: segment.endTime,
+        },
+  );
 }
 
 /** 申請可能な範囲だけを取り出す (申請シートの選択肢の元) */
