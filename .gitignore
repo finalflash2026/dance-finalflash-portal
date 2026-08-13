@@ -41,3 +41,6 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# PR本文の下書き (成果物ではない。VS Code から開いてコピーするため直下に置く)
+/PR_BODY.md
