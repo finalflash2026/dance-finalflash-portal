@@ -1,36 +1,32 @@
-import Link from "next/link";
 import { redirect } from "next/navigation";
 
+import type { NotificationRow } from "@/components/NotificationList";
 import { SetupNotice } from "@/components/SetupNotice";
 import { getCurrentProfile } from "@/lib/auth/session";
 import { hasSupabaseEnv } from "@/lib/env";
 import { getMyEvents } from "@/lib/events";
 import { createClient } from "@/lib/supabase/server";
 import {
-  addMonths,
   endOfMonth,
-  formatDateLabel,
-  formatTimeRange,
-  parseDate,
   startOfMonth,
   todayInTokyo,
 } from "@/lib/time";
 import type { DateString, MyEvent } from "@/lib/types";
 
+import { MyCalendarClient } from "./MyCalendarClient";
+
 /**
- * タブ③ マイカレンダー (SPEC.md §6.4) — 簡易版
+ * タブ③ マイカレンダー (SPEC.md §6.4)
  *
- * **月単位で表示する**。タブ①と同じく URL の ?date= が表示中の月を決めるので、
- * 過去の月に戻って自分の申請や公式練を振り返れる。
- *
+ * 公式練・自分の空き申請・ナンバー練を1つのカレンダーに統合する。
  * 抽出は購読ics と同じ getMyEvents() を使う。片方だけ条件がズレると
  * 「サイトには出るが ics に出ない」という事故になるため、必ず共用する。
  *
- * 未実装(後のフェーズ): 今日の予定カード / お知らせカード / 絞り込みチップ /
- * ミニカレンダー(**ドットではなく予定ラベル表示**。v1.7 §6.4) / 出欠管理窓(§6.4.2)
+ * OB は getMyEvents() の中でナンバー練のみに絞られる (SPEC §6.4-0)。
  */
 
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+const NOTIFICATION_LIMIT = 20;
 
 export default async function MyCalendarPage({
   searchParams,
@@ -48,101 +44,77 @@ export default async function MyCalendarPage({
 
   const { date } = await searchParams;
   const today = todayInTokyo();
-  const selectedDate = date && DATE_PATTERN.test(date) ? date : today;
+  const selectedDate: DateString =
+    date && DATE_PATTERN.test(date) ? date : today;
   const monthStart = startOfMonth(selectedDate);
-  const { year, month } = parseDate(monthStart);
+  const monthEnd = endOfMonth(selectedDate);
 
   const supabase = await createClient();
-  const events = await getMyEvents(
-    supabase,
-    profile,
-    monthStart,
-    endOfMonth(selectedDate),
-  );
+  const [events, notificationResult, numberResult] = await Promise.all([
+    getMyEvents(supabase, profile, monthStart, monthEnd),
+    supabase
+      .from("notifications")
+      .select("id, type, title, body, created_at, read_at")
+      .order("created_at", { ascending: false })
+      .limit(NOTIFICATION_LIMIT),
+    // 絞り込みチップに出す所属ナンバー。**今月に予定が無いナンバーも出す**
+    // (予定を入れ忘れているのか絞り込まれているのか分からなくなるため)
+    supabase.from("number_members").select("numbers(id, name)"),
+  ]);
 
-  // 日付ごとにまとめる (getMyEvents は日付→開始時刻の順で返す)
-  const byDate = new Map<DateString, MyEvent[]>();
-  for (const event of events) {
-    const list = byDate.get(event.date) ?? [];
-    list.push(event);
-    byDate.set(event.date, list);
-  }
+  // 今日の予定カードは表示中の月に関わらず「今日」を見る (SPEC §6.4-1)。
+  // 今月を見ているなら取得済みの中にあるので、追加のクエリは投げない
+  const todayEvents: MyEvent[] =
+    today >= monthStart && today <= monthEnd
+      ? events.filter((event) => event.date === today)
+      : await getMyEvents(supabase, profile, today, today);
 
-  const href = (target: DateString) =>
-    `/me?date=${encodeURIComponent(target)}`;
+  const numbers = (
+    (numberResult.data ?? []) as unknown as {
+      numbers: { id: string; name: string } | null;
+    }[]
+  )
+    .map((row) => row.numbers)
+    .filter((number): number is { id: string; name: string } => number !== null);
+
+  const notifications: NotificationRow[] = (
+    (notificationResult.data ?? []) as unknown as {
+      id: string;
+      type: NotificationRow["type"];
+      title: string;
+      body: string | null;
+      created_at: string;
+      read_at: string | null;
+    }[]
+  ).map((row) => ({
+    id: row.id,
+    type: row.type,
+    title: row.title,
+    body: row.body,
+    createdAt: row.created_at,
+    readAt: row.read_at,
+  }));
 
   return (
-    <main className="mx-auto max-w-2xl space-y-4 px-4 py-4">
-      <h1 className="text-xl font-bold">マイカレンダー</h1>
+    <main className="mx-auto max-w-2xl space-y-2 px-4 py-2">
+      <h1 className="sr-only">マイカレンダー</h1>
 
-      {/* 月送り。新しい月のデータが要るので実際に遷移する。
-          prefetch を明示して RSC ペイロードごと先読みさせる */}
-      <nav className="flex items-center justify-between rounded-xl border border-[var(--border)] px-2 py-1">
-        <Link
-          href={href(addMonths(monthStart, -1))}
-          prefetch
-          aria-label="前の月"
-          className="px-3 py-1 text-lg"
-        >
-          ‹
-        </Link>
-        <h2 className="text-base font-bold">
-          {year}年{month}月
-        </h2>
-        <Link
-          href={href(addMonths(monthStart, 1))}
-          prefetch
-          aria-label="次の月"
-          className="px-3 py-1 text-lg"
-        >
-          ›
-        </Link>
-      </nav>
-
-      <p className="text-sm text-[var(--muted)]">
-        {profile.role === "ob"
-          ? "ナンバーの予定のみ表示されます。"
-          : "1〜3ジャンの公式練と、自分の空き申請が表示されます。"}
-      </p>
-
-      {byDate.size === 0 ? (
-        <p className="rounded-xl border border-[var(--border)] px-4 py-8 text-center text-sm text-[var(--muted)]">
-          この月の予定はありません
-        </p>
-      ) : (
-        <ul className="space-y-4">
-          {[...byDate].map(([eventDate, dayEvents]) => (
-            <li key={eventDate}>
-              <h3
-                className={`text-sm font-bold ${eventDate === today ? "" : "text-[var(--muted)]"}`}
-              >
-                {formatDateLabel(eventDate)}
-                {eventDate === today ? " (今日)" : ""}
-              </h3>
-              <ul className="mt-1 divide-y divide-[var(--border)] rounded-xl border border-[var(--border)]">
-                {dayEvents.map((event) => (
-                  <li
-                    key={`${event.kind}-${event.sourceId}`}
-                    className="flex gap-3 px-3 py-2 text-sm"
-                  >
-                    <span className="shrink-0 tabular-nums text-[var(--muted)]">
-                      {formatTimeRange(event.startTime, event.endTime)}
-                    </span>
-                    <span className="min-w-0">
-                      <span className="block font-medium">{event.title}</span>
-                      {event.location ? (
-                        <span className="block text-xs text-[var(--muted)]">
-                          @{event.location}
-                        </span>
-                      ) : null}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            </li>
-          ))}
-        </ul>
-      )}
+      {/*
+        key を渡して、サーバーが別の日付を返したときに作り直す。
+        月送りやブラウザの戻りでクライアント state が取り残されるのを防ぐ
+        (useState の初期値は再レンダーでは効かない)。タブ①②と同じ理由。
+      */}
+      <MyCalendarClient
+        key={selectedDate}
+        monthAnchor={monthStart}
+        initialDate={selectedDate}
+        today={today}
+        events={events}
+        todayEvents={todayEvents}
+        notifications={notifications}
+        numbers={numbers}
+        isOb={profile.role === "ob"}
+      />
     </main>
   );
 }
