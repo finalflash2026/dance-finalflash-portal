@@ -122,7 +122,7 @@ export function NumbersClient({
         <input
           aria-label="ナンバー名"
           value={name}
-          placeholder="例: 24縦イベ A班"
+          placeholder="例: 初心者BREAK"
           disabled={pending}
           onChange={(e) => setName(e.target.value)}
           className={inputClass}

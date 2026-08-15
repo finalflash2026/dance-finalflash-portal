@@ -23,12 +23,3 @@ export function numberColor(numberId: string): { bg: string; fg: string } {
   const index = Math.abs(hash) % NUMBER_COLORS.length;
   return { bg: NUMBER_COLORS[index], fg: "#FFFFFF" };
 }
-
-/**
- * 一覧やカレンダーのラベル用に名前を詰める。
- * ミニカレンダーのマスは幅が 55px 程度しかないため、原寸では入らない。
- */
-export function shortNumberName(name: string, max = 4): string {
-  const trimmed = name.trim();
-  return trimmed.length <= max ? trimmed : `${trimmed.slice(0, max)}…`;
-}
