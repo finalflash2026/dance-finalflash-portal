@@ -40,9 +40,16 @@ export function eventShortLabel(event: MyEvent): string {
   return event.title;
 }
 
-/** 絞り込みチップのキー (SPEC §6.4-3)。公式練と自分の申請は同じ束に入れる */
+/**
+ * 絞り込みチップのキー (SPEC §6.4-3 / v1.10)
+ *
+ * **ジャンル単位・ナンバー単位まで細かく分ける。** 公式練をひとまとめに
+ * していると「今週のBREAKだけ見たい」ができなかったため。
+ */
 export function eventFilterKey(event: MyEvent): string {
-  return event.kind === "number" && event.numberId
-    ? `number:${event.numberId}`
-    : "official";
+  if (event.kind === "number" && event.numberId) {
+    return `number:${event.numberId}`;
+  }
+  if (event.kind === "genre") return `genre:${event.genreCode ?? "?"}`;
+  return "claim";
 }

@@ -8,7 +8,13 @@ import {
   NotificationList,
   type NotificationRow,
 } from "@/components/NotificationList";
+import {
+  GENRE_COLORS,
+  SLOT_CLAIMED_COLOR,
+  type GenreCode,
+} from "@/lib/constants";
 import { eventColor, eventFilterKey } from "@/lib/event-display";
+import { numberColor } from "@/lib/numbers";
 import { formatDateLabel, formatTimeRange } from "@/lib/time";
 import type { DateString, MyEvent } from "@/lib/types";
 
@@ -33,6 +39,7 @@ export function MyCalendarClient({
   todayEvents,
   notifications,
   numbers,
+  genreCodes,
   isOb,
 }: {
   monthAnchor: DateString;
@@ -42,6 +49,8 @@ export function MyCalendarClient({
   todayEvents: MyEvent[];
   notifications: NotificationRow[];
   numbers: { id: string; name: string }[];
+  /** 自分の1〜3ジャン。その月に予定が無くてもチップは出す */
+  genreCodes: string[];
   isOb: boolean;
 }) {
   const [selectedDate, setSelectedDate] = useState(initialDate);
@@ -93,13 +102,24 @@ export function MyCalendarClient({
     }),
   );
 
-  const chips = [
+  // 「すべて / 各ジャンル / 空き申請 / 各ナンバー」(SPEC §6.4-3 / v1.10)。
+  // 公式練をひとまとめにしていると「今週のBREAKだけ見たい」ができなかった。
+  // OB は公式練も空き申請も持たないので、そのぶんのチップを出さない (§6.4-0)。
+  // 色を添えてカレンダーのラベルと対応が取れるようにする
+  const chips: { key: string; label: string; color?: string }[] = [
     { key: "all", label: "すべて" },
-    // OB は公式練も空き申請も持たないのでチップを出さない (SPEC §6.4-0)
-    ...(isOb ? [] : [{ key: "official", label: "公式練" }]),
+    ...(isOb
+      ? []
+      : genreCodes.map((code) => ({
+          key: `genre:${code}`,
+          label: code,
+          color: GENRE_COLORS[code as GenreCode]?.bg,
+        }))),
+    ...(isOb ? [] : [{ key: "claim", label: "空き申請", color: SLOT_CLAIMED_COLOR.bg }]),
     ...numbers.map((number) => ({
       key: `number:${number.id}`,
       label: number.name,
+      color: numberColor(number.id).bg,
     })),
   ];
 
@@ -120,12 +140,19 @@ export function MyCalendarClient({
               type="button"
               onClick={() => selectFilter(chip.key)}
               aria-pressed={filter === chip.key}
-              className={`shrink-0 rounded-full border px-3 py-1 text-sm ${
+              className={`flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-1 text-sm ${
                 filter === chip.key
                   ? "border-[var(--foreground)] bg-[var(--foreground)] font-bold text-white"
                   : "border-[var(--border)]"
               }`}
             >
+              {chip.color ? (
+                <span
+                  aria-hidden
+                  className="h-2 w-2 shrink-0 rounded-full"
+                  style={{ backgroundColor: chip.color }}
+                />
+              ) : null}
               {chip.label}
             </button>
           ))}

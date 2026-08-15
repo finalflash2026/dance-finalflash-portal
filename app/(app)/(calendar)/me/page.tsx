@@ -4,7 +4,8 @@ import type { NotificationRow } from "@/components/NotificationList";
 import { SetupNotice } from "@/components/SetupNotice";
 import { getCurrentProfile } from "@/lib/auth/session";
 import { hasSupabaseEnv } from "@/lib/env";
-import { getMyEvents } from "@/lib/events";
+import { GENRE_BY_ID } from "@/lib/constants";
+import { getMyEvents, getMyGenreIds } from "@/lib/events";
 import { createClient } from "@/lib/supabase/server";
 import {
   endOfMonth,
@@ -49,17 +50,25 @@ export default async function MyCalendarPage({
   const monthStart = startOfMonth(selectedDate);
   const monthEnd = endOfMonth(selectedDate);
 
+  const isOb = profile.role === "ob";
   const supabase = await createClient();
-  const [events, notificationResult, numberResult] = await Promise.all([
+  const [events, notificationResult, numberResult, genreIds] = await Promise.all([
     getMyEvents(supabase, profile, monthStart, monthEnd),
+    // **未読だけを取る** (SPEC §6.4-2 / v1.10)。既読は画面に出さないので、
+    // 送ってもハイドレーション用のペイロードに乗るだけで無駄になる
     supabase
       .from("notifications")
-      .select("id, type, title, body, created_at, read_at")
+      .select("id, type, title, body, created_at")
+      .is("read_at", null)
       .order("created_at", { ascending: false })
       .limit(NOTIFICATION_LIMIT),
     // 絞り込みチップに出す所属ナンバー。**今月に予定が無いナンバーも出す**
     // (予定を入れ忘れているのか絞り込まれているのか分からなくなるため)
     supabase.from("number_members").select("numbers(id, name)"),
+    // 絞り込みチップに出す自分の1〜3ジャン。**その月に予定が無くても出す**ので
+    // 取得済みの予定から逆算はできない (getMyEvents も内部で同じものを引くが、
+    // user_subgenres は数行しかなく、揃えるために引数を増やすほうが割に合わない)
+    isOb ? Promise.resolve([]) : getMyGenreIds(supabase, profile),
   ]);
 
   // 今日の予定カードは表示中の月に関わらず「今日」を見る (SPEC §6.4-1)。
@@ -84,7 +93,6 @@ export default async function MyCalendarPage({
       title: string;
       body: string | null;
       created_at: string;
-      read_at: string | null;
     }[]
   ).map((row) => ({
     id: row.id,
@@ -92,7 +100,6 @@ export default async function MyCalendarPage({
     title: row.title,
     body: row.body,
     createdAt: row.created_at,
-    readAt: row.read_at,
   }));
 
   return (
@@ -113,7 +120,11 @@ export default async function MyCalendarPage({
         todayEvents={todayEvents}
         notifications={notifications}
         numbers={numbers}
-        isOb={profile.role === "ob"}
+        genreCodes={genreIds.flatMap((id) => {
+          const code = GENRE_BY_ID.get(id)?.code;
+          return code ? [code as string] : [];
+        })}
+        isOb={isOb}
       />
     </main>
   );

@@ -221,8 +221,12 @@ async function getNumberEvents(
 /**
  * 自分の 1ジャン + 2ジャン + 3ジャン のジャンルIDを返す。
  * 1ジャンは profiles、2/3ジャンは user_subgenres から取る (SPEC §1 / §6.4.1)。
+ *
+ * タブ③の絞り込みチップ (SPEC §6.4-3) も同じ集合を使うので公開している。
+ * **その月に予定が無いジャンルもチップに出す**必要があり、
+ * 取得済みの予定から逆算するわけにはいかないため。
  */
-async function getMyGenreIds(
+export async function getMyGenreIds(
   supabase: SupabaseClient,
   profile: Profile,
 ): Promise<number[]> {

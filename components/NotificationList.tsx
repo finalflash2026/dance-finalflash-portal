@@ -7,20 +7,23 @@ import { formatAsTokyoTime } from "@/lib/time";
 import type { NotificationType } from "@/lib/types";
 
 /**
- * お知らせカード (SPEC.md §6.4-2)
+ * お知らせカード (SPEC.md §6.4-2 / v1.10)
  *
- * 新しい順。未読は強調し、タップで既読化する (`read_at` 更新)。
+ * **未読だけを新しい順に出し、タップで既読にしたらリストから消す。**
+ * 既読が淡色で残り続けると、その下のカレンダーが遠くなるだけで読む価値が無い。
+ * 未読が0件ならカードごと出さない。
+ *
  * 生成はすべて DB のトリガとサーバー側で行うので、ここでは読み書きしかしない。
  * RLS は本人分の select/update しか許さない (`sel_notif` / `upd_notif`)。
  */
 
+/** サーバーからは**未読だけ**が渡ってくる (既読は画面に出さないため) */
 export interface NotificationRow {
   id: string;
   type: NotificationType;
   title: string;
   body: string | null;
   createdAt: string;
-  readAt: string | null;
 }
 
 const TYPE_LABELS: Record<NotificationType, string> = {
@@ -38,30 +41,25 @@ export function NotificationList({
   const [expanded, setExpanded] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const unread = rows.filter((row) => row.readAt === null).length;
   // 既定は3件だけ。お知らせで画面が埋まると下のカレンダーが遠くなる
   const shown = expanded ? rows : rows.slice(0, 3);
 
   async function markRead(row: NotificationRow) {
-    if (row.readAt !== null) return;
-
-    // 先に画面を更新する。既読化は失敗しても実害が無く、
+    // 先に画面から消す。既読化は失敗しても実害が無く、
     // タップのたびに待たされるほうが体感で損なため
-    const readAt = new Date().toISOString();
-    setRows((prev) =>
-      prev.map((r) => (r.id === row.id ? { ...r, readAt } : r)),
-    );
+    setRows((prev) => prev.filter((r) => r.id !== row.id));
 
     const supabase = createClient();
     const { error: updateError } = await supabase
       .from("notifications")
-      .update({ read_at: readAt })
+      .update({ read_at: new Date().toISOString() })
       .eq("id", row.id);
 
     if (updateError) {
+      // 失敗したら戻す。消えたまま既読になっていない状態が一番たちが悪い
       setError(`既読にできませんでした: ${updateError.message}`);
       setRows((prev) =>
-        prev.map((r) => (r.id === row.id ? { ...r, readAt: null } : r)),
+        [...prev, row].sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
       );
     }
   }
@@ -72,11 +70,12 @@ export function NotificationList({
     <section className="space-y-1">
       <h2 className="text-sm font-bold">
         お知らせ
-        {unread > 0 ? (
-          <span className="ml-1 rounded-full bg-[#C0392B] px-1.5 text-[10px] font-bold text-white">
-            {unread}
-          </span>
-        ) : null}
+        <span className="ml-1 rounded-full bg-[#C0392B] px-1.5 text-[10px] font-bold text-white">
+          {rows.length}
+        </span>
+        <span className="ml-1 font-normal text-[10px] text-[var(--muted)]">
+          タップで消えます
+        </span>
       </h2>
 
       {error ? (
@@ -86,42 +85,33 @@ export function NotificationList({
       ) : null}
 
       <ul className="divide-y divide-[var(--border)] rounded-xl border border-[var(--border)]">
-        {shown.map((row) => {
-          const isUnread = row.readAt === null;
-          return (
-            <li key={row.id}>
-              <button
-                type="button"
-                onClick={() => markRead(row)}
-                className={`flex w-full items-start gap-2 px-3 py-2 text-left ${
-                  isUnread ? "" : "opacity-60"
-                }`}
-              >
-                <span
-                  aria-hidden
-                  className={`mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full ${
-                    isUnread ? "bg-[#C0392B]" : "bg-transparent"
-                  }`}
-                />
-                <span className="min-w-0 flex-1">
-                  <span
-                    className={`block text-sm ${isUnread ? "font-medium" : ""}`}
-                  >
-                    {row.title}
+        {/* ここに並ぶのは未読だけなので、既読/未読の描き分けは要らない */}
+        {shown.map((row) => (
+          <li key={row.id}>
+            <button
+              type="button"
+              onClick={() => markRead(row)}
+              aria-label={`${row.title} を確認して消す`}
+              className="flex w-full items-start gap-2 px-3 py-2 text-left"
+            >
+              <span
+                aria-hidden
+                className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-[#C0392B]"
+              />
+              <span className="min-w-0 flex-1">
+                <span className="block text-sm font-medium">{row.title}</span>
+                {row.body ? (
+                  <span className="block text-xs text-[var(--muted)]">
+                    {row.body}
                   </span>
-                  {row.body ? (
-                    <span className="block text-xs text-[var(--muted)]">
-                      {row.body}
-                    </span>
-                  ) : null}
-                  <span className="block text-[10px] text-[var(--muted)]">
-                    {TYPE_LABELS[row.type]} / {formatAsTokyoTime(row.createdAt)}
-                  </span>
+                ) : null}
+                <span className="block text-[10px] text-[var(--muted)]">
+                  {TYPE_LABELS[row.type]} / {formatAsTokyoTime(row.createdAt)}
                 </span>
-              </button>
-            </li>
-          );
-        })}
+              </span>
+            </button>
+          </li>
+        ))}
       </ul>
 
       {rows.length > 3 ? (
