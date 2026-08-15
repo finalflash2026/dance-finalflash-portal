@@ -141,7 +141,105 @@ export function NumberDetailClient({
           onError={setError}
         />
       )}
+
+      {isOwner ? (
+        <DeleteSection
+          number={number}
+          memberCount={members.length}
+          eventCount={events.length}
+          onError={setError}
+        />
+      ) : null}
     </main>
+  );
+}
+
+/**
+ * ナンバーの削除 (SPEC §6.3 / v1.10)
+ *
+ * メンバーと日程も cascade で消え、**メンバー全員の予定と購読icsから消える**。
+ * 取り返しがつかないうえ影響が自分だけで済まないので、
+ * confirm ではなく**名前の一致**を求める。
+ */
+function DeleteSection({
+  number,
+  memberCount,
+  eventCount,
+  onError,
+}: {
+  number: NumberInfo;
+  memberCount: number;
+  eventCount: number;
+  onError: (message: string | null) => void;
+}) {
+  const router = useRouter();
+  const [open, setOpen] = useState(false);
+  const [typed, setTyped] = useState("");
+  const [pending, setPending] = useState(false);
+
+  async function remove() {
+    setPending(true);
+    onError(null);
+    const supabase = createClient();
+    const { error } = await supabase.from("numbers").delete().eq("id", number.id);
+    setPending(false);
+    if (error) {
+      onError(`削除できませんでした: ${error.message}`);
+      return;
+    }
+    router.push("/numbers");
+    router.refresh();
+  }
+
+  return (
+    <section className="space-y-2 rounded-xl border border-[#E5B4AE] p-3">
+      <h2 className="text-sm font-bold text-[#8B1A10]">ナンバーを削除</h2>
+      {open ? (
+        <>
+          <p className="text-xs text-[var(--muted)]">
+            メンバー{memberCount}人と日程{eventCount}件も一緒に消えます。
+            <strong>メンバー全員の予定と購読カレンダーからも消えます。</strong>
+            元に戻せません。
+          </p>
+          <p className="text-xs text-[var(--muted)]">
+            続けるにはナンバー名「{number.name}」を入力してください
+          </p>
+          <input
+            aria-label="確認のためナンバー名を入力"
+            value={typed}
+            disabled={pending}
+            onChange={(e) => setTyped(e.target.value)}
+            className={inputClass}
+          />
+          <button
+            type="button"
+            disabled={pending || typed.trim() !== number.name}
+            onClick={remove}
+            className="w-full rounded-lg bg-[#8B1A10] px-4 py-3 text-base font-bold text-white disabled:opacity-40"
+          >
+            完全に削除する
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setOpen(false);
+              setTyped("");
+            }}
+            className={secondaryButtonClass}
+          >
+            やめる
+          </button>
+        </>
+      ) : (
+        <button
+          type="button"
+          onClick={() => setOpen(true)}
+          className={`${secondaryButtonClass} text-[#8B1A10]`}
+        >
+          このナンバーを削除する
+        </button>
+      )}
+    </section>
   );
 }
 
