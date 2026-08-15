@@ -210,4 +210,14 @@ export interface MyEvent {
   endTime: TimeString;
   title: string;
   location: string;
+  /**
+   * kind='number' のときの所属ナンバー。タブ③の絞り込みチップと
+   * 色の割り当てに使う (SPEC §6.4-3)。それ以外は null。
+   */
+  numberId: string | null;
+  /**
+   * kind='genre' のときのジャンルコード。ラベルカレンダーのマスに出す短い
+   * 表示 (§6.4-4) と色の割り当てに使う。それ以外は null。
+   */
+  genreCode: string | null;
 }

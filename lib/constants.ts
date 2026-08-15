@@ -50,6 +50,26 @@ export const GENRE_COLORS: Record<GenreCode, { bg: string; fg: string }> = {
   GIRLS: { bg: "#F3B0D3", fg: "#1F2933" },
 };
 
+/**
+ * ナンバーのブロック色 (SPEC §6.3「ナンバーごとに色を自動割当」)。
+ *
+ * ジャンル色と取り違えないよう、GENRE_COLORS とは別の色域から選んである。
+ * どれも白文字が乗る明度にしてあるので fg は白で固定。
+ * 隣り合う要素が似た色にならないよう、色相が近いものを離して並べている。
+ * 割り当ては lib/numbers.ts の numberColor() が id から決定的に行う
+ * (同じナンバーは端末や画面をまたいでも常に同じ色になること)。
+ */
+export const NUMBER_COLORS = [
+  "#3B5BDB",
+  "#C2410C",
+  "#0F766E",
+  "#9D174D",
+  "#92400E",
+  "#4F46E5",
+  "#15803D",
+  "#7E22CE",
+] as const;
+
 /** status='open'(空き) / 'unavailable'(使用不可) のブロック色 */
 export const SLOT_OPEN_COLOR = { bg: "#F1F5F9", fg: "#334155" };
 export const SLOT_UNAVAILABLE_COLOR = { bg: "#CBD5E1", fg: "#64748B" };

@@ -42,10 +42,8 @@ export async function getMyEvents(
     events.push(...(await getClaimEvents(supabase, profile, from, to)));
   }
 
-  // ---- 3. ナンバー練 (Phase 4 で追加) ----
-  // number_events を number_members 経由で自分の所属分だけ引く。
-  // service role で呼ぶ経路では RLS が効かないため、
-  // number_members の絞り込みを必ずクエリに書くこと (ics に他人のナンバーを混ぜない)。
+  // ---- 3. ナンバー練 (OB も対象。縦イベに参加し続けられるようにするため) ----
+  events.push(...(await getNumberEvents(supabase, profile, from, to)));
 
   return sortEvents(events);
 }
@@ -97,6 +95,8 @@ async function getGenrePracticeEvents(
       endTime: normalizeTime(row.end_time),
       title: `${row.genres?.code ?? "?"} 公式練`,
       location: row.rooms?.name ?? "",
+      numberId: null,
+      genreCode: row.genres?.code ?? null,
     }));
 }
 
@@ -147,7 +147,75 @@ async function getClaimEvents(
       // SPEC §10 の SUMMARY 形式
       title: `空き使用(${row.purpose?.trim() || "個人練"})`,
       location: row.slots!.rooms?.name ?? "",
+      numberId: null,
+      genreCode: null,
     }));
+}
+
+/**
+ * SPEC §6.4-3: 自分が所属するナンバーの予定。
+ *
+ * **OB も対象**。卒業しても縦イベのナンバーには参加し続けられる (SPEC §3.6)。
+ *
+ * 所属の絞り込みを2段階に分けてクエリへ明示している。RLS (`sel_nevents` /
+ * `sel_nmembers`) が同じ絞り込みをしてくれるが、この関数は購読 ics から
+ * **service role でも呼ばれる**ので、RLS に頼ると他人のナンバーが
+ * 混ざる。埋め込みの絞り込みは書き方を誤ると黙って効かないことがあるため、
+ * 「自分の number_id を取る」→「その id で引く」の順にして明示的にしている。
+ */
+async function getNumberEvents(
+  supabase: SupabaseClient,
+  profile: Profile,
+  from: DateString,
+  to: DateString,
+): Promise<MyEvent[]> {
+  const { data: memberships, error: memberError } = await supabase
+    .from("number_members")
+    .select("number_id")
+    .eq("user_id", profile.user_id);
+
+  if (memberError) {
+    throw new Error(`number_members の取得に失敗しました: ${memberError.message}`);
+  }
+
+  const numberIds = (memberships ?? []).map(
+    (row) => (row as { number_id: string }).number_id,
+  );
+  if (numberIds.length === 0) return [];
+
+  const { data, error } = await supabase
+    .from("number_events")
+    .select("id, number_id, date, start_time, end_time, place, numbers(name)")
+    .in("number_id", numberIds)
+    .gte("date", from)
+    .lte("date", to);
+
+  if (error) {
+    throw new Error(`number_events の取得に失敗しました: ${error.message}`);
+  }
+
+  const rows = (data ?? []) as unknown as {
+    id: string;
+    number_id: string;
+    date: DateString;
+    start_time: string;
+    end_time: string;
+    place: string;
+    numbers: { name: string } | null;
+  }[];
+
+  return rows.map((row) => ({
+    kind: "number" as const,
+    sourceId: row.id,
+    date: row.date,
+    startTime: normalizeTime(row.start_time),
+    endTime: normalizeTime(row.end_time),
+    // SPEC §10 の SUMMARY 形式はナンバー名そのもの
+    title: row.numbers?.name ?? "ナンバー練",
+    location: row.place,
+    numberId: row.number_id,
+    genreCode: null,
+  }));
 }
 
 /**
