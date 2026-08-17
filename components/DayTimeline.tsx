@@ -122,6 +122,17 @@ export function DayTimeline({
           })}
         </div>
       </div>
+
+      {/*
+       * ブロックは色の帯にしか見えず、押せると気づけない。
+       * 出欠登録はここからしか開けない導線なので (SPEC §6.4.2)、
+       * 折衝画面の凡例と同じく一行で明示しておく。
+       */}
+      {onSelect ? (
+        <p className="border-t border-[var(--border)] px-2 py-1 text-[10px] text-[var(--muted)]">
+          ブロックをタップすると出欠を登録できます
+        </p>
+      ) : null}
     </div>
   );
 }
