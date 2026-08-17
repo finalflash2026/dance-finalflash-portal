@@ -2,6 +2,10 @@
 
 import { useEffect, useState } from "react";
 
+import {
+  AttendanceSheet,
+  type AttendanceTarget,
+} from "@/components/AttendanceSheet";
 import { DayTimeline, type TimelineEvent } from "@/components/DayTimeline";
 import { LabelCalendar } from "@/components/LabelCalendar";
 import {
@@ -41,6 +45,7 @@ export function MyCalendarClient({
   numbers,
   genreCodes,
   isOb,
+  currentUserId,
 }: {
   monthAnchor: DateString;
   initialDate: DateString;
@@ -52,9 +57,12 @@ export function MyCalendarClient({
   /** 自分の1〜3ジャン。その月に予定が無くてもチップは出す */
   genreCodes: string[];
   isOb: boolean;
+  currentUserId: string;
 }) {
   const [selectedDate, setSelectedDate] = useState(initialDate);
   const [filter, setFilter] = useState("all");
+  /** 出欠管理窓を開いている予定 (SPEC §6.4.2) */
+  const [selectedKey, setSelectedKey] = useState<string | null>(null);
 
   // localStorage はサーバーで読めないので、描画後に反映する。
   // 既に消えたナンバーのキーが残っていても "all" に落ちるだけで害は無い
@@ -91,16 +99,20 @@ export function MyCalendarClient({
     eventsByDate.set(event.date, list);
   }
 
-  const dayEvents: TimelineEvent[] = (eventsByDate.get(selectedDate) ?? []).map(
-    (event) => ({
-      key: `${event.kind}-${event.sourceId}`,
-      startTime: event.startTime,
-      endTime: event.endTime,
-      title: event.title,
-      subtitle: event.location,
-      color: eventColor(event),
-    }),
+  const dayList = eventsByDate.get(selectedDate) ?? [];
+  const dayEvents: TimelineEvent[] = dayList.map((event) => ({
+    key: `${event.kind}-${event.sourceId}`,
+    startTime: event.startTime,
+    endTime: event.endTime,
+    title: event.title,
+    subtitle: event.location,
+    color: eventColor(event),
+  }));
+  // タイムラインは表示用の型しか持たないので、タップされたものを key で引き直す
+  const byKey = new Map(
+    dayList.map((event) => [`${event.kind}-${event.sourceId}`, event]),
   );
+  const selectedEvent = selectedKey ? (byKey.get(selectedKey) ?? null) : null;
 
   // 「すべて / 各ジャンル / 空き申請 / 各ナンバー」(SPEC §6.4-3 / v1.10)。
   // 公式練をひとまとめにしていると「今週のBREAKだけ見たい」ができなかった。
@@ -175,10 +187,36 @@ export function MyCalendarClient({
             <span className="ml-1 font-normal text-[var(--muted)]">(今日)</span>
           ) : null}
         </h2>
-        <DayTimeline date={selectedDate} events={dayEvents} />
+        <DayTimeline
+          date={selectedDate}
+          events={dayEvents}
+          onSelect={(event) => setSelectedKey(event.key)}
+        />
       </section>
+
+      {selectedEvent ? (
+        <AttendanceSheet
+          target={attendanceTarget(selectedEvent)}
+          title={selectedEvent.title}
+          date={selectedEvent.date}
+          startTime={selectedEvent.startTime}
+          endTime={selectedEvent.endTime}
+          location={selectedEvent.location}
+          currentUserId={currentUserId}
+          onClose={() => setSelectedKey(null)}
+        />
+      ) : null}
     </>
   );
+}
+
+/** 空き申請は出欠の対象外なので情報表示だけにする (SPEC §6.4.2) */
+function attendanceTarget(event: MyEvent): AttendanceTarget {
+  if (event.kind === "genre") return { kind: "slot", id: event.sourceId };
+  if (event.kind === "number") {
+    return { kind: "numberEvent", id: event.sourceId };
+  }
+  return { kind: "info" };
 }
 
 /** SPEC §6.4-1: 当日分の自分のイベントを時刻順に。0件でもカード自体は出す */

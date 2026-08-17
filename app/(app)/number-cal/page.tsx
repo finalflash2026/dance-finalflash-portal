@@ -100,6 +100,7 @@ export default async function NumberCalendarPage({
         initialDate={selectedDate}
         today={today}
         events={events}
+        currentUserId={profile.user_id}
       />
     </main>
   );

@@ -125,6 +125,7 @@ export default async function MyCalendarPage({
           return code ? [code as string] : [];
         })}
         isOb={isOb}
+        currentUserId={profile.user_id}
       />
     </main>
   );

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 
+import { AttendanceSheet } from "@/components/AttendanceSheet";
 import { DayTimeline, type TimelineEvent } from "@/components/DayTimeline";
 import { MiniCalendar } from "@/components/MiniCalendar";
 import { numberColor } from "@/lib/numbers";
@@ -34,13 +35,17 @@ export function NumberCalendarClient({
   initialDate,
   today,
   events,
+  currentUserId,
 }: {
   monthAnchor: DateString;
   initialDate: DateString;
   today: DateString;
   events: NumberEventRow[];
+  currentUserId: string;
 }) {
   const [selectedDate, setSelectedDate] = useState(initialDate);
+  /** 出欠管理窓を開いている予定 (SPEC §6.4.2。タブ②からも同じ窓を開ける) */
+  const [selectedId, setSelectedId] = useState<string | null>(null);
 
   function selectDate(date: DateString) {
     setSelectedDate(date);
@@ -55,16 +60,16 @@ export function NumberCalendarClient({
   }
 
   const markedDates = [...new Set(events.map((event) => event.date))];
-  const dayEvents: TimelineEvent[] = events
-    .filter((event) => event.date === selectedDate)
-    .map((event) => ({
-      key: event.id,
-      startTime: event.startTime,
-      endTime: event.endTime,
-      title: event.numberName,
-      subtitle: event.place,
-      color: numberColor(event.numberId),
-    }));
+  const dayList = events.filter((event) => event.date === selectedDate);
+  const dayEvents: TimelineEvent[] = dayList.map((event) => ({
+    key: event.id,
+    startTime: event.startTime,
+    endTime: event.endTime,
+    title: event.numberName,
+    subtitle: event.place,
+    color: numberColor(event.numberId),
+  }));
+  const selected = dayList.find((event) => event.id === selectedId) ?? null;
 
   return (
     <>
@@ -100,8 +105,22 @@ export function NumberCalendarClient({
           date={selectedDate}
           events={dayEvents}
           emptyMessage="ナンバーの予定はありません"
+          onSelect={(event) => setSelectedId(event.key)}
         />
       </section>
+
+      {selected ? (
+        <AttendanceSheet
+          target={{ kind: "numberEvent", id: selected.id }}
+          title={selected.numberName}
+          date={selected.date}
+          startTime={selected.startTime}
+          endTime={selected.endTime}
+          location={selected.place}
+          currentUserId={currentUserId}
+          onClose={() => setSelectedId(null)}
+        />
+      ) : null}
     </>
   );
 }
