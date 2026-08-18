@@ -38,11 +38,7 @@ export function NotificationList({
   initial: NotificationRow[];
 }) {
   const [rows, setRows] = useState(initial);
-  const [expanded, setExpanded] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  // 既定は3件だけ。お知らせで画面が埋まると下のカレンダーが遠くなる
-  const shown = expanded ? rows : rows.slice(0, 3);
 
   async function markRead(row: NotificationRow) {
     // 先に画面から消す。既読化は失敗しても実害が無く、
@@ -84,9 +80,14 @@ export function NotificationList({
         </p>
       ) : null}
 
-      <ul className="divide-y divide-[var(--border)] rounded-xl border border-[var(--border)]">
+      {/*
+       * **枠の高さを固定して中でスクロールさせる。**
+       * お知らせが増えるとカードが伸びて、下のカレンダーまで延々と
+       * スクロールする必要があった。件数に関わらずここの高さは変わらない。
+       */}
+      <ul className="h-scroll max-h-40 divide-y divide-[var(--border)] overflow-y-auto rounded-xl border border-[var(--border)]">
         {/* ここに並ぶのは未読だけなので、既読/未読の描き分けは要らない */}
-        {shown.map((row) => (
+        {rows.map((row) => (
           <li key={row.id}>
             <button
               type="button"
@@ -113,16 +114,6 @@ export function NotificationList({
           </li>
         ))}
       </ul>
-
-      {rows.length > 3 ? (
-        <button
-          type="button"
-          onClick={() => setExpanded((prev) => !prev)}
-          className="w-full py-1 text-xs text-[var(--muted)]"
-        >
-          {expanded ? "たたむ" : `すべて表示 (${rows.length}件)`}
-        </button>
-      ) : null}
     </section>
   );
 }
