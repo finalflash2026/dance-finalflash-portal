@@ -6,9 +6,9 @@ import { buttonClass, secondaryButtonClass } from "@/components/ui";
 import {
   ATTENDANCE_LABELS,
   ATTENDANCE_TIME_LABELS,
-  attendanceTimeOptions,
   buildParticipants,
   formatAttendance,
+  isValidAttendanceTime,
   type AttendanceRow,
   type Participant,
 } from "@/lib/attendance";
@@ -30,9 +30,10 @@ import type { AttendanceStatus, DateString } from "@/lib/types";
  * 上部: 参加者と出欠状況の一覧 (行が無い人は「出席」)
  * 下部: 自分の出欠登録 (欠席 / 遅刻+時刻 / 早退+時刻)
  *
- * **通知はアプリ側で作らない。** `trg_notify_attendance` が他の参加者へ
- * 自動でお知らせを出す (本人には出さない)。ここで notifications を触ると
- * 二重に届く。
+ * **お知らせは出さない (v1.11 で廃止)。** 公式練は参加者が数十人おり、
+ * 1人が遅刻を登録するだけで同数のお知らせが生まれていた。出欠の状況は
+ * この窓を開けば分かるので、量に見合わないと判断した。
+ * DB 側のトリガも 0005 で削除している。
  */
 
 export type AttendanceTarget =
@@ -120,7 +121,6 @@ export function AttendanceSheet({
 
   const me = participants?.find((p) => p.userId === currentUserId) ?? null;
   const isParticipant = me !== null;
-  const timeOptions = attendanceTimeOptions(startTime, endTime);
 
   async function save(status: AttendanceStatus, timeValue: string | null) {
     if (target.kind === "info") return;
@@ -248,7 +248,7 @@ export function AttendanceSheet({
                   </span>
                 </h4>
                 <p className="text-xs text-[var(--muted)]">
-                  出席なら操作は要りません。登録すると他の参加者にお知らせが届きます
+                  出席なら操作は要りません。登録した内容はこの一覧に出ます
                 </p>
 
                 <div className="flex gap-2">
@@ -289,42 +289,31 @@ export function AttendanceSheet({
                     <p className="text-xs font-medium">
                       {ATTENDANCE_TIME_LABELS[draftStatus]}時刻
                     </p>
-                    <div className="flex gap-2">
-                      <select
-                        aria-label="時刻を選ぶ"
-                        value={timeOptions.includes(draftTime) ? draftTime : ""}
-                        disabled={pending}
-                        onChange={(e) => setDraftTime(e.target.value)}
-                        className="flex-1 rounded-lg border border-[var(--border)] bg-[var(--background)] px-2 py-1.5 text-sm"
-                      >
-                        <option value="">選ぶ</option>
-                        {timeOptions.map((time) => (
-                          <option key={time} value={time}>
-                            {time}
-                          </option>
-                        ))}
-                      </select>
-                      <input
-                        aria-label="時刻を直接入力"
-                        value={draftTime}
-                        placeholder="15:00"
-                        inputMode="numeric"
-                        disabled={pending}
-                        onChange={(e) =>
-                          setDraftTime(normalizeTimeInput(e.target.value))
-                        }
-                        onBlur={(e) =>
-                          setDraftTime(finalizeTimeInput(e.target.value))
-                        }
-                        className="flex-1 rounded-lg border border-[var(--border)] bg-[var(--background)] px-2 py-1.5 text-sm"
-                      />
-                    </div>
+                    {/* 1分刻みの自由入力 (SPEC §6.4.2 / v1.11)。
+                        実際の到着・退出時刻は15分刻みに乗らないため、
+                        プルダウンは置かない */}
+                    <input
+                      aria-label={`${ATTENDANCE_TIME_LABELS[draftStatus]}時刻`}
+                      value={draftTime}
+                      placeholder="15:20"
+                      inputMode="numeric"
+                      disabled={pending}
+                      autoFocus
+                      onChange={(e) =>
+                        setDraftTime(normalizeTimeInput(e.target.value))
+                      }
+                      onBlur={(e) =>
+                        setDraftTime(finalizeTimeInput(e.target.value))
+                      }
+                      className="w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-2 py-1.5 text-sm"
+                    />
+                    <p className="text-[10px] text-[var(--muted)]">
+                      1分単位で入力できます。数字だけでも構いません (1520 → 15:20)
+                    </p>
                     <button
                       type="button"
-                      disabled={
-                        pending || !/^([01]\d|2[0-3]):[0-5]\d$/.test(draftTime)
-                      }
-                      onClick={() => save(draftStatus, draftTime)}
+                      disabled={pending || !isValidAttendanceTime(draftTime)}
+                      onClick={() => save(draftStatus, draftTime.trim())}
                       className={buttonClass}
                     >
                       {ATTENDANCE_LABELS[draftStatus]}で登録する

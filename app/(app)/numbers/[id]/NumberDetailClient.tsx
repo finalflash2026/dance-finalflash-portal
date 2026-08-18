@@ -386,7 +386,10 @@ function EventEditor({
   onError: (message: string | null) => void;
 }) {
   const router = useRouter();
-  const [date, setDate] = useState(initial?.date ?? todayInTokyo());
+  // **新規は空で開く。** 今日の日付が入っていると、iOS の数字キーボードでは
+  // ハイフンを打てないので「20260910」と入れるために10回以上消す必要があった。
+  // 編集のときは今の値を見せる (何を直しているのか分からなくなるため)
+  const [date, setDate] = useState(initial?.date ?? "");
   const [startTime, setStartTime] = useState(initial?.startTime ?? "");
   const [endTime, setEndTime] = useState(initial?.endTime ?? "");
   const [place, setPlace] = useState(initial?.place ?? "");
@@ -455,13 +458,17 @@ function EventEditor({
           <span className="text-sm font-medium">日付</span>
           <input
             value={date}
-            placeholder="2026-08-20"
+            placeholder="20260910"
             inputMode="numeric"
             disabled={pending}
+            autoFocus={!initial}
             onChange={(e) => setDate(normalizeDateInput(e.target.value))}
             onBlur={(e) => setDate(normalizeDateInput(e.target.value))}
             className={inputClass}
           />
+          <span className="mt-1 block text-xs text-[var(--muted)]">
+            数字だけで入力できます (20260910 → 2026-09-10)
+          </span>
         </label>
 
         <div className="flex items-end gap-2">

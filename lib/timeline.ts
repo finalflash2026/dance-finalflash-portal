@@ -72,20 +72,34 @@ export function packLanes<T extends TimeSpan>(items: T[]): Packed<T>[] {
   return result;
 }
 
+/** 1日の全時間帯 00:00〜24:00 (分) */
+const FULL_DAY_START = 0;
+const FULL_DAY_END = 24 * 60;
+
 /**
- * 時間軸の範囲。既定は 09:00〜22:00 (SPEC §6.1) だが、
- * はみ出す予定があれば時間単位で広げる。
- * ナンバー練はレンタルスタジオで夜遅くまで、ということがあるため、
- * 端で切ると予定が見えなくなる。
+ * 時間軸の範囲 (SPEC §6.3 / §6.4 / v1.11)。
+ *
+ * 既定は 09:00〜22:00 だが、**そこに収まらない予定が1件でもあれば
+ * 00:00〜24:00 の全時間帯**にする。ナンバー練には深夜練が入ることがあり、
+ * 端で切ると予定が見えなくなるため。
+ *
+ * 「はみ出したぶんだけ広げる」ではなく全時間帯にするのは、日によって
+ * 軸の範囲がばらばらになると、同じ高さのブロックが違う長さに見えて
+ * 前後の日と見比べられなくなるため。
  */
 export function timelineAxis(items: TimeSpan[]): {
   start: number;
   end: number;
 } {
-  const starts = items.map((i) => Math.floor(toMinutes(i.startTime) / 60) * 60);
-  const ends = items.map((i) => Math.ceil(toMinutes(i.endTime) / 60) * 60);
-  return {
-    start: Math.min(toMinutes(DAY_START_TIME), ...starts),
-    end: Math.max(toMinutes(DAY_END_TIME), ...ends),
-  };
+  const dayStart = toMinutes(DAY_START_TIME);
+  const dayEnd = toMinutes(DAY_END_TIME);
+
+  const overflows = items.some(
+    (item) =>
+      toMinutes(item.startTime) < dayStart || toMinutes(item.endTime) > dayEnd,
+  );
+
+  return overflows
+    ? { start: FULL_DAY_START, end: FULL_DAY_END }
+    : { start: dayStart, end: dayEnd };
 }
