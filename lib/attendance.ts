@@ -9,11 +9,7 @@
  * ここにあるのは表示のための組み立てだけで、権限判定は置かないこと。
  */
 
-import { stepOptions } from "@/lib/claims";
 import type { AttendanceStatus, TimeString } from "@/lib/types";
-
-/** 遅刻・早退の時刻は15分刻み (SPEC §6.4.2) */
-export const ATTENDANCE_STEP_MINUTES = 15;
 
 export const ATTENDANCE_LABELS: Record<AttendanceStatus, string> = {
   absent: "欠席",
@@ -72,13 +68,13 @@ export function buildParticipants(
 }
 
 /**
- * 遅刻・早退の時刻候補 (SPEC §6.4.2「15分刻みプルダウン+直接入力可」)。
- * 練習の時間帯の中だけを出す。範囲外の時刻は入力欄に直接書けばよく、
- * 候補に並べても選ぶ手間が増えるだけのため。
+ * 遅刻・早退の時刻として妥当か (SPEC §6.4.2 / v1.11)。
+ *
+ * **1分刻みの自由入力**。v1.11 で15分刻みのプルダウンを廃止した —
+ * 実際の到着・退出時刻は15分刻みに乗らないため。
+ * 練習の時間帯の外を弾いたりもしない (「開始前に帰る」はありえないが、
+ * 遅刻が翌日にまたがるような入力を無理に禁じても得が無い)。
  */
-export function attendanceTimeOptions(
-  startTime: TimeString,
-  endTime: TimeString,
-): TimeString[] {
-  return stepOptions({ startTime, endTime }, ATTENDANCE_STEP_MINUTES);
+export function isValidAttendanceTime(value: string): boolean {
+  return /^([01]\d|2[0-3]):[0-5]\d$/.test(value.trim());
 }
