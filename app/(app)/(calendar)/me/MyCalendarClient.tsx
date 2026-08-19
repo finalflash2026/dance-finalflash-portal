@@ -212,7 +212,11 @@ export function MyCalendarClient({
 
 /** 空き申請は出欠の対象外なので情報表示だけにする (SPEC §6.4.2) */
 function attendanceTarget(event: MyEvent): AttendanceTarget {
-  if (event.kind === "genre") return { kind: "slot", id: event.sourceId };
+  // 同じ時間帯に部屋を2つ押さえた公式練は1件にまとめてあるので、
+  // 出欠を読むときは元のコマ全部を渡す (SPEC §6.4-1 / v1.12)
+  if (event.kind === "genre") {
+    return { kind: "slot", id: event.sourceId, ids: event.sourceIds };
+  }
   if (event.kind === "number") {
     return { kind: "numberEvent", id: event.sourceId };
   }

@@ -1,6 +1,11 @@
 import { redirect } from "next/navigation";
 
 import { CalendarView } from "@/components/CalendarView";
+import {
+  ClubKeyBoard,
+  KEY_HISTORY_LIMIT,
+  toRows,
+} from "@/components/ClubKeyBoard";
 import type { DayBlock } from "@/components/DayGrid";
 import { RoomStatusBoard, type RoomStatusRow } from "@/components/RoomStatusBoard";
 import { SetupNotice } from "@/components/SetupNotice";
@@ -75,7 +80,8 @@ export default async function OverviewCalendarPage({
 
   const supabase = await createClient();
 
-  const [monthResult, todayRoomsResult, roomStatusResult] = await Promise.all([
+  const [monthResult, todayRoomsResult, roomStatusResult, keyHolderResult] =
+    await Promise.all([
     // 1. 選択月の slots + claims + 申請者名 (SPEC §13.1)
     supabase
       .from("slots")
@@ -99,7 +105,15 @@ export default async function OverviewCalendarPage({
       .from("room_status")
       .select("room_id, is_unlocked, updated_at, profiles(username)")
       .eq("date", today),
-  ]);
+
+    // 4. 部室の鍵の受け渡し (§6.1.2)。**日付では絞らない** —
+    //    鍵は日をまたいで同じ人が持っているのが普通で、今日の行が無いのが常態
+    supabase
+      .from("club_key_holders")
+      .select("id, user_id, taken_at, profiles(username)")
+      .order("taken_at", { ascending: false })
+      .limit(KEY_HISTORY_LIMIT),
+    ]);
 
   // 日付ごとにまとめておく。クライアント側は選択日で引くだけで済む
   const blocksByDate: Record<DateString, DayBlock[]> = {};
@@ -161,6 +175,12 @@ export default async function OverviewCalendarPage({
         initialRows={
           (roomStatusResult.data ?? []) as unknown as RoomStatusRow[]
         }
+        currentUserId={profile?.user_id ?? ""}
+      />
+
+      {/* 部室の鍵の所持者 (§6.1.2)。施錠ボードとミニカレンダーの間 */}
+      <ClubKeyBoard
+        initialRows={toRows(keyHolderResult.data)}
         currentUserId={profile?.user_id ?? ""}
       />
 

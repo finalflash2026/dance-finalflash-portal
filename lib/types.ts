@@ -205,6 +205,14 @@ export interface MyEvent {
   kind: "genre" | "claim" | "number";
   /** ics の UID に使う恒久 ID (元テーブルの主キー) */
   sourceId: string;
+  /**
+   * まとめる前の元 ID すべて (SPEC §6.4-1 / v1.12)。
+   *
+   * 同じジャンル・同じ時間帯の公式練が複数の部屋にあるときは1件にまとめるが、
+   * **出欠は部屋ごとのコマに紐づいている**ので、窓を開くときは全部のコマを
+   * 見にいく必要がある。まとめていない予定では `[sourceId]` と同じ。
+   */
+  sourceIds: string[];
   date: DateString;
   startTime: TimeString;
   endTime: TimeString;

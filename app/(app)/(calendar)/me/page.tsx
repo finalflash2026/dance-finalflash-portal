@@ -64,7 +64,14 @@ export default async function MyCalendarPage({
       .limit(NOTIFICATION_LIMIT),
     // 絞り込みチップに出す所属ナンバー。**今月に予定が無いナンバーも出す**
     // (予定を入れ忘れているのか絞り込まれているのか分からなくなるため)
-    supabase.from("number_members").select("numbers(id, name)"),
+    //
+    // **user_id で必ず絞ること。** RLS (`sel_nmembers`) が見せてくれるのは
+    // 「自分が所属するナンバーの**全メンバー行**」なので、絞らないと
+    // メンバーが3人いるナンバーのチップが3つ並ぶ (v1.12 で修正)。
+    supabase
+      .from("number_members")
+      .select("numbers(id, name)")
+      .eq("user_id", profile.user_id),
     // 絞り込みチップに出す自分の1〜3ジャン。**その月に予定が無くても出す**ので
     // 取得済みの予定から逆算はできない (getMyEvents も内部で同じものを引くが、
     // user_subgenres は数行しかなく、揃えるために引数を増やすほうが割に合わない)

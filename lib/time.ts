@@ -201,6 +201,26 @@ export function formatAsTokyoTime(value: string | Date): TimeString {
   }).format(typeof value === "string" ? new Date(value) : value);
 }
 
+/**
+ * timestamptz を JST の '8/20 18:32' で表示する。
+ *
+ * **日をまたいで続く状態**を出す場所で使う (部室の鍵の所持。SPEC §6.1.2)。
+ * 時刻だけだと「18:32 から」が今日なのか3日前なのか分からない。
+ * 当日中で完結する施錠ボードは formatAsTokyoTime のままでよい。
+ */
+export function formatAsTokyoDateTime(value: string | Date): string {
+  const date = typeof value === "string" ? new Date(value) : value;
+  const parts = new Intl.DateTimeFormat("en-GB", {
+    timeZone: TIMEZONE,
+    month: "numeric",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).formatToParts(date);
+  const get = (type: string) => parts.find((p) => p.type === type)?.value ?? "";
+  return `${get("month")}/${get("day")} ${get("hour")}:${get("minute")}`;
+}
+
 export function parseDate(date: DateString): {
   year: number;
   month: number;
