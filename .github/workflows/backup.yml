@@ -71,12 +71,24 @@ jobs:
         env:
           SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
         run: |
+          # **$DB_URL はコンテナの中で展開させる。**
+          # sh -c を挟まず素で書くと、外側のシェルが先に展開して空文字になり、
+          # pg_dump が接続先なしと解釈してローカルソケットを探しに行く
+          # ("connection to server on socket ... failed" はこれが原因)。
+          # そのため囲みは**シングルクォート**でなければならない。
           docker run --rm \
             -e DB_URL="$SUPABASE_DB_URL" \
             -e PGSSLMODE=require \
             -e PGCONNECT_TIMEOUT=15 \
             postgres:17-alpine \
-            pg_dump --no-owner --no-privileges --format=custom "$DB_URL" > backup.dump
+            sh -c 'pg_dump --no-owner --no-privileges --format=custom "$DB_URL"' \
+            > backup.dump
+
+          # 空のファイルが上がると「バックアップがある」と誤解するので確かめる
+          if [ ! -s backup.dump ]; then
+            echo "::error::ダンプが空です"
+            exit 1
+          fi
           ls -lh backup.dump
 
       - name: 日付を決める
