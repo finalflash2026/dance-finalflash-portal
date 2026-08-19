@@ -11,6 +11,7 @@
 | v1.5 | タブ①に**「今日の練習場所」施錠状況ボード**を追加(room_status新設。○=開錠済/×=施錠中、既定×、誰でも切替可。§6.1.1) |
 | v1.6 | **OB/OGロールを追加**。卒業者はアカウント削除ではなくOBへ移行し、タブ②③(ナンバー・マイカレンダー)のみ利用可能に。縦イベでのナンバー参加を継続できる(§3.6) |
 | v1.7 | **仕様変更2件**。①空き申請の時間粒度を**15分刻み→10分刻み**に変更(§6.1)。UI で丸めるだけでなく`claims`のCHECK制約でDB側でも強制する(クライアントからRLS経由で直接insertする設計のため、UIだけでは回避できてしまう)。②**タブ③のミニカレンダーをドット表示→予定ラベル表示**に変更(§6.0/§6.4)。タブ①②はドットのまま。あわせて`room_status.updated_at`をUPDATE時に更新するトリガを追加(§6.1.1の「3時間以上経過」判定が既定値のままでは機能しないため) |
+| v1.11.1 | 実装時の追加(仕様変更なし)。§5.2に**`graduate_to_ob` 関数**を追加。§3.6のOB移行に伴う3つの削除とロール更新を1トランザクションで行う(supabase-jsには複数文をまたぐトランザクションが無く、アプリ側で4本に分けると途中失敗で「OBなのに未来の申請が残る」中途半端な状態になるため)。あわせて§8.9に、**自分自身のOB化・admin剥奪は拒否**すること、一括OB化は**現役のみを対象**に数えること、**username変更時は`auth.users`のダミーメールも更新する**こと(忘れると本人がログインできなくなる)を明記。アカウント削除は`DELETE`メソッドではなく**POSTの専用パス**にし、cascadeの付いていない参照が残っていれば409で止める。§13.3のバックアップを`.github/workflows/backup.yml`として具体化 |
 | v1.11 | **仕様変更3件**(実運用の指摘による)。①タブ②③の日別タイムラインの時間軸を、**09:00〜22:00 に収まらない予定がある日は 00:00〜24:00 の全時間帯**にする(§6.3/§6.4)。ナンバー練には深夜練が入ることがあり、端で切ると予定が見えなくなるため。収まる日は従来どおり 09:00〜22:00。②出欠の遅刻・早退の時刻を**15分刻みプルダウン→1分刻みの自由入力**に変更(§6.4.2)。実際の到着・退出時刻は15分刻みに乗らない。③**出欠のお知らせを廃止**(§6.4.2 / §6.4-2)。1件の変更で参加者全員に通知が飛び、量に見合う価値が無いと判断したため。`attendances` のトリガを削除する(§5.2) |
 | v1.10 | **仕様変更3件**(実運用の指摘による)。①お知らせは**タップして既読にしたらリストから消す**(§6.4-2)。既読が淡色で残り続けると、その下のカレンダーが遠くなるだけで読む価値が無いため。②絞り込みチップを**ジャンル単位・ナンバー単位に細分**(§6.4-3)。`すべて / 公式練 / ナンバー…` では公式練が1つの束のままで、「今週のBREAKだけ見たい」ができなかった。`すべて / {自分の1〜3ジャン} / 空き申請 / {各ナンバー}` に変更する。③**ナンバーの削除**を追加(§6.3)。`del_numbers` のRLSポリシーは最初からあったが画面が無く、作ったナンバーを消す手段が無かった |
 | v1.9.2 | **仕様変更1件**(実運用の指摘による)。公開時に、予約枠の**未割当時間を自動で「空き」コマにする**(§6.2 Step3)。申請は公開済の`open`コマにしか付けられないため、コマを作らないと予約している部屋がタブ①に列すら出ず空き申請ができなかった。予約枠は全日程・全部屋にわたるので1件ずつ「空き」を置く運用は現実的でなく、**予約した=使える**を既定にする。開放したくない時間帯は明示的に「使用不可」で塞ぐ |
@@ -224,8 +225,9 @@ CRON_SECRET=                      # Vercel Cron認証用ランダム文字列
 - `0003_reservations_unique.sql` … v1.7.1 の差分(reservations の active 部分ユニークインデックス)
 - `0004_slots_no_overlap.sql` … v1.8.1 の差分(slots の同一予約枠内の排他制約)
 - `0005_drop_attendance_notify.sql` … v1.11 の差分(出欠のお知らせトリガを削除)
+- `0006_graduate_to_ob.sql` … v1.11.1 の差分(OB移行の自動処理をまとめたDB関数)
 
-本節 = 0001 + 0002 + 0003 + 0004 + 0005 を適用した状態。
+本節 = 0001 + 0002 + 0003 + 0004 + 0005 + 0006 を適用した状態。
 
 ```sql
 -- =========================================================
@@ -499,6 +501,40 @@ create table public.admin_audit_logs (
   created_at timestamptz not null default now()
 );
 -- 参照はadminのみ。書込はサーバー(service role)のみ
+
+-- ---------- OB化の自動処理(v1.11.1追加。§3.6) ----------
+-- 未来のclaims削除・未来の公式練attendances削除・サブジャンル削除・role更新を
+-- **1トランザクションで**行う。supabase-js に複数文をまたぐトランザクションが
+-- 無いため、アプリ側で4本に分けると途中失敗で
+-- 「OBなのに未来の申請が残る」中途半端な状態が残ってしまう。
+-- 一括OB化(§8.9)と単独のロール変更で同じ経路を使う。
+create or replace function public.graduate_to_ob(p_user_ids uuid[])
+returns int
+language plpgsql
+as $$
+declare
+  v_today date := (now() at time zone 'Asia/Tokyo')::date;
+  v_count int;
+begin
+  delete from public.claims c using public.slots s
+  where c.slot_id = s.id and c.user_id = any(p_user_ids) and s.date >= v_today;
+
+  delete from public.attendances a using public.slots s
+  where a.slot_id = s.id and a.user_id = any(p_user_ids) and s.date >= v_today;
+
+  delete from public.user_subgenres where user_id = any(p_user_ids);
+
+  update public.profiles set role = 'ob'
+  where user_id = any(p_user_ids) and role <> 'ob';
+  get diagnostics v_count = row_count;
+
+  return v_count;
+end;
+$$;
+-- ログイン中のユーザーからは呼べないようにする(adminの判定はAPI側)
+revoke all on function public.graduate_to_ob(uuid[]) from public;
+revoke all on function public.graduate_to_ob(uuid[]) from anon, authenticated;
+grant execute on function public.graduate_to_ob(uuid[]) to service_role;
 
 -- ---------- 設定(合言葉ハッシュ等) ----------
 create table public.app_settings (
@@ -908,7 +944,10 @@ insert into public.room_aliases (alias, room_id) values
 - ユーザー一覧(検索: 期/ジャンル/名前/**現役・OB**)。各行: ロール変更、表示名変更、**1ジャン修正・期修正(§6.5.1)**、**OB/OGへ移行・現役へ復帰(§3.6)**、仮パスワード再設定、アカウント削除(auth.users削除→cascade)。
 - **卒業処理は原則「OBへ移行」**を用いる(削除は誤登録アカウントの整理などに限る)。期を指定して複数人を一括OB化できるUIを用意する。
 - 合言葉変更(3種)。入力→bcryptハッシュ化→`app_settings` upsert。
-- 削除・降格の操作は確認ダイアログ必須。自分自身のadmin剥奪と自己削除は禁止(最後のadmin消失防止)。
+- 削除・降格の操作は確認ダイアログ必須。自分自身のadmin剥奪と自己削除は禁止(最後のadmin消失防止)。**自分の行ではロール欄自体を操作不可にする**(押せるのに毎回断られる作りにしない)。
+- 在籍の絞り込みの既定は**「現役のみ」**(§3.6の名簿検索と揃える)。OB行には「OB/OG」バッジを出す。
+- 保存しても一覧は引き直さない。数十人の一覧で開いた行と読んでいた位置が先頭に戻ると操作が続かないため、返ってきた値で該当行だけ差し替える。
+- 仮パスワードは発行後にその場で表示する(再表示できないため画面から消さない)。削除は確認ダイアログに加えて**「削除」と入力**させる(ロール変更と違い元に戻せないため)。
 
 #### 6.5.1 1ジャン・期の修正(v1.4追加)
 登録時の入力ミス救済および代替わり対応のため、**adminのみ** `profiles.main_genre_id` と `profiles.generation` を修正できる。本人および coordinator は変更不可。
@@ -988,13 +1027,36 @@ username→ダミーメール合成→`signInWithPassword`。失敗時は「ID�
 `?secret=CRON_SECRET` を検証し、DBに軽いselectを1回発行して200を返す(§13.4のkeep-alive用)。
 
 ### 8.9 admin系
-`POST /api/admin/users/[id]/reset-password` / `PATCH /api/admin/users/[id]` / `DELETE /api/admin/users/[id]` / `POST /api/admin/passphrases`。すべてサーバー側で admin ロール再検証。
+`POST /api/admin/users/[id]/reset-password` / `PATCH /api/admin/users/[id]` / **`POST /api/admin/users/[id]/delete`** / `POST /api/admin/passphrases`。すべてサーバー側で admin ロール再検証。
+
+> 削除は `DELETE` メソッドではなく **POST の専用パス**にする(v1.11.1)。同じURLに更新と削除を並べると、メソッド1文字の間違いが「更新のつもりが削除」になるため。
 
 `PATCH /api/admin/users/[id]` の更新可能項目: `role`(`ob` を含む), `display_name`, **`main_genre_id`**, **`generation`**。
-- `role` を `ob` に変更する場合は §3.6 の自動処理(未来claims削除・未来公式練attendances削除・サブジャンル削除)を同一トランザクションで実行する。
+- `role` を `ob` に変更する場合は §3.6 の自動処理(未来claims削除・未来公式練attendances削除・サブジャンル削除)を同一トランザクションで実行する。実体は §5.2 の `graduate_to_ob` 関数(v1.11.1)。
 - `POST /api/admin/users/bulk-graduate` : `{ userIds: string[] }` を一括でOB化(同処理)。res: `{ updated:number }`。
-- 処理: 値を更新 → `username` を再生成 → 重複チェック(409) → サブジャンル重複行を削除 → `admin_audit_logs` に記録 → 新usernameを返す。
-- res: `{ username: string }`(呼び出し側は確認ダイアログで新IDを表示する)
+  - **既にOBの人は対象から除いてから呼ぶ**。「N人を移行しました」の数が実態とずれると確認の意味が無くなるため。
+  - 一度に渡せるのは200件まで(期ひとつで数十人。全員を送るような誤操作を上限で止める)。
+- 処理: 値を更新 → `username` を再生成 → 重複チェック(409) → **`auth.users` のダミーメールを新usernameで再合成して更新** → サブジャンル重複行を削除 → `admin_audit_logs` に記録 → 新usernameを返す。
+  - ダミーメールの更新は必須。ログインは username からメールを再合成して照合するため(§3.3)、忘れると**IDを変えた瞬間に本人がログインできなくなる**。更新に失敗した場合は profiles 側(username・表示名・期・1ジャン)を変更前に戻して500を返す。
+- res: `{ username, role, generation, mainGenreId, displayName }`(呼び出し側は確認ダイアログで新IDを表示する)。監査ログの書込に失敗した場合のみ `warning` を添える(本体の変更は成功しているので500にはしない)。
+- **自分自身の admin 剥奪・OB化は 403 で拒否する**(最後のadminが消えるのを防ぐ。§6.5)。一括OB化に自分が含まれる場合も、黙って除かずエラーにする(選択の取り違えが疑われるため)。
+- `admin_audit_logs` は**対象1人につき1行**書く(一括操作でも同様)。「誰をまとめて処理したか」より「この人に何が起きたか」を後から引けるほうが実際の問い合わせに答えられる。
+
+`POST /api/admin/users/[id]/reset-password`(§3.5)
+- 仮パスワードをサーバーで生成し `auth.admin.updateUserById` で設定、**レスポンスで一度だけ返す**。res: `{ username, password }`。
+- 読み上げて伝えるものなので、見間違えやすい文字(`0/O`・`1/l/I`)を除いた英数字12文字とする。
+- **値はどこにも保存・記録しない**(監査ログにも入れない。§13.2「平文ログ禁止」)。監査ログには誰にいつ発行したかだけを残す。
+
+`POST /api/admin/users/[id]/delete`(§6.5)
+- 用途は**誤登録アカウントの整理**。卒業はOB移行を使う。自己削除は403。
+- `profiles` を参照していて `on delete cascade` が付いていない参照(`numbers.owner_id` / `reservations.created_by` / `import_files.uploaded_by` / `room_status.updated_by` / `admin_audit_logs.actor_id`)が**1件でも残っていれば409**で止め、何が何件残っているかを日本語で返す。活動の記録があるアカウントは消さずOBへ移行させるため。
+- 監査ログは**削除前に**書く(`target_user_id` が `on delete set null` のため、後から書くと誰の話か分からなくなる。detail に username を残す)。
+- `auth.users` を削除すると `profiles` 以下(申請・出欠・ナンバー所属・購読トークン・お知らせ)が cascade で消える。
+
+`POST /api/admin/passphrases`(§3.5 / §6.5)
+- `{ signupPass?, coordinatorPass?, adminPass? }`。**空欄の項目は変更しない**(1つだけ変える場面が多いため)。6文字以上。
+- bcrypt(10ラウンド)でハッシュ化して `app_settings` に upsert。`updated_at` は明示的に更新する(既定値は insert 時にしか効かない)。
+- 監査ログには**変更したキー名だけ**を残す(値は平文ログ禁止)。既に付与されたロールは取り消されない。
 
 ---
 
@@ -1098,7 +1160,11 @@ VTIMEZONE: TZID=Asia/Tokyo (+0900固定, STANDARDのみ)
 - 卒業者対応: adminがアカウント削除。合言葉は代替わりで変更(admin画面に注記)。
 
 ### 13.3 バックアップ
-- Supabase無料枠は自動バックアップ無し。**GitHub Actionsで日次 `pg_dump` を取得しプライベートリポジトリ/外部ストレージへ保存**するワークフローを用意する(フェーズ4で可)。
+- Supabase無料枠は自動バックアップ無し。**GitHub Actionsで日次 `pg_dump` を取得**する(`.github/workflows/backup.yml`)。保管先は Actions のアーティファクト(保管90日)。JST 04:00 に実行し、手動実行もできる。
+- 接続文字列はリポジトリシークレット `SUPABASE_DB_URL` に置く。**Session pooler(ポート5432)のURLを使う**こと。直結(`db.<ref>.supabase.co`)はIPv6のみで、GitHubのランナーはIPv4のため接続できない。
+- ランナー同梱の `pg_dump` はSupabaseのPostgreSQLより古いことがあるため、公式リポジトリから `postgresql-client-17` を入れてから実行する(バージョン不一致は実行時エラーになる)。
+- シークレット未設定のまま成功扱いにしない(バックアップが無いのに緑になるのが最悪のため、未設定なら明示的に失敗させる)。
+- GitHubは**60日間リポジトリに動きが無いとスケジュール実行を停止する**。長期休暇明けは有効になっているか確認する。
 
 ### 13.4 スリープ対策
 - Supabase無料プロジェクトは1週間無アクセスで一時停止するため、Vercel Cron で `GET /api/health?secret=…` を1日1回実行(vercel.json の crons 設定)。長期休暇中も停止しない。

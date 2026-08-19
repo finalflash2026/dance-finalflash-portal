@@ -1,0 +1,71 @@
+# 日次バックアップ (SPEC.md §13.3)
+#
+# Supabase の無料枠には自動バックアップが無いため、GitHub Actions で
+# 毎日 pg_dump を取り、Actions のアーティファクトとして保管する。
+#
+# ---- 事前設定 (1回だけ) ----
+# リポジトリの Settings → Secrets and variables → Actions → New repository secret
+#   名前: SUPABASE_DB_URL
+#   値  : Supabase の Project Settings → Database → Connection string の
+#         **Session pooler** (ポート5432) の URL。パスワードを埋めて登録する。
+#
+#   直結 (db.<ref>.supabase.co) ではなく pooler を使うこと。
+#   直結は IPv6 のみで、GitHub のランナーは IPv4 のため接続できない。
+#
+# ---- 復元 ----
+#   pg_restore --clean --if-exists --no-owner --no-privileges \
+#     -d "$SUPABASE_DB_URL" backup.dump
+#
+# ---- 注意 ----
+# - GitHub は「60日間リポジトリに動きが無い」とスケジュール実行を止める。
+#   長期休暇明けは Actions タブで有効化されているか確認すること。
+# - アーティファクトの保管は90日。それより長く残したいものは手元に落とす。
+# - 手動実行もできる (Actions → 日次バックアップ → Run workflow)。
+
+name: 日次バックアップ
+
+on:
+  schedule:
+    # UTC 19:00 = JST 翌04:00。利用が最も少ない時間帯に寄せている
+    - cron: "0 19 * * *"
+  workflow_dispatch:
+
+jobs:
+  dump:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      # ランナー同梱の pg_dump は Supabase の PostgreSQL より古いことがあり、
+      # その場合 "server version mismatch" で失敗する。公式リポジトリから入れる
+      - name: PostgreSQL クライアントを入れる
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y postgresql-common
+          sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y
+          sudo apt-get install -y postgresql-client-17
+
+      - name: 日付を決める
+        id: stamp
+        run: echo "date=$(date -u +%Y%m%d)" >> "$GITHUB_OUTPUT"
+
+      - name: ダンプを取る
+        env:
+          # 未設定のまま緑になると「バックアップがある」と誤解するので必ず落とす
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+          PGSSLMODE: require
+        run: |
+          if [ -z "$SUPABASE_DB_URL" ]; then
+            echo "SUPABASE_DB_URL が設定されていません (このファイル冒頭の手順を参照)"
+            exit 1
+          fi
+          pg_dump --no-owner --no-privileges --format=custom \
+            --file=backup.dump "$SUPABASE_DB_URL"
+          ls -lh backup.dump
+
+      - name: アーティファクトに保存する
+        uses: actions/upload-artifact@v4
+        with:
+          name: db-backup-${{ steps.stamp.outputs.date }}
+          path: backup.dump
+          retention-days: 90
