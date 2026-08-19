@@ -37,7 +37,17 @@ import type { AttendanceStatus, DateString } from "@/lib/types";
  */
 
 export type AttendanceTarget =
-  | { kind: "slot"; id: string }
+  | {
+      kind: "slot";
+      /** 書き込み先。まとめた場合は代表のコマ */
+      id: string;
+      /**
+       * まとめた元のコマ全部 (SPEC §6.4-1 / v1.12)。同じ練習で部屋を2つ
+       * 押さえていると、**出欠は部屋ごとのコマに付く**。読むときは全部を見て、
+       * 書くときは代表に寄せる (寄せないと1人が2行持つことになる)。
+       */
+      ids: string[];
+    }
   | { kind: "numberEvent"; id: string }
   /** 空き申請など、出欠の対象にならないもの (SPEC §6.4.2) */
   | { kind: "info" };
@@ -93,10 +103,11 @@ export function AttendanceSheet({
       return;
     }
 
-    const { data, error: attendanceError } = await supabase
-      .from("attendances")
-      .select("user_id, status, time_value")
-      .eq(target.kind === "slot" ? "slot_id" : "number_event_id", target.id);
+    const query = supabase.from("attendances").select("user_id, status, time_value");
+    const { data, error: attendanceError } =
+      target.kind === "slot"
+        ? await query.in("slot_id", target.ids)
+        : await query.eq("number_event_id", target.id);
 
     if (attendanceError) {
       setError(`出欠を取得できませんでした: ${attendanceError.message}`);
@@ -112,7 +123,14 @@ export function AttendanceSheet({
       timeValue: row.time_value ? row.time_value.slice(0, 5) : null,
     }));
 
-    setParticipants(buildParticipants(people.people, rows));
+    // まとめたコマを読むと、まとめる前に別々の部屋へ登録した人が二重に出る。
+    // buildParticipants は1人1行を前提にしているのでここで潰す
+    const unique = new Map<string, AttendanceRow>();
+    for (const row of rows) {
+      if (!unique.has(row.userId)) unique.set(row.userId, row);
+    }
+
+    setParticipants(buildParticipants(people.people, [...unique.values()]));
   }, [target]);
 
   useEffect(() => {
@@ -147,6 +165,18 @@ export function AttendanceSheet({
       setError(describeError(writeError));
       return;
     }
+
+    // まとめた練習では、代表以外のコマに前の登録が残っていることがある。
+    // 消しておかないと「欠席」を取り消しても片方が残り続ける
+    if (target.kind === "slot" && target.ids.length > 1) {
+      const others = target.ids.filter((id) => id !== target.id);
+      await supabase
+        .from("attendances")
+        .delete()
+        .eq("user_id", currentUserId)
+        .in("slot_id", others);
+    }
+
     setDraftStatus(null);
     setDraftTime("");
     load();
@@ -157,11 +187,15 @@ export function AttendanceSheet({
     setPending(true);
     setError(null);
     const supabase = createClient();
-    const { error: deleteError } = await supabase
+    const remove = supabase
       .from("attendances")
       .delete()
-      .eq("user_id", currentUserId)
-      .eq(target.kind === "slot" ? "slot_id" : "number_event_id", target.id);
+      .eq("user_id", currentUserId);
+    // まとめた練習は、どの部屋のコマに付いていても消す
+    const { error: deleteError } =
+      target.kind === "slot"
+        ? await remove.in("slot_id", target.ids)
+        : await remove.eq("number_event_id", target.id);
     setPending(false);
 
     if (deleteError) {

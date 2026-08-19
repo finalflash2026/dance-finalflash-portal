@@ -60,7 +60,7 @@ async function getGenrePracticeEvents(
   const { data, error } = await supabase
     .from("slots")
     .select(
-      "id, date, start_time, end_time, target_generations, genres(code), rooms(name)",
+      "id, date, start_time, end_time, target_generations, genres(code), rooms(name, sort_order)",
     )
     .eq("published", true)
     .eq("status", "genre")
@@ -77,10 +77,10 @@ async function getGenrePracticeEvents(
     end_time: string;
     target_generations: number[] | null;
     genres: { code: string } | null;
-    rooms: { name: string } | null;
+    rooms: { name: string; sort_order: number } | null;
   }[];
 
-  return rows
+  const events: GenreEvent[] = rows
     // 対象期の判定。配列の包含は JS 側で絞る (件数が少なく、条件が読みやすいため)
     .filter(
       (row) =>
@@ -88,16 +88,71 @@ async function getGenrePracticeEvents(
         row.target_generations.includes(profile.generation),
     )
     .map((row) => ({
-      kind: "genre" as const,
-      sourceId: row.id,
-      date: row.date,
-      startTime: normalizeTime(row.start_time),
-      endTime: normalizeTime(row.end_time),
-      title: `${row.genres?.code ?? "?"} 公式練`,
-      location: row.rooms?.name ?? "",
-      numberId: null,
-      genreCode: row.genres?.code ?? null,
+      roomSortOrder: row.rooms?.sort_order ?? 0,
+      event: {
+        kind: "genre" as const,
+        sourceId: row.id,
+        sourceIds: [row.id],
+        date: row.date,
+        startTime: normalizeTime(row.start_time),
+        endTime: normalizeTime(row.end_time),
+        title: `${row.genres?.code ?? "?"} 公式練`,
+        location: row.rooms?.name ?? "",
+        numberId: null,
+        genreCode: row.genres?.code ?? null,
+      },
     }));
+
+  return mergeSameTimeGenreEvents(events);
+}
+
+/** まとめのために部屋の並び順を添えたもの。MyEvent 自体は汚さない */
+interface GenreEvent {
+  roomSortOrder: number;
+  event: MyEvent;
+}
+
+/**
+ * 同じジャンル・同じ時間帯の公式練を1件にまとめる (SPEC §6.4-1 / v1.12)。
+ *
+ * 1回の練習に部屋を2つ押さえることがあり、コマは**部屋ごとに1行**できる。
+ * そのまま出すと自分の予定に同じ練習が2件並び、購読カレンダーにも2件入る。
+ * 実際には1つの練習なので、場所を併記して1件にする。
+ *
+ * **まとめるのは開始・終了が完全に一致するときだけ。** 部分的な重なりでも
+ * まとめると、まとめ後の時間帯が実際より長くなり
+ * 「19:30に終わるはずが20:00と表示される」ことになる。
+ *
+ * 代表の id は**並べ替えて先頭のもの**に固定する。ics の UID に使うため、
+ * 取得順で変わると購読側で予定が消えて再登場してしまう (SPEC §10)。
+ */
+function mergeSameTimeGenreEvents(entries: GenreEvent[]): MyEvent[] {
+  const groups = new Map<string, GenreEvent[]>();
+  for (const entry of entries) {
+    const { date, startTime, endTime, genreCode } = entry.event;
+    const key = `${date}|${startTime}|${endTime}|${genreCode ?? "?"}`;
+    groups.set(key, [...(groups.get(key) ?? []), entry]);
+  }
+
+  return [...groups.values()].map((group) => {
+    const byId = [...group].sort((a, b) =>
+      a.event.sourceId.localeCompare(b.event.sourceId),
+    );
+    const representative = byId[0].event;
+    if (byId.length === 1) return representative;
+
+    // 場所の並びは部屋の既定順にする (取得順や id 順だと日によって入れ替わる)
+    const rooms = [...group]
+      .sort((a, b) => a.roomSortOrder - b.roomSortOrder)
+      .map((entry) => entry.event.location)
+      .filter((name, index, all) => name !== "" && all.indexOf(name) === index);
+
+    return {
+      ...representative,
+      sourceIds: byId.map((entry) => entry.event.sourceId),
+      location: rooms.join("・"),
+    };
+  });
 }
 
 /**
@@ -141,6 +196,7 @@ async function getClaimEvents(
     .map((row) => ({
       kind: "claim" as const,
       sourceId: row.id,
+      sourceIds: [row.id],
       date: row.slots!.date,
       startTime: normalizeTime(row.start_time),
       endTime: normalizeTime(row.end_time),
@@ -207,6 +263,7 @@ async function getNumberEvents(
   return rows.map((row) => ({
     kind: "number" as const,
     sourceId: row.id,
+    sourceIds: [row.id],
     date: row.date,
     startTime: normalizeTime(row.start_time),
     endTime: normalizeTime(row.end_time),
