@@ -84,7 +84,12 @@ export const config = {
      *   _next/static, _next/image, favicon.ico, 画像ファイル
      * /api/cal と /api/health は上の PUBLIC_API_PREFIXES で通しているが、
      * セッション更新のコストを避けるため matcher からも外しておく。
+     *
+     * **manifest.webmanifest も外す。** ここを通すと未ログインのとき
+     * /login へリダイレクトされ、ログイン前にホーム画面へ追加した人に
+     * アプリ名 (ff Calendar) と standalone が効かない (SPEC §12)。
+     * 中身は公開情報しか無いので認証を要求する理由も無い。
      */
-    "/((?!_next/static|_next/image|favicon.ico|api/cal|api/health|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)",
+    "/((?!_next/static|_next/image|favicon.ico|manifest.webmanifest|api/cal|api/health|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)",
   ],
 };
