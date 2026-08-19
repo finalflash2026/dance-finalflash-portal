@@ -52,6 +52,21 @@ jobs:
           endpoint=$(printf '%s' "$SUPABASE_DB_URL" | sed -E 's#^[a-z]+://[^@]*@##; s#[/?].*$##')
           echo "接続先: $endpoint"
 
+          # pooler はユーザー名でテナントを判別するため、`postgres` だけでは
+          # 認証が通らない (password authentication failed に見えるので紛らわしい)
+          user=$(printf '%s' "$SUPABASE_DB_URL" | sed -E 's#^[a-z]+://##; s#[:@/].*$##')
+          case "$endpoint" in
+            *pooler.supabase.com*)
+              case "$user" in
+                postgres.*) echo "ユーザー: $user" ;;
+                *)
+                  echo "::error::pooler ではユーザー名が postgres.<プロジェクトref> の形式である必要があります (今は「$user」)。Session pooler のURIを丸ごとコピーし直してください"
+                  exit 1
+                  ;;
+              esac
+              ;;
+          esac
+
           case "$endpoint" in
             *:6543)
               echo "::error::Transaction pooler (6543) は pg_dump に使えません。Session pooler (5432) のURLに差し替えてください"
