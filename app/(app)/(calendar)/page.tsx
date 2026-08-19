@@ -1,15 +1,12 @@
 import { redirect } from "next/navigation";
 
 import { CalendarView } from "@/components/CalendarView";
-import {
-  ClubKeyBoard,
-  KEY_HISTORY_LIMIT,
-  toRows,
-} from "@/components/ClubKeyBoard";
+import { ClubKeyBoard } from "@/components/ClubKeyBoard";
 import type { DayBlock } from "@/components/DayGrid";
 import { RoomStatusBoard, type RoomStatusRow } from "@/components/RoomStatusBoard";
 import { SetupNotice } from "@/components/SetupNotice";
 import { getCurrentProfile } from "@/lib/auth/session";
+import { KEY_HISTORY_LIMIT, toKeyHolderRows } from "@/lib/club-key";
 import { GENRE_BY_ID, isCoordinatorOrAbove } from "@/lib/constants";
 import { hasSupabaseEnv } from "@/lib/env";
 import { createClient } from "@/lib/supabase/server";
@@ -180,7 +177,7 @@ export default async function OverviewCalendarPage({
 
       {/* 部室の鍵の所持者 (§6.1.2)。施錠ボードとミニカレンダーの間 */}
       <ClubKeyBoard
-        initialRows={toRows(keyHolderResult.data)}
+        initialRows={toKeyHolderRows(keyHolderResult.data)}
         currentUserId={profile?.user_id ?? ""}
       />
 

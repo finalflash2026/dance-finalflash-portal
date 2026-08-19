@@ -2,6 +2,11 @@
 
 import { useCallback, useEffect, useState } from "react";
 
+import {
+  KEY_HISTORY_LIMIT,
+  toKeyHolderRows,
+  type KeyHolderRow,
+} from "@/lib/club-key";
 import { createClient } from "@/lib/supabase/client";
 import { formatAsTokyoDateTime } from "@/lib/time";
 
@@ -18,17 +23,8 @@ import { formatAsTokyoDateTime } from "@/lib/time";
  * 鍵は日をまたいで同じ人が持っているのが普通なので。
  */
 
-export interface KeyHolderRow {
-  id: string;
-  userId: string;
-  username: string;
-  takenAt: string;
-}
-
 /** 施錠状況ボードと同じ間隔で見直す (SPEC §6.1.1) */
 const POLL_INTERVAL_MS = 60_000;
-/** 折りたたみに出す履歴の件数。たどれれば十分なので深追いしない */
-const HISTORY_LIMIT = 5;
 
 export function ClubKeyBoard({
   initialRows,
@@ -48,14 +44,14 @@ export function ClubKeyBoard({
       .from("club_key_holders")
       .select("id, user_id, taken_at, profiles(username)")
       .order("taken_at", { ascending: false })
-      .limit(HISTORY_LIMIT);
+      .limit(KEY_HISTORY_LIMIT);
 
     if (fetchError) {
       setError(`最新の状態を取得できませんでした: ${fetchError.message}`);
       return;
     }
     setError(null);
-    setRows(toRows(data));
+    setRows(toKeyHolderRows(data));
   }, []);
 
   useEffect(() => {
@@ -149,21 +145,3 @@ export function ClubKeyBoard({
   );
 }
 
-/** サーバー側の取得と形を揃えるため、変換はここに置いて共用する */
-export function toRows(data: unknown): KeyHolderRow[] {
-  return (
-    (data ?? []) as unknown as {
-      id: string;
-      user_id: string;
-      taken_at: string;
-      profiles: { username: string } | null;
-    }[]
-  ).map((row) => ({
-    id: row.id,
-    userId: row.user_id,
-    username: row.profiles?.username ?? "(退会したユーザー)",
-    takenAt: row.taken_at,
-  }));
-}
-
-export { HISTORY_LIMIT as KEY_HISTORY_LIMIT };
