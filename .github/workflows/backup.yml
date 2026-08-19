@@ -110,8 +110,11 @@ jobs:
         id: stamp
         run: echo "date=$(date -u +%Y%m%d)" >> "$GITHUB_OUTPUT"
 
+      # v4 は Node.js 20 向けで、GitHub 側が新しい Node で動かしている旨の
+      # 警告が出る。v6 が Node.js 24 に切り替わった版 (v5 は Node 20 のまま)。
+      # v7 も出ているが中身を ESM に書き直した版で、ここには必要ない
       - name: アーティファクトに保存する
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: db-backup-${{ steps.stamp.outputs.date }}
           path: backup.dump
