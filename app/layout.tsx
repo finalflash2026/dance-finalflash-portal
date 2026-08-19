@@ -1,5 +1,7 @@
 import type { Metadata, Viewport } from "next";
 
+import { THEME_INIT_SCRIPT } from "@/lib/theme";
+
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -21,7 +23,16 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="ja">
+    /*
+     * テーマの選択は端末の localStorage にあり、サーバーは知らない。
+     * そのためサーバーが返す HTML には data-theme が無く、
+     * 下の script が最初のペイント前に立てる (SPEC §12 / v1.13)。
+     * suppressHydrationWarning は、その差分を React に警告させないため。
+     */
+    <html lang="ja" suppressHydrationWarning>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
+      </head>
       <body className="antialiased">{children}</body>
     </html>
   );

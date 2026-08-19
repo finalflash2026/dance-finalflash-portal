@@ -338,11 +338,11 @@ function RoleBadge({ role }: { role: Role }) {
   // OB は名簿に残り続けるので、現役と一目で区別が付く必要がある (SPEC §3.6)
   const style =
     role === "ob"
-      ? "border-[#B0246B] text-[#B0246B]"
+      ? "border-[var(--ob)] text-[var(--ob)]"
       : role === "admin"
-        ? "border-[#C0392B] text-[#C0392B]"
+        ? "border-[var(--accent)] text-[var(--accent)]"
         : role === "coordinator"
-          ? "border-[#2F6FB5] text-[#2F6FB5]"
+          ? "border-[var(--info)] text-[var(--info)]"
           : "border-[var(--border)] text-[var(--muted)]";
 
   return (
@@ -373,7 +373,7 @@ function ChipRow({
             onClick={item.onClick}
             className={`shrink-0 rounded-full border px-2.5 py-1 text-xs ${
               item.on
-                ? "border-[var(--foreground)] bg-[var(--foreground)] font-bold text-white"
+                ? "border-[var(--primary)] bg-[var(--primary)] font-bold text-[var(--primary-fg)]"
                 : "border-[var(--border)]"
             }`}
           >
@@ -671,7 +671,7 @@ function EditPanel({
           type="button"
           onClick={removeUser}
           disabled={pending || isSelf}
-          className="w-full rounded-lg border border-[#C0392B] px-4 py-3 text-base font-medium text-[#C0392B] disabled:opacity-50"
+          className="w-full rounded-lg border border-[var(--accent)] px-4 py-3 text-base font-medium text-[var(--accent)] disabled:opacity-50"
         >
           このアカウントを削除する
         </button>

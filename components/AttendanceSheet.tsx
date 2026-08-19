@@ -228,7 +228,7 @@ export function AttendanceSheet({
         </div>
 
         {error ? (
-          <p role="alert" className="rounded-lg bg-[#FDECEA] px-3 py-2 text-sm text-[#8B1A10]">
+          <p role="alert" className="rounded-lg bg-[var(--danger-bg)] px-3 py-2 text-sm text-[var(--danger-fg)]">
             {error}
           </p>
         ) : null}
@@ -262,7 +262,7 @@ export function AttendanceSheet({
                     <span
                       className={`shrink-0 rounded px-1.5 py-0.5 text-xs ${
                         participant.attendance
-                          ? "bg-[#FDECEA] font-medium text-[#8B1A10]"
+                          ? "bg-[var(--danger-bg)] font-medium text-[var(--danger-fg)]"
                           : "text-[var(--muted)]"
                       }`}
                     >
@@ -308,7 +308,7 @@ export function AttendanceSheet({
                         aria-pressed={me?.attendance?.status === status}
                         className={`flex-1 rounded-lg border px-2 py-2 text-sm ${
                           me?.attendance?.status === status
-                            ? "border-[var(--foreground)] bg-[var(--foreground)] font-bold text-white"
+                            ? "border-[var(--primary)] bg-[var(--primary)] font-bold text-[var(--primary-fg)]"
                             : "border-[var(--border)]"
                         }`}
                       >

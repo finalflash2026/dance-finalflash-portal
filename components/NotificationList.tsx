@@ -66,7 +66,7 @@ export function NotificationList({
     <section className="space-y-1">
       <h2 className="text-sm font-bold">
         お知らせ
-        <span className="ml-1 rounded-full bg-[#C0392B] px-1.5 text-[10px] font-bold text-white">
+        <span className="ml-1 rounded-full bg-[var(--danger-solid)] px-1.5 text-[10px] font-bold text-white">
           {rows.length}
         </span>
         <span className="ml-1 font-normal text-[10px] text-[var(--muted)]">
@@ -75,7 +75,7 @@ export function NotificationList({
       </h2>
 
       {error ? (
-        <p role="alert" className="text-xs text-[#8B1A10]">
+        <p role="alert" className="text-xs text-[var(--danger-fg)]">
           {error}
         </p>
       ) : null}
@@ -97,7 +97,7 @@ export function NotificationList({
             >
               <span
                 aria-hidden
-                className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-[#C0392B]"
+                className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--accent)]"
               />
               <span className="min-w-0 flex-1">
                 <span className="block text-sm font-medium">{row.title}</span>

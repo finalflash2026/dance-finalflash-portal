@@ -455,7 +455,7 @@ function DetailModal({
         {error ? (
           <p
             role="alert"
-            className="mt-4 rounded-lg bg-[#FDECEA] px-3 py-2 text-sm text-[#8B1A10]"
+            className="mt-4 rounded-lg bg-[var(--danger-bg)] px-3 py-2 text-sm text-[var(--danger-fg)]"
           >
             {error}
           </p>
@@ -471,7 +471,7 @@ function DetailModal({
                   endTime: drawable.endTime,
                 })
               }
-              className="w-full rounded-lg bg-[var(--foreground)] py-3 text-sm font-bold text-white"
+              className="w-full rounded-lg bg-[var(--primary)] py-3 text-sm font-bold text-[var(--primary-fg)]"
             >
               この時間帯を申請する
             </button>
@@ -482,7 +482,7 @@ function DetailModal({
               type="button"
               onClick={cancelClaim}
               disabled={pending}
-              className="w-full rounded-lg border border-[#8B1A10] py-3 text-sm font-bold text-[#8B1A10] disabled:opacity-50"
+              className="w-full rounded-lg border border-[var(--danger-fg)] py-3 text-sm font-bold text-[var(--danger-fg)] disabled:opacity-50"
             >
               {pending ? "取消中…" : "申請を取り消す"}
             </button>

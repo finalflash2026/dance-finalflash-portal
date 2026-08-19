@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import {
   ErrorMessage,
@@ -18,6 +18,14 @@ import {
   isCoordinatorOrAbove,
 } from "@/lib/constants";
 import { createClient } from "@/lib/supabase/client";
+import {
+  THEME_HINTS,
+  THEME_LABELS,
+  applyTheme,
+  readStoredTheme,
+  storeTheme,
+  type Theme,
+} from "@/lib/theme";
 import type { Profile } from "@/lib/types";
 
 /**
@@ -178,6 +186,8 @@ export function SettingsClient({
         />
       ) : null}
 
+      <ThemeSection />
+
       <section className="space-y-3">
         <h2 className="text-base font-bold">ログアウト</h2>
         <button
@@ -190,6 +200,69 @@ export function SettingsClient({
         </button>
       </section>
     </main>
+  );
+}
+
+/**
+ * 表示テーマの切り替え (SPEC §6.4.1 / §12 / v1.13)
+ *
+ * 選択は端末ごとの好みなので localStorage に持ち、DBには入れない。
+ * 保存と同時に `<html data-theme>` を書き換えるので、押した瞬間に切り替わる。
+ *
+ * 初期値は**マウント後に読む**。サーバーは localStorage を見られないため、
+ * 描画時に選択状態を決めるとハイドレーションがずれる。
+ */
+function ThemeSection() {
+  const [theme, setTheme] = useState<Theme | null>(null);
+
+  useEffect(() => {
+    setTheme(readStoredTheme());
+  }, []);
+
+  function select(next: Theme) {
+    applyTheme(next);
+    storeTheme(next);
+    setTheme(next);
+  }
+
+  return (
+    <section className="space-y-3">
+      <h2 className="text-base font-bold">表示テーマ</h2>
+      <p className="text-sm text-[var(--muted)]">
+        この端末だけの設定です。別の端末では別に選べます。
+      </p>
+
+      <div className="flex gap-2">
+        {(["light", "dark"] as const).map((value) => {
+          const selected = theme === value;
+          return (
+            <button
+              key={value}
+              type="button"
+              onClick={() => select(value)}
+              aria-pressed={selected}
+              className={`flex-1 rounded-lg border px-3 py-3 text-left ${
+                selected
+                  ? "border-[var(--primary)] bg-[var(--surface)]"
+                  : "border-[var(--border)]"
+              }`}
+            >
+              <span className="block text-sm font-bold">
+                {THEME_LABELS[value]}
+                {selected ? (
+                  <span className="ml-1 text-xs font-normal text-[var(--muted)]">
+                    選択中
+                  </span>
+                ) : null}
+              </span>
+              <span className="mt-0.5 block text-xs text-[var(--muted)]">
+                {THEME_HINTS[value]}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+    </section>
   );
 }
 

@@ -121,9 +121,9 @@ export function MiniCalendar({
             key={label}
             className={`py-0.5 text-[10px] ${
               index === 0
-                ? "text-[#C0392B]"
+                ? "text-[var(--accent)]"
                 : index === 6
-                  ? "text-[#2F6FB5]"
+                  ? "text-[var(--info)]"
                   : "text-[var(--muted)]"
             }`}
           >
@@ -161,7 +161,7 @@ export function MiniCalendar({
               <span
                 className={`flex h-7 w-7 items-center justify-center rounded-full text-sm ${
                   isSelected
-                    ? "bg-[var(--foreground)] font-bold text-white"
+                    ? "bg-[var(--primary)] font-bold text-[var(--primary-fg)]"
                     : isToday
                       ? "border border-[var(--foreground)] font-bold"
                       : ""

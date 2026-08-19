@@ -1,9 +1,15 @@
 @import "tailwindcss";
 
 /*
- * 配色の基本トークン。
- * ジャンル色は lib/constants.ts の GENRE_COLORS で一元管理する (SPEC §12)。
- * 現状はライトテーマ固定 (スマホでの視認性を優先し、まずは1テーマで揃える)。
+ * 配色の基本トークン (SPEC §12)。
+ *
+ * ライト(白ベース)とダーク(グレーベース)の2種類。切り替えは
+ * `<html data-theme="dark">` で行い、設定画面から変更する (§6.4.1 / v1.13)。
+ *
+ * **画面側で色を直書きしないこと。** ここにトークンとして持たせておかないと、
+ * テーマを足すたびに全ファイルを探し回ることになる。
+ * ジャンル色・ナンバー色は lib/constants.ts で一元管理する。あちらは
+ * 「BREAKは赤」のような**意味を持つ色**で、テーマでは変えない。
  */
 :root {
   --background: #ffffff;
@@ -11,6 +17,88 @@
   --muted: #64748b;
   --border: #e2e8f0;
   --surface: #f8fafc;
+
+  /* 主ボタン・選択中のチップ。前景色を背景に敷いて反転させる */
+  --primary: #1f2933;
+  --primary-fg: #ffffff;
+
+  /* エラー・取り消しなど、注意を引く必要があるもの */
+  --danger-fg: #8b1a10;
+  --danger-bg: #fdecea;
+  --danger-border: #e5b4ae;
+  /* 未読バッジのように、白文字を乗せる塗り */
+  --danger-solid: #c0392b;
+  /* 今日の日付・削除ボタンの文字など、地の上に置く強い赤 */
+  --accent: #c0392b;
+
+  /* 開錠済み(○)の行 */
+  --success-fg: #226c46;
+  --success-bg: #e8f5ee;
+
+  /* 土曜日の日付・折衝バッジの青 / OBバッジの赤紫 */
+  --info: #2f6fb5;
+  --ob: #b0246b;
+
+  /*
+   * コマのブロック色 (lib/constants.ts から var() で参照する)。
+   * ジャンル色と違って「地」に近い色なので、テーマ側で持つ。
+   */
+  --slot-open-bg: #f1f5f9;
+  --slot-open-fg: #334155;
+  --slot-unavailable-bg: #cbd5e1;
+  --slot-unavailable-fg: #475569;
+  --slot-claimed-bg: #64748b;
+  --slot-claimed-fg: #ffffff;
+  --reservation-bg: #334155;
+  --reservation-fg: #ffffff;
+
+  --scrollbar: #94a3b8;
+}
+
+/*
+ * ダーク。**真っ黒にはしない** (要望)。
+ * 背景をグレーにし、面が上がるほど明るくする (background → surface)。
+ * 文字は純白を避けて少し落とす。純白は暗い面の上でにじんで見えるため。
+ */
+:root[data-theme="dark"] {
+  --background: #22272e;
+  --foreground: #e6edf3;
+  --muted: #9aa5b1;
+  --border: #444c56;
+  --surface: #2d333b;
+
+  /* 明るいグレーを敷いて暗い文字を乗せる (ライトの反転) */
+  --primary: #e6edf3;
+  --primary-fg: #1b1f24;
+
+  /* 暗い面の上では、濃い赤は沈んで読めない。明度を上げて彩度を下げる */
+  --danger-fg: #ff9a8f;
+  --danger-bg: #3f2422;
+  --danger-border: #7f3a34;
+  --danger-solid: #c0392b;
+  --accent: #f08379;
+
+  --success-fg: #6fcf97;
+  --success-bg: #1e3a2c;
+
+  /* 暗い地の上では沈むので、どちらも明度を上げる */
+  --info: #6cb0f5;
+  --ob: #f07fb5;
+
+  /* 背景より少しだけ明るい面にする。白いままだと光る板が並ぶ */
+  --slot-open-bg: #39414b;
+  --slot-open-fg: #cdd9e5;
+  --slot-unavailable-bg: #2b3138;
+  --slot-unavailable-fg: #9aa5b1;
+  --slot-claimed-bg: #5a6673;
+  --slot-claimed-fg: #ffffff;
+  --reservation-bg: #4c5763;
+  --reservation-fg: #ffffff;
+
+  --scrollbar: #6b7684;
+
+  /* フォーム部品・既定のスクロールバーもダーク側の見た目にする */
+  color-scheme: dark;
 }
 
 @theme inline {
@@ -31,7 +119,7 @@
  * あわせて `scrollbar-color` で標準プロパティ側 (Firefox 等) も指定しておく。
  */
 .h-scroll {
-  scrollbar-color: #94a3b8 var(--surface);
+  scrollbar-color: var(--scrollbar) var(--surface);
 }
 .h-scroll::-webkit-scrollbar {
   height: 8px;
@@ -43,7 +131,7 @@
   border-radius: 4px;
 }
 .h-scroll::-webkit-scrollbar-thumb {
-  background: #94a3b8;
+  background: var(--scrollbar);
   border-radius: 4px;
 }
 

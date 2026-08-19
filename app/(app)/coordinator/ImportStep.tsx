@@ -201,7 +201,7 @@ export function ImportStep() {
         {fileNotes.map((file) => (
           <p
             key={file.filename + (file.id ?? "")}
-            className={`text-sm ${file.error ? "text-[#8B1A10]" : "text-[var(--muted)]"}`}
+            className={`text-sm ${file.error ? "text-[var(--danger-fg)]" : "text-[var(--muted)]"}`}
           >
             {file.filename}: {file.error ?? "読み込みました"}
           </p>
@@ -233,7 +233,7 @@ export function ImportStep() {
           {/* 時刻や部屋が確定しない行はタイムラインに置けないので先に直させる */}
           {invalidRows.length > 0 ? (
             <div className="space-y-2">
-              <h3 className="text-sm font-bold text-[#8B1A10]">
+              <h3 className="text-sm font-bold text-[var(--danger-fg)]">
                 要修正 ({invalidRows.length}件)
               </h3>
               <ul className="space-y-2">
@@ -339,7 +339,7 @@ function PromptCard() {
       <button type="button" onClick={copy} className={secondaryButtonClass}>
         {copied ? "コピーしました" : "プロンプトをコピー"}
       </button>
-      <p className="rounded-lg bg-[#FDECEA] px-3 py-2 text-sm text-[#8B1A10]">
+      <p className="rounded-lg bg-[var(--danger-bg)] px-3 py-2 text-sm text-[var(--danger-fg)]">
         AIの出力は必ずこの画面で目視チェックしてから確定してください。
       </p>
     </section>
@@ -426,13 +426,13 @@ function RowCard({
   const cell =
     "w-full rounded-lg border px-2 py-1.5 text-sm bg-[var(--background)] outline-none";
   const border = error
-    ? "border-[#E5B4AE] focus:border-[#8B1A10]"
+    ? "border-[var(--danger-border)] focus:border-[var(--danger-fg)]"
     : "border-[var(--border)] focus:border-[var(--foreground)]";
 
   return (
     <div
       className={`space-y-2 rounded-xl border p-3 ${
-        error ? "border-[#8B1A10] bg-[#FDECEA]" : "border-[var(--border)]"
+        error ? "border-[var(--danger-fg)] bg-[var(--danger-bg)]" : "border-[var(--border)]"
       }`}
     >
       <div className="flex items-center justify-between text-xs text-[var(--muted)]">
@@ -503,7 +503,7 @@ function RowCard({
           }
           className={`${cell} flex-1 ${
             row.roomId === null
-              ? "border-[#8B1A10] font-bold text-[#8B1A10]"
+              ? "border-[var(--danger-fg)] font-bold text-[var(--danger-fg)]"
               : border
           }`}
         >
@@ -521,7 +521,7 @@ function RowCard({
       </div>
 
       {error ? (
-        <p role="alert" className="text-xs font-medium text-[#8B1A10]">
+        <p role="alert" className="text-xs font-medium text-[var(--danger-fg)]">
           {error}
         </p>
       ) : null}
