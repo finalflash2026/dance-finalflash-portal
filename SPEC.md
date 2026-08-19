@@ -1162,7 +1162,8 @@ VTIMEZONE: TZID=Asia/Tokyo (+0900固定, STANDARDのみ)
 ### 13.3 バックアップ
 - Supabase無料枠は自動バックアップ無し。**GitHub Actionsで日次 `pg_dump` を取得**する(`.github/workflows/backup.yml`)。保管先は Actions のアーティファクト(保管90日)。JST 04:00 に実行し、手動実行もできる。
 - 接続文字列はリポジトリシークレット `SUPABASE_DB_URL` に置く。**Session pooler(ポート5432)のURLを使う**こと。直結(`db.<ref>.supabase.co`)はIPv6のみで、GitHubのランナーはIPv4のため接続できない。
-- ランナー同梱の `pg_dump` はSupabaseのPostgreSQLより古いことがあるため、公式リポジトリから `postgresql-client-17` を入れてから実行する(バージョン不一致は実行時エラーになる)。
+- `pg_dump` は**PostgreSQL公式コンテナ(`postgres:17-alpine`)で実行する**。ランナー同梱のクライアントはSupabaseより古いことがあり、かといって`apt`で入れると対話プロンプトで待ちに入ることがあるため。Dockerはランナーに同梱されている。
+- 実行前に接続先を検査し、**Transaction pooler(6543)と直結URLは明示的に弾く**。特に直結はIPv6のみのため、エラーにならず待ち続けてジョブが終わらない。ジョブ全体に10分、ダンプに5分のタイムアウトを置く。
 - シークレット未設定のまま成功扱いにしない(バックアップが無いのに緑になるのが最悪のため、未設定なら明示的に失敗させる)。
 - GitHubは**60日間リポジトリに動きが無いとスケジュール実行を停止する**。長期休暇明けは有効になっているか確認する。
 

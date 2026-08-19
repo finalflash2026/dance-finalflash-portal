@@ -9,8 +9,9 @@
 #   値  : Supabase の Project Settings → Database → Connection string の
 #         **Session pooler** (ポート5432) の URL。パスワードを埋めて登録する。
 #
-#   直結 (db.<ref>.supabase.co) ではなく pooler を使うこと。
-#   直結は IPv6 のみで、GitHub のランナーは IPv4 のため接続できない。
+#   ポート6543 の Transaction pooler は pg_dump に使えない (下で弾いている)。
+#   直結 (db.<ref>.supabase.co) も IPv6 のみで、GitHub のランナーは IPv4 のため
+#   接続できず、**エラーにならず待ち続ける**。
 #
 # ---- 復元 ----
 #   pg_restore --clean --if-exists --no-owner --no-privileges \
@@ -33,35 +34,54 @@ on:
 jobs:
   dump:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    # このデータ量なら実際は1分もかからない。**待ちに入ったら早めに落とす**
+    timeout-minutes: 10
 
     steps:
-      # ランナー同梱の pg_dump は Supabase の PostgreSQL より古いことがあり、
-      # その場合 "server version mismatch" で失敗する。公式リポジトリから入れる
-      - name: PostgreSQL クライアントを入れる
+      - name: 接続先を確かめる
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
         run: |
-          sudo apt-get update
-          sudo apt-get install -y postgresql-common
-          sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y
-          sudo apt-get install -y postgresql-client-17
+          # 未設定のまま緑になると「バックアップがある」と誤解するので必ず落とす
+          if [ -z "$SUPABASE_DB_URL" ]; then
+            echo "::error::SUPABASE_DB_URL が設定されていません (このファイル冒頭の手順を参照)"
+            exit 1
+          fi
+
+          # パスワードを出さないよう、認証情報を落としたホスト:ポートだけ表示する
+          endpoint=$(printf '%s' "$SUPABASE_DB_URL" | sed -E 's#^[a-z]+://[^@]*@##; s#[/?].*$##')
+          echo "接続先: $endpoint"
+
+          case "$endpoint" in
+            *:6543)
+              echo "::error::Transaction pooler (6543) は pg_dump に使えません。Session pooler (5432) のURLに差し替えてください"
+              exit 1
+              ;;
+            db.*.supabase.co*)
+              echo "::error::直結URLは IPv6 のみで GitHub のランナーからは接続できません。Session pooler (5432) のURLに差し替えてください"
+              exit 1
+              ;;
+          esac
+
+      # apt でクライアントを入れると対話プロンプトで止まることがあるため、
+      # PostgreSQL 公式コンテナの pg_dump を使う (Docker はランナーに同梱)。
+      # 17 のクライアントは 15/17 どちらのサーバーもダンプできる
+      - name: ダンプを取る
+        timeout-minutes: 5
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          docker run --rm \
+            -e DB_URL="$SUPABASE_DB_URL" \
+            -e PGSSLMODE=require \
+            -e PGCONNECT_TIMEOUT=15 \
+            postgres:17-alpine \
+            pg_dump --no-owner --no-privileges --format=custom "$DB_URL" > backup.dump
+          ls -lh backup.dump
 
       - name: 日付を決める
         id: stamp
         run: echo "date=$(date -u +%Y%m%d)" >> "$GITHUB_OUTPUT"
-
-      - name: ダンプを取る
-        env:
-          # 未設定のまま緑になると「バックアップがある」と誤解するので必ず落とす
-          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
-          PGSSLMODE: require
-        run: |
-          if [ -z "$SUPABASE_DB_URL" ]; then
-            echo "SUPABASE_DB_URL が設定されていません (このファイル冒頭の手順を参照)"
-            exit 1
-          fi
-          pg_dump --no-owner --no-privileges --format=custom \
-            --file=backup.dump "$SUPABASE_DB_URL"
-          ls -lh backup.dump
 
       - name: アーティファクトに保存する
         uses: actions/upload-artifact@v4
