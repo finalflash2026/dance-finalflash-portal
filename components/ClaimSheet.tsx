@@ -255,7 +255,7 @@ export function ClaimSheet({
             </div>
 
             {!validation.ok ? (
-              <p className="mt-3 text-sm text-[#8B1A10]">
+              <p className="mt-3 text-sm text-[var(--danger-fg)]">
                 {validation.message}
               </p>
             ) : null}

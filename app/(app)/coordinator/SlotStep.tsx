@@ -380,7 +380,7 @@ function WeekdayFilter({
           aria-pressed={practiceDaysOnly === option.value}
           className={`rounded-full border px-3 py-1 text-sm disabled:opacity-50 ${
             practiceDaysOnly === option.value
-              ? "border-[var(--foreground)] bg-[var(--foreground)] font-bold text-white"
+              ? "border-[var(--primary)] bg-[var(--primary)] font-bold text-[var(--primary-fg)]"
               : "border-[var(--border)]"
           }`}
         >
@@ -453,7 +453,7 @@ function MonthGenerationPicker({
                 aria-pressed={on}
                 className={`rounded-full border px-3 py-1 text-sm disabled:opacity-50 ${
                   on
-                    ? "border-[var(--foreground)] bg-[var(--foreground)] font-bold text-white"
+                    ? "border-[var(--primary)] bg-[var(--primary)] font-bold text-[var(--primary-fg)]"
                     : "border-[var(--border)]"
                 }`}
               >
@@ -470,7 +470,7 @@ function MonthGenerationPicker({
       </p>
 
       {mixed ? (
-        <p className="rounded-lg bg-[#FDECEA] px-3 py-2 text-xs text-[#8B1A10]">
+        <p className="rounded-lg bg-[var(--danger-bg)] px-3 py-2 text-xs text-[var(--danger-fg)]">
           この月にはコマごとに異なる対象期が設定されています。
           上で選び直すと全部が揃います。
         </p>
@@ -648,7 +648,7 @@ function SlotEditor({
                 aria-pressed={draft.status === status}
                 className={`flex-1 rounded-lg border px-2 py-2 text-sm ${
                   draft.status === status
-                    ? "border-[var(--foreground)] bg-[var(--foreground)] font-bold text-white"
+                    ? "border-[var(--primary)] bg-[var(--primary)] font-bold text-[var(--primary-fg)]"
                     : "border-[var(--border)]"
                 }`}
               >
@@ -696,7 +696,7 @@ function SlotEditor({
         {/* 開いた直後の空欄で赤字を出さない。片方でも空なら「まだ入力途中」
             とみなし、両方埋まってから検証結果を見せる */}
         {draft.startTime.trim() && draft.endTime.trim() && !check.ok ? (
-          <p role="alert" className="text-sm font-medium text-[#8B1A10]">
+          <p role="alert" className="text-sm font-medium text-[var(--danger-fg)]">
             {check.message}
           </p>
         ) : null}
@@ -715,7 +715,7 @@ function SlotEditor({
               type="button"
               disabled={disabled}
               onClick={onDelete}
-              className={`${secondaryButtonClass} text-[#8B1A10]`}
+              className={`${secondaryButtonClass} text-[var(--danger-fg)]`}
             >
               このコマを削除する
             </button>

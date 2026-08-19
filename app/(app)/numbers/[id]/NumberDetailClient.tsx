@@ -114,7 +114,7 @@ export function NumberDetailClient({
             aria-current={tab === item.id ? "page" : undefined}
             className={`flex-1 rounded-lg px-2 py-2 text-sm font-medium ${
               tab === item.id
-                ? "bg-[var(--foreground)] text-white"
+                ? "bg-[var(--primary)] text-[var(--primary-fg)]"
                 : "text-[var(--muted)]"
             }`}
           >
@@ -192,8 +192,8 @@ function DeleteSection({
   }
 
   return (
-    <section className="space-y-2 rounded-xl border border-[#E5B4AE] p-3">
-      <h2 className="text-sm font-bold text-[#8B1A10]">ナンバーを削除</h2>
+    <section className="space-y-2 rounded-xl border border-[var(--danger-border)] p-3">
+      <h2 className="text-sm font-bold text-[var(--danger-fg)]">ナンバーを削除</h2>
       {open ? (
         <>
           <p className="text-xs text-[var(--muted)]">
@@ -215,7 +215,7 @@ function DeleteSection({
             type="button"
             disabled={pending || typed.trim() !== number.name}
             onClick={remove}
-            className="w-full rounded-lg bg-[#8B1A10] px-4 py-3 text-base font-bold text-white disabled:opacity-40"
+            className="w-full rounded-lg bg-[var(--danger-fg)] px-4 py-3 text-base font-bold text-[var(--background)] disabled:opacity-40"
           >
             完全に削除する
           </button>
@@ -234,7 +234,7 @@ function DeleteSection({
         <button
           type="button"
           onClick={() => setOpen(true)}
-          className={`${secondaryButtonClass} text-[#8B1A10]`}
+          className={`${secondaryButtonClass} text-[var(--danger-fg)]`}
         >
           このナンバーを削除する
         </button>
@@ -348,7 +348,7 @@ function EventsTab({
                     type="button"
                     disabled={pending}
                     onClick={() => remove(event)}
-                    className="rounded border border-[var(--border)] px-2 py-1 text-xs text-[#8B1A10]"
+                    className="rounded border border-[var(--border)] px-2 py-1 text-xs text-[var(--danger-fg)]"
                   >
                     削除
                   </button>
@@ -671,7 +671,7 @@ function MembersTab({
   const chipClass = (on: boolean) =>
     `rounded-full border px-2.5 py-1 text-xs ${
       on
-        ? "border-[var(--foreground)] bg-[var(--foreground)] font-bold text-white"
+        ? "border-[var(--primary)] bg-[var(--primary)] font-bold text-[var(--primary-fg)]"
         : "border-[var(--border)]"
     }`;
 

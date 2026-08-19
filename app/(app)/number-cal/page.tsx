@@ -83,7 +83,7 @@ export default async function NumberCalendarPage({
       {error ? (
         <p
           role="alert"
-          className="rounded-lg bg-[#FDECEA] px-3 py-2 text-sm text-[#8B1A10]"
+          className="rounded-lg bg-[var(--danger-bg)] px-3 py-2 text-sm text-[var(--danger-fg)]"
         >
           予定の取得に失敗しました: {error.message}
         </p>

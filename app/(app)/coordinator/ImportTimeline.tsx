@@ -217,7 +217,7 @@ function Block({
       onClick={() => onSelect(row.key)}
       title={`${roomName} ${label}${warning ? ` — ${warning}` : ""}`}
       className={`absolute top-0.5 bottom-0.5 overflow-hidden rounded px-1 text-left text-[10px] leading-[22px] whitespace-nowrap ${
-        conflict ? "ring-2 ring-[#8B1A10]" : ""
+        conflict ? "ring-2 ring-[var(--danger-fg)]" : ""
       }`}
       style={{
         left: (start - axisStart) * PX_PER_MINUTE,

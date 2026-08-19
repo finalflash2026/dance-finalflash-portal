@@ -34,7 +34,7 @@ export function CoordinatorClient() {
             aria-current={step === s.id ? "step" : undefined}
             className={`flex-1 rounded-lg px-2 py-2 text-sm font-medium ${
               step === s.id
-                ? "bg-[var(--foreground)] text-white"
+                ? "bg-[var(--primary)] text-[var(--primary-fg)]"
                 : "text-[var(--muted)]"
             }`}
           >

@@ -154,7 +154,7 @@ export function MyCalendarClient({
               aria-pressed={filter === chip.key}
               className={`flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-1 text-sm ${
                 filter === chip.key
-                  ? "border-[var(--foreground)] bg-[var(--foreground)] font-bold text-white"
+                  ? "border-[var(--primary)] bg-[var(--primary)] font-bold text-[var(--primary-fg)]"
                   : "border-[var(--border)]"
               }`}
             >

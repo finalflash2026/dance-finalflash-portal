@@ -70,11 +70,27 @@ export const NUMBER_COLORS = [
   "#7E22CE",
 ] as const;
 
-/** status='open'(空き) / 'unavailable'(使用不可) のブロック色 */
-export const SLOT_OPEN_COLOR = { bg: "#F1F5F9", fg: "#334155" };
-export const SLOT_UNAVAILABLE_COLOR = { bg: "#CBD5E1", fg: "#64748B" };
+/**
+ * status='open'(空き) / 'unavailable'(使用不可) のブロック色。
+ *
+ * **ジャンル色と違い、これは「地」に近い色なのでテーマで変える** (v1.13)。
+ * 白に近いまま暗い背景に置くと、空きコマの列が光る板の壁になってしまう。
+ * 値は CSS 変数への参照で、実体は app/globals.css にある
+ * (インラインスタイルに入れても var() はそのまま効く)。
+ */
+export const SLOT_OPEN_COLOR = {
+  bg: "var(--slot-open-bg)",
+  fg: "var(--slot-open-fg)",
+};
+export const SLOT_UNAVAILABLE_COLOR = {
+  bg: "var(--slot-unavailable-bg)",
+  fg: "var(--slot-unavailable-fg)",
+};
 /** 空きコマのうち申請済みの時間帯 (SPEC §6.1)。ジャンル色と混同しない中間色にする */
-export const SLOT_CLAIMED_COLOR = { bg: "#94A3B8", fg: "#FFFFFF" };
+export const SLOT_CLAIMED_COLOR = {
+  bg: "var(--slot-claimed-bg)",
+  fg: "var(--slot-claimed-fg)",
+};
 
 // ---------- 部屋 (SPEC §4.2) ----------
 
@@ -115,7 +131,10 @@ export function shortRoomName(name: string): string {
 }
 
 /** 取込確認タイムラインの予約枠ブロック色 (SPEC §6.2 Step1-3)。コマの色とは別物 */
-export const RESERVATION_BLOCK_COLOR = { bg: "#334155", fg: "#FFFFFF" };
+export const RESERVATION_BLOCK_COLOR = {
+  bg: "var(--reservation-bg)",
+  fg: "var(--reservation-fg)",
+};
 
 // ---------- 練習曜日 (SPEC §6.2 Step2-1 / v1.9.1) ----------
 

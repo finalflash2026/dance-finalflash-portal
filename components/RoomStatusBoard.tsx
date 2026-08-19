@@ -137,7 +137,7 @@ export function RoomStatusBoard({
       </header>
 
       {error ? (
-        <p role="alert" className="mt-1 text-xs text-[#8B1A10]">
+        <p role="alert" className="mt-1 text-xs text-[var(--danger-fg)]">
           {error}
         </p>
       ) : null}
@@ -163,13 +163,13 @@ export function RoomStatusBoard({
                 aria-pressed={unlocked}
                 className={`flex w-full items-center gap-1.5 rounded-lg border px-2 py-1 text-left disabled:opacity-40 ${
                   unlocked
-                    ? "border-[#2E8B57] bg-[#E8F5EE]"
+                    ? "border-[var(--success-fg)] bg-[var(--success-bg)]"
                     : "border-[var(--border)] bg-[var(--surface)]"
                 } ${stale ? "opacity-60" : ""}`}
               >
                 <span
                   className={`shrink-0 text-base font-bold ${
-                    unlocked ? "text-[#2E8B57]" : "text-[var(--muted)]"
+                    unlocked ? "text-[var(--success-fg)]" : "text-[var(--muted)]"
                   }`}
                 >
                   {unlocked ? "○" : "×"}
