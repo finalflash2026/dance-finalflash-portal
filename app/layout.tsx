@@ -7,6 +7,18 @@ import "./globals.css";
 export const metadata: Metadata = {
   title: "ダンスサークル練習管理",
   description: "練習日程・空き申請・ナンバーの管理サイト",
+  /*
+   * ホーム画面に追加したときの挙動 (SPEC §12 / v1.13.1)。
+   *   capable       … Safari のバーを出さずに開く (manifest の standalone と対)
+   *   title         … アイコンの下に出る名前。**ブラウザのタブ名とは別**
+   *   statusBarStyle… 上端のステータスバー。default は地の色に合わせて描かれる
+   * アイコン自体は app/apple-icon.png を Next が自動で link に出す。
+   */
+  appleWebApp: {
+    capable: true,
+    title: "ff Calendar",
+    statusBarStyle: "default",
+  },
 };
 
 // スマホ最優先 (SPEC §12)。下部固定タブバーのため viewport-fit も指定する

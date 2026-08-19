@@ -24,13 +24,29 @@ export const THEME_HINTS: Record<Theme, string> = {
 };
 
 /**
+ * ブラウザ・OS 側に伝える地の色 (`<meta name="theme-color">`)。
+ *
+ * ホーム画面から開いたとき、**上端のステータスバーがこの色で塗られる**。
+ * ここを固定にすると、ダークにしても上端だけ白く残る。
+ * app/globals.css の --background と必ず同じ値にすること。
+ */
+const THEME_COLORS: Record<Theme, string> = {
+  light: "#ffffff",
+  dark: "#22272e",
+};
+
+/**
  * 最初のペイント前に走らせる script (app/layout.tsx が埋め込む)。
  *
  * **React の描画を待ってから切り替えるのでは間に合わない。**
  * 一瞬白い画面が出てからグレーになる、いわゆるちらつきが起きる。
  * localStorage が使えない設定でも落ちないよう try で囲む。
+ *
+ * theme-color の meta も**ここで作る**。Next 側に出させると、
+ * 選択(localStorage)を知らないサーバーが固定値を書いてしまい、
+ * 後から書き換えても2つ並ぶことになるため。
  */
-export const THEME_INIT_SCRIPT = `try{if(localStorage.getItem(${JSON.stringify(THEME_STORAGE_KEY)})==="dark"){document.documentElement.dataset.theme="dark"}}catch(e){}`;
+export const THEME_INIT_SCRIPT = `try{var t=localStorage.getItem(${JSON.stringify(THEME_STORAGE_KEY)})==="dark"?"dark":"light";if(t==="dark"){document.documentElement.dataset.theme="dark"}var m=document.createElement("meta");m.name="theme-color";m.content=t==="dark"?${JSON.stringify(THEME_COLORS.dark)}:${JSON.stringify(THEME_COLORS.light)};document.head.appendChild(m)}catch(e){}`;
 
 /** `<html>` に反映する。ライトは属性を消す (既定がライトのため) */
 export function applyTheme(theme: Theme): void {
@@ -39,6 +55,15 @@ export function applyTheme(theme: Theme): void {
   } else {
     delete document.documentElement.dataset.theme;
   }
+
+  // ホーム画面から開いているときのステータスバーの色も合わせる
+  let meta = document.querySelector<HTMLMetaElement>('meta[name="theme-color"]');
+  if (!meta) {
+    meta = document.createElement("meta");
+    meta.name = "theme-color";
+    document.head.appendChild(meta);
+  }
+  meta.content = THEME_COLORS[theme];
 }
 
 /** 保存済みの選択。未設定・壊れた値はライト扱い */
