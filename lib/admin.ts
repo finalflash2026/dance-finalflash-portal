@@ -1,5 +1,7 @@
 import "server-only";
 
+import { randomInt } from "node:crypto";
+
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 /**
@@ -60,6 +62,27 @@ export async function writeAuditLogs(
     })),
   );
   return error ? `監査ログを残せませんでした: ${error.message}` : null;
+}
+
+/**
+ * 仮パスワードの生成 (SPEC §3.5)。
+ *
+ * メールが無いので本人にリセットさせる経路が作れず、admin が発行して
+ * 口頭やメッセージで伝える。**読み上げて伝えられること**が要件なので、
+ * 見間違えやすい文字 (0/O, 1/l/I) を外した英数字を使う。
+ * 12文字 × 54種 ≒ 69bit あり、総当たりの心配は無い。
+ *
+ * 生成した値はレスポンスで一度返すだけで、**どこにも保存・記録しない**
+ * (SPEC §13.2「平文ログ禁止」)。監査ログにも入れないこと。
+ */
+const TEMP_PASSWORD_ALPHABET = "abcdefghijkmnopqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+
+export function generateTempPassword(length = 12): string {
+  let out = "";
+  for (let i = 0; i < length; i++) {
+    out += TEMP_PASSWORD_ALPHABET[randomInt(TEMP_PASSWORD_ALPHABET.length)];
+  }
+  return out;
 }
 
 /**

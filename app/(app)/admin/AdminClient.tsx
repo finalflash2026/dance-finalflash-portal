@@ -217,6 +217,12 @@ export function AdminClient({
                       replaceUser(next);
                       setExpanded(null);
                     }}
+                    onDeleted={() => {
+                      setUsers((prev) =>
+                        prev.filter((u) => u.userId !== user.userId),
+                      );
+                      setExpanded(null);
+                    }}
                   />
                 ) : null}
               </li>
@@ -224,7 +230,107 @@ export function AdminClient({
           </ul>
         )}
       </section>
+
+      <PassphraseSection onError={setError} onNotice={setNotice} />
     </main>
+  );
+}
+
+/**
+ * 合言葉の変更 (SPEC §6.5 / §3.5)
+ *
+ * 3種すべてを毎回入れさせない。1つだけ変える場面のほうが多いため、
+ * 空欄は「変更しない」として扱う。
+ */
+function PassphraseSection({
+  onError,
+  onNotice,
+}: {
+  onError: (message: string | null) => void;
+  onNotice: (message: string | null) => void;
+}) {
+  const [values, setValues] = useState({
+    signupPass: "",
+    coordinatorPass: "",
+    adminPass: "",
+  });
+  const [pending, setPending] = useState(false);
+
+  const entries = [
+    { field: "signupPass" as const, label: "サークル生合言葉", hint: "サインアップ時に必要" },
+    { field: "coordinatorPass" as const, label: "折衝パスワード", hint: "折衝へ昇格するとき" },
+    { field: "adminPass" as const, label: "管理者パスワード", hint: "管理者へ昇格するとき" },
+  ];
+
+  const filled = entries.filter((e) => values[e.field].trim() !== "");
+
+  async function save() {
+    if (
+      !window.confirm(
+        `${filled.map((e) => e.label).join("・")} を変更します。\n` +
+          "変更後は、新しい合言葉を知っている人しか登録・昇格できません。",
+      )
+    ) {
+      return;
+    }
+
+    setPending(true);
+    onError(null);
+    onNotice(null);
+    try {
+      const body: Record<string, string> = {};
+      for (const entry of filled) body[entry.field] = values[entry.field].trim();
+
+      const res = await fetch("/api/admin/passphrases", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        onError(json.error ?? "合言葉を変更できませんでした");
+        return;
+      }
+      setValues({ signupPass: "", coordinatorPass: "", adminPass: "" });
+      onNotice(`${(json.updated ?? []).join("・")} を変更しました`);
+      if (json.warning) onError(json.warning);
+    } finally {
+      setPending(false);
+    }
+  }
+
+  return (
+    <section className="space-y-3 rounded-xl border border-[var(--border)] p-3">
+      <h2 className="text-base font-bold">合言葉</h2>
+      <p className="text-xs text-[var(--muted)]">
+        <strong>代替わり・卒業の時期には必ず変更してください</strong>
+        (SPEC §3.5)。空欄の項目は変更しません。変更しても、今のロールは取り消されません。
+      </p>
+
+      {entries.map((entry) => (
+        <Field key={entry.field} label={entry.label} hint={entry.hint}>
+          <input
+            type="password"
+            value={values[entry.field]}
+            autoComplete="new-password"
+            placeholder="変更しない"
+            onChange={(e) =>
+              setValues((prev) => ({ ...prev, [entry.field]: e.target.value }))
+            }
+            className={inputClass}
+          />
+        </Field>
+      ))}
+
+      <button
+        type="button"
+        onClick={save}
+        disabled={pending || filled.length === 0}
+        className={secondaryButtonClass}
+      >
+        {filled.length === 0 ? "変更する項目を入力" : `${filled.length}件を変更する`}
+      </button>
+    </section>
   );
 }
 
@@ -291,18 +397,22 @@ function EditPanel({
   onError,
   onNotice,
   onSaved,
+  onDeleted,
 }: {
   user: AdminUser;
   isSelf: boolean;
   onError: (message: string | null) => void;
   onNotice: (message: string | null) => void;
   onSaved: (next: AdminUser) => void;
+  onDeleted: () => void;
 }) {
   const [displayName, setDisplayName] = useState(user.displayName);
   const [generation, setGeneration] = useState(String(user.generation));
   const [mainGenreId, setMainGenreId] = useState(user.mainGenreId);
   const [role, setRole] = useState<Role>(user.role);
   const [pending, setPending] = useState(false);
+  /** 発行した仮パスワード。画面から離れると読めなくなるので消さずに出しておく */
+  const [tempPassword, setTempPassword] = useState<string | null>(null);
 
   const generationNumber = Number(generation);
   const valid =
@@ -393,6 +503,72 @@ function EditPanel({
     }
   }
 
+  async function resetPassword() {
+    if (
+      !window.confirm(
+        `${user.username} の仮パスワードを発行します。\n` +
+          "今のパスワードは使えなくなります。発行した文字列は本人へ伝えてください。",
+      )
+    ) {
+      return;
+    }
+
+    setPending(true);
+    onError(null);
+    onNotice(null);
+    try {
+      const res = await fetch(
+        `/api/admin/users/${user.userId}/reset-password`,
+        { method: "POST" },
+      );
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        onError(body.error ?? "仮パスワードを発行できませんでした");
+        return;
+      }
+      setTempPassword(body.password);
+      onNotice(`${body.username} の仮パスワードを発行しました`);
+      if (body.warning) onError(body.warning);
+    } finally {
+      setPending(false);
+    }
+  }
+
+  async function removeUser() {
+    // 確認を2段にする。ロールの変更と違って元に戻せないため
+    if (
+      !window.confirm(
+        `${user.username} を削除します。\n` +
+          "この人の申請・出欠・ナンバー所属・購読URLもすべて消え、元に戻せません。\n\n" +
+          "卒業する人ならOB/OGへの移行を使ってください。",
+      )
+    ) {
+      return;
+    }
+    if (window.prompt("削除するには「削除」と入力してください") !== "削除") {
+      return;
+    }
+
+    setPending(true);
+    onError(null);
+    onNotice(null);
+    try {
+      const res = await fetch(`/api/admin/users/${user.userId}/delete`, {
+        method: "POST",
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        onError(body.error ?? "削除できませんでした");
+        return;
+      }
+      onNotice(`${body.username} を削除しました`);
+      onDeleted();
+      if (body.warning) onError(body.warning);
+    } finally {
+      setPending(false);
+    }
+  }
+
   return (
     <div className="space-y-3 border-t border-[var(--border)] bg-[var(--surface)] px-3 py-3">
       <Field label="名前">
@@ -468,6 +644,42 @@ function EditPanel({
       >
         {pending ? "保存中…" : "保存する"}
       </button>
+
+      <div className="space-y-2 border-t border-[var(--border)] pt-3">
+        <button
+          type="button"
+          onClick={resetPassword}
+          disabled={pending}
+          className={secondaryButtonClass}
+        >
+          仮パスワードを発行する
+        </button>
+
+        {tempPassword ? (
+          <div className="rounded-lg border border-[var(--foreground)] px-3 py-2">
+            <p className="text-xs text-[var(--muted)]">
+              仮パスワード (この画面でしか読めません。本人へ伝えてください)
+            </p>
+            <p className="select-all font-mono text-lg font-bold">
+              {tempPassword}
+            </p>
+          </div>
+        ) : null}
+
+        {/* 削除は取り返しがつかないので、他の操作と色でも分けておく */}
+        <button
+          type="button"
+          onClick={removeUser}
+          disabled={pending || isSelf}
+          className="w-full rounded-lg border border-[#C0392B] px-4 py-3 text-base font-medium text-[#C0392B] disabled:opacity-50"
+        >
+          このアカウントを削除する
+        </button>
+        <p className="text-xs text-[var(--muted)]">
+          卒業はOB/OGへの移行を使ってください。削除は誤登録の整理用で、
+          活動の記録が残っているアカウントは削除できません。
+        </p>
+      </div>
     </div>
   );
 }
