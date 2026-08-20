@@ -143,7 +143,10 @@ export function ClaimSheet({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 sm:items-center">
+    <div
+      data-no-swipe
+      className="backdrop-in fixed inset-0 z-50 flex items-end justify-center bg-black/40 sm:items-center"
+    >
       <button
         type="button"
         aria-label="閉じる"
@@ -154,7 +157,7 @@ export function ClaimSheet({
         role="dialog"
         aria-modal="true"
         aria-label="空き時間の申請"
-        className="relative z-10 max-h-[90dvh] w-full max-w-md overflow-y-auto rounded-t-2xl bg-[var(--background)] p-5 sm:rounded-2xl"
+        className="sheet-in relative z-10 max-h-[90dvh] w-full max-w-md overflow-y-auto rounded-t-2xl bg-[var(--background)] p-5 sm:rounded-2xl"
       >
         {confirming ? (
           <>

@@ -40,6 +40,14 @@
   --ob: #b0246b;
 
   /*
+   * 浮いている面 (タブバー・設定ボタン)。v1.14
+   * **不透明にしないこと。** 背景がうっすら透けることで浮いて見える。
+   */
+  --glass-bg: rgba(255, 255, 255, 0.72);
+  --glass-border: rgba(15, 23, 42, 0.1);
+  --glass-shadow: 0 6px 20px rgba(15, 23, 42, 0.14);
+
+  /*
    * コマのブロック色 (lib/constants.ts から var() で参照する)。
    * ジャンル色と違って「地」に近い色なので、テーマ側で持つ。
    */
@@ -84,6 +92,11 @@
   /* 暗い地の上では沈むので、どちらも明度を上げる */
   --info: #6cb0f5;
   --ob: #f07fb5;
+
+  /* 暗い側は「白を薄く重ねる」のではなく、地より少し明るいグレーを透かす */
+  --glass-bg: rgba(45, 51, 59, 0.76);
+  --glass-border: rgba(255, 255, 255, 0.12);
+  --glass-shadow: 0 6px 20px rgba(0, 0, 0, 0.45);
 
   /* 背景より少しだけ明るい面にする。白いままだと光る板が並ぶ */
   --slot-open-bg: #39414b;
@@ -133,6 +146,75 @@
 .h-scroll::-webkit-scrollbar-thumb {
   background: var(--scrollbar);
   border-radius: 4px;
+}
+
+/*
+ * 浮いて見える面 (SPEC §12 / v1.14)
+ *
+ * 背景をぼかして透かすことで、下の内容が動くと奥行きが出る。
+ * `-webkit-` 付きも書くこと。iOS Safari は接頭辞付きしか見ない版がある。
+ * **backdrop-filter が効かない環境でも読めること**が条件なので、
+ * --glass-bg はそれ単体で文字が読める不透明度にしてある。
+ */
+.glass {
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--glass-shadow);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  backdrop-filter: blur(20px) saturate(180%);
+}
+
+/*
+ * 画面遷移とモーダルの動き (SPEC §12 / v1.14)
+ *
+ * **入場だけ**を動かす。退場を入れるには閉じる状態を全モーダルに持たせる
+ * 必要があり、得られる印象に見合わない。
+ */
+@keyframes page-in-from-right {
+  from {
+    opacity: 0;
+    transform: translate3d(16px, 0, 0);
+  }
+}
+@keyframes page-in-from-left {
+  from {
+    opacity: 0;
+    transform: translate3d(-16px, 0, 0);
+  }
+}
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes sheet-in {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 12px, 0);
+  }
+}
+
+.page-in-right {
+  animation: page-in-from-right 0.22s ease-out;
+}
+.page-in-left {
+  animation: page-in-from-left 0.22s ease-out;
+}
+.backdrop-in {
+  animation: fade-in 0.18s ease-out;
+}
+.sheet-in {
+  animation: sheet-in 0.22s cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+/* 動きに酔う人・OSで動きを減らす設定の人には出さない */
+@media (prefers-reduced-motion: reduce) {
+  .page-in-right,
+  .page-in-left,
+  .backdrop-in,
+  .sheet-in {
+    animation: none;
+  }
 }
 
 body {

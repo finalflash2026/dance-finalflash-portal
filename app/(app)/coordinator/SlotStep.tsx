@@ -551,7 +551,10 @@ function SlotEditor({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 sm:items-center">
+    <div
+      data-no-swipe
+      className="backdrop-in fixed inset-0 z-50 flex items-end justify-center bg-black/40 sm:items-center"
+    >
       <button
         type="button"
         aria-label="閉じる"
@@ -561,7 +564,7 @@ function SlotEditor({
       <div
         role="dialog"
         aria-modal="true"
-        className="relative z-10 max-h-[90dvh] w-full max-w-md space-y-4 overflow-y-auto rounded-t-2xl bg-[var(--background)] p-4 sm:rounded-2xl"
+        className="sheet-in relative z-10 max-h-[90dvh] w-full max-w-md space-y-4 overflow-y-auto rounded-t-2xl bg-[var(--background)] p-4 sm:rounded-2xl"
       >
         <div>
           <h3 className="text-base font-bold">
