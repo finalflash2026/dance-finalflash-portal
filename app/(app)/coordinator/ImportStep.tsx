@@ -371,7 +371,10 @@ function EditModal({
   }, [onClose]);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 sm:items-center">
+    <div
+      data-no-swipe
+      className="backdrop-in fixed inset-0 z-50 flex items-end justify-center bg-black/40 sm:items-center"
+    >
       <button
         type="button"
         aria-label="閉じる"
@@ -381,7 +384,7 @@ function EditModal({
       <div
         role="dialog"
         aria-modal="true"
-        className="relative z-10 w-full max-w-md rounded-t-2xl bg-[var(--background)] p-4 sm:rounded-2xl"
+        className="sheet-in relative z-10 w-full max-w-md rounded-t-2xl bg-[var(--background)] p-4 sm:rounded-2xl"
       >
         <RowCard
           row={row}
