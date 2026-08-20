@@ -68,7 +68,7 @@ export function CalendarView({
   return (
     <>
       <MiniCalendar
-        basePath="/"
+        basePath="/overview"
         monthAnchor={monthAnchor}
         selectedDate={selectedDate}
         today={today}
