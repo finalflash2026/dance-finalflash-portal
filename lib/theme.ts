@@ -42,11 +42,13 @@ const THEME_COLORS: Record<Theme, string> = {
  * 一瞬白い画面が出てからグレーになる、いわゆるちらつきが起きる。
  * localStorage が使えない設定でも落ちないよう try で囲む。
  *
- * theme-color の meta も**ここで作る**。Next 側に出させると、
- * 選択(localStorage)を知らないサーバーが固定値を書いてしまい、
- * 後から書き換えても2つ並ぶことになるため。
+ * theme-color の meta は **layout.tsx が静的に出したものを書き換える**
+ * (無ければ作る)。静的に出しておかないと、ホーム画面から開いたときに
+ * iOS がタグを見つけられず、マニフェストの background_color で
+ * 上端を塗ってしまう。Next のメタタグはこの script より前に置かれるため、
+ * ここで querySelector すれば必ず見つかる。
  */
-export const THEME_INIT_SCRIPT = `try{var t=localStorage.getItem(${JSON.stringify(THEME_STORAGE_KEY)})==="dark"?"dark":"light";if(t==="dark"){document.documentElement.dataset.theme="dark"}var m=document.createElement("meta");m.name="theme-color";m.content=t==="dark"?${JSON.stringify(THEME_COLORS.dark)}:${JSON.stringify(THEME_COLORS.light)};document.head.appendChild(m)}catch(e){}`;
+export const THEME_INIT_SCRIPT = `try{var t=localStorage.getItem(${JSON.stringify(THEME_STORAGE_KEY)})==="dark"?"dark":"light";if(t==="dark"){document.documentElement.dataset.theme="dark"}var m=document.querySelector('meta[name="theme-color"]');if(!m){m=document.createElement("meta");m.name="theme-color";document.head.appendChild(m)}m.content=t==="dark"?${JSON.stringify(THEME_COLORS.dark)}:${JSON.stringify(THEME_COLORS.light)}}catch(e){}`;
 
 /** `<html>` に反映する。ライトは属性を消す (既定がライトのため) */
 export function applyTheme(theme: Theme): void {

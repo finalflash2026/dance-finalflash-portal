@@ -18,8 +18,13 @@ export default function manifest(): MetadataRoute.Manifest {
     description: "練習日程・空き申請・ナンバーの管理サイト",
     start_url: "/",
     display: "standalone",
-    // アイコンが黒地なので、起動時のスプラッシュも黒にして繋がって見せる
-    background_color: "#000000",
+    /*
+     * **黒にしないこと。** iOS はこの色を起動時のスプラッシュだけでなく
+     * **画面上端(ステータスバーの下)の塗り**にも使う。アイコンの黒地に
+     * 合わせて #000000 にしたところ、ライトモードでも上端が黒く残った。
+     * 既定のテーマ(ライト)の地の色と揃える。
+     */
+    background_color: "#ffffff",
     theme_color: "#ffffff",
     icons: [
       { src: "/icon-192.png", sizes: "192x192", type: "image/png" },
