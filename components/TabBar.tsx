@@ -42,11 +42,17 @@ export function TabBar({ role }: { role: Role }) {
       className="fixed inset-x-0 bottom-[calc(env(safe-area-inset-bottom)+10px)] z-40 flex justify-center px-4"
       aria-label="メインナビゲーション"
     >
-      <ul className="glass flex gap-1 rounded-full p-1">
+      {/*
+       * 島は**画面幅いっぱいまで伸ばす**(v1.14.1)。内容なりの幅だと
+       * 画面の6割ほどしか占めず、左右の余白のほうが目立って浮いて見えなかった。
+       * `max-w-sm` は大きい画面での上限 (指の届く範囲に収める)。
+       */}
+      <ul className="glass flex w-full max-w-sm gap-1 rounded-full p-1">
         {tabs.map((tab, index) => {
           const active = index === currentIndex;
           return (
-            <li key={tab.href}>
+            /* flex-1 で3タブが均等に割る (OB の2タブでも半分ずつになる) */
+            <li key={tab.href} className="flex-1">
               <Link
                 href={tab.href}
                 /*
@@ -60,7 +66,7 @@ export function TabBar({ role }: { role: Role }) {
                 onClick={() => rememberNavDirection(currentIndex, index)}
                 aria-current={active ? "page" : undefined}
                 // 高さ44pxは指で押せる最小 (SPEC §12: スマホ最優先)
-                className={`flex h-11 min-w-[76px] items-center justify-center rounded-full px-4 text-sm transition-colors ${
+                className={`flex h-11 w-full items-center justify-center rounded-full px-3 text-sm transition-colors ${
                   active
                     ? "bg-[var(--primary)] font-bold text-[var(--primary-fg)]"
                     : "text-[var(--muted)]"
