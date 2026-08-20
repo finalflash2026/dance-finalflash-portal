@@ -27,6 +27,13 @@ export const viewport: Viewport = {
   initialScale: 1,
   maximumScale: 1,
   viewportFit: "cover",
+  /*
+   * 画面上端(ステータスバー周り)の色。**必ず静的に出しておくこと。**
+   * 無いと iOS がマニフェストの background_color で塗ってしまう。
+   * 既定はライトの地の色で、ダークを選んでいる端末では
+   * THEME_INIT_SCRIPT が最初のペイント前に書き換える (lib/theme.ts)。
+   */
+  themeColor: "#ffffff",
 };
 
 export default function RootLayout({
