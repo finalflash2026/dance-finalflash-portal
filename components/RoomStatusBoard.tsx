@@ -1,9 +1,10 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 
 import { ROOMS } from "@/lib/constants";
 import { createClient } from "@/lib/supabase/client";
+import { useLiveRefresh } from "@/lib/use-live-refresh";
 import { formatAsTokyoTime } from "@/lib/time";
 import type { DateString } from "@/lib/types";
 
@@ -29,8 +30,12 @@ export interface RoomStatusRow {
   profiles: { username: string } | null;
 }
 
-/** 自動再取得の間隔 (SPEC §6.1.1「60秒ごとに自動再取得」) */
-const POLL_INTERVAL_MS = 60_000;
+/**
+ * 自動再取得の間隔。**15秒** (SPEC §6.1.1 / v1.14 で60秒から短縮)。
+ * 鍵を開けた直後に他の人の画面へ反映されないと、行ってから
+ * 「開いていない」と勘違いされるため。非表示の間は止まる (useLiveRefresh)。
+ */
+const POLL_INTERVAL_MS = 15_000;
 /** ○ のまま放置されたとみなす閾値 (SPEC §6.1.1「3時間以上経過」) */
 const STALE_THRESHOLD_MS = 3 * 60 * 60 * 1000;
 
@@ -67,14 +72,10 @@ export function RoomStatusBoard({
     setFetchedAt(new Date());
   }, [today]);
 
-  // 60秒ごとに自動再取得。
   // ポーリングするのは room_status だけで、**部屋の一覧はサーバー描画時のものを使う**。
   // 折衝が閲覧中に新しい部屋を公開した場合はリロードまで反映されないが、
   // 頻度が低いのに対しクエリを半減できるため、この割り切りを採る。
-  useEffect(() => {
-    const timer = setInterval(refresh, POLL_INTERVAL_MS);
-    return () => clearInterval(timer);
-  }, [refresh]);
+  useLiveRefresh(refresh, POLL_INTERVAL_MS);
 
   async function toggle(roomId: number, current: boolean) {
     setPendingRoomId(roomId);

@@ -1,61 +1,35 @@
 import { redirect } from "next/navigation";
 
-import { CalendarView } from "@/components/CalendarView";
-import { ClubKeyBoard } from "@/components/ClubKeyBoard";
-import type { DayBlock } from "@/components/DayGrid";
-import { RoomStatusBoard, type RoomStatusRow } from "@/components/RoomStatusBoard";
+import type { NotificationRow } from "@/components/NotificationList";
 import { SetupNotice } from "@/components/SetupNotice";
 import { getCurrentProfile } from "@/lib/auth/session";
-import { KEY_HISTORY_LIMIT, toKeyHolderRows } from "@/lib/club-key";
-import { GENRE_BY_ID, isCoordinatorOrAbove } from "@/lib/constants";
 import { hasSupabaseEnv } from "@/lib/env";
+import { GENRE_BY_ID } from "@/lib/constants";
+import { getMyEvents, getMyGenreIds } from "@/lib/events";
 import { createClient } from "@/lib/supabase/server";
 import {
   endOfMonth,
-  normalizeTime,
   startOfMonth,
   todayInTokyo,
 } from "@/lib/time";
-import type { DateString, SlotStatus } from "@/lib/types";
+import type { DateString, MyEvent } from "@/lib/types";
+
+import { MyCalendarClient } from "./MyCalendarClient";
 
 /**
- * タブ① 全体カレンダー (SPEC.md §6.1)
+ * タブ③ マイカレンダー (SPEC.md §6.4)
  *
- * 折衝が公開した slots と申請 claims を「ミニカレンダー → 日別ビュー」で見せる。
+ * 公式練・自分の空き申請・ナンバー練を1つのカレンダーに統合する。
+ * 抽出は購読ics と同じ getMyEvents() を使う。片方だけ条件がズレると
+ * 「サイトには出るが ics に出ない」という事故になるため、必ず共用する。
  *
- * サーバーは**その月ぶんをまとめて1クエリ**で取り (SPEC §13.1: slots+claims+profiles
- * を join)、日付の選択は CalendarView がクライアント側で行う。同じ月なら取りに行く
- * データが無いため、日付切り替えでサーバー往復を起こさない。
- *
- * 施錠状況ボード (§6.1.1) は**選択中の日付に関わらず常に今日**を見るため別クエリ。
- * 3本を Promise.all で並列に投げる (直列だと1本ぶんの遅延が3倍になる)。
+ * OB は getMyEvents() の中でナンバー練のみに絞られる (SPEC §6.4-0)。
  */
 
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+const NOTIFICATION_LIMIT = 20;
 
-type ClaimRow = {
-  id: string;
-  user_id: string;
-  start_time: string;
-  end_time: string;
-  purpose: string | null;
-  profiles: { username: string } | null;
-};
-
-type SlotRow = {
-  id: string;
-  date: DateString;
-  start_time: string;
-  end_time: string;
-  room_id: number;
-  status: SlotStatus;
-  genre_id: number | null;
-  target_generations: number[] | null;
-  note: string | null;
-  claims: ClaimRow[] | null;
-};
-
-export default async function OverviewCalendarPage({
+export default async function MyCalendarPage({
   searchParams,
 }: {
   searchParams: Promise<{ date?: string }>;
@@ -65,137 +39,100 @@ export default async function OverviewCalendarPage({
   }
 
   const profile = await getCurrentProfile();
-
-  // OB はタブ①を利用できない。URL 直打ちは /me へ (SPEC §3.6 / §6.0)
-  if (profile?.role === "ob") {
-    redirect("/me");
+  if (!profile) {
+    redirect("/login");
   }
 
   const { date } = await searchParams;
   const today = todayInTokyo();
-  const selectedDate = date && DATE_PATTERN.test(date) ? date : today;
+  const selectedDate: DateString =
+    date && DATE_PATTERN.test(date) ? date : today;
+  const monthStart = startOfMonth(selectedDate);
+  const monthEnd = endOfMonth(selectedDate);
 
+  const isOb = profile.role === "ob";
   const supabase = await createClient();
-
-  const [monthResult, todayRoomsResult, roomStatusResult, keyHolderResult] =
-    await Promise.all([
-    // 1. 選択月の slots + claims + 申請者名 (SPEC §13.1)
+  const [events, notificationResult, numberResult, genreIds] = await Promise.all([
+    getMyEvents(supabase, profile, monthStart, monthEnd),
+    // **未読だけを取る** (SPEC §6.4-2 / v1.10)。既読は画面に出さないので、
+    // 送ってもハイドレーション用のペイロードに乗るだけで無駄になる
     supabase
-      .from("slots")
-      .select(
-        "id, date, start_time, end_time, room_id, status, genre_id, target_generations, note," +
-          " claims(id, user_id, start_time, end_time, purpose, profiles(username))",
-      )
-      .eq("published", true)
-      .gte("date", startOfMonth(selectedDate))
-      .lte("date", endOfMonth(selectedDate)),
-
-    // 2. 施錠ボードに並べる部屋 = 今日、公開済み slots が1件以上ある部屋 (§6.1.1)
+      .from("notifications")
+      .select("id, type, title, body, created_at")
+      .is("read_at", null)
+      .order("created_at", { ascending: false })
+      .limit(NOTIFICATION_LIMIT),
+    // 絞り込みチップに出す所属ナンバー。**今月に予定が無いナンバーも出す**
+    // (予定を入れ忘れているのか絞り込まれているのか分からなくなるため)
+    //
+    // **user_id で必ず絞ること。** RLS (`sel_nmembers`) が見せてくれるのは
+    // 「自分が所属するナンバーの**全メンバー行**」なので、絞らないと
+    // メンバーが3人いるナンバーのチップが3つ並ぶ (v1.12 で修正)。
     supabase
-      .from("slots")
-      .select("room_id")
-      .eq("published", true)
-      .eq("date", today),
+      .from("number_members")
+      .select("numbers(id, name)")
+      .eq("user_id", profile.user_id),
+    // 絞り込みチップに出す自分の1〜3ジャン。**その月に予定が無くても出す**ので
+    // 取得済みの予定から逆算はできない (getMyEvents も内部で同じものを引くが、
+    // user_subgenres は数行しかなく、揃えるために引数を増やすほうが割に合わない)
+    isOb ? Promise.resolve([]) : getMyGenreIds(supabase, profile),
+  ]);
 
-    // 3. 今日の施錠状況と、最後に切り替えた人
-    supabase
-      .from("room_status")
-      .select("room_id, is_unlocked, updated_at, profiles(username)")
-      .eq("date", today),
+  // 今日の予定カードは表示中の月に関わらず「今日」を見る (SPEC §6.4-1)。
+  // 今月を見ているなら取得済みの中にあるので、追加のクエリは投げない
+  const todayEvents: MyEvent[] =
+    today >= monthStart && today <= monthEnd
+      ? events.filter((event) => event.date === today)
+      : await getMyEvents(supabase, profile, today, today);
 
-    // 4. 部室の鍵の受け渡し (§6.1.2)。**日付では絞らない** —
-    //    鍵は日をまたいで同じ人が持っているのが普通で、今日の行が無いのが常態
-    supabase
-      .from("club_key_holders")
-      .select("id, user_id, taken_at, profiles(username)")
-      .order("taken_at", { ascending: false })
-      .limit(KEY_HISTORY_LIMIT),
-    ]);
+  const numbers = (
+    (numberResult.data ?? []) as unknown as {
+      numbers: { id: string; name: string } | null;
+    }[]
+  )
+    .map((row) => row.numbers)
+    .filter((number): number is { id: string; name: string } => number !== null);
 
-  // 日付ごとにまとめておく。クライアント側は選択日で引くだけで済む
-  const blocksByDate: Record<DateString, DayBlock[]> = {};
-  for (const row of (monthResult.data ?? []) as unknown as SlotRow[]) {
-    (blocksByDate[row.date] ??= []).push({
-      id: row.id,
-      roomId: row.room_id,
-      startTime: normalizeTime(row.start_time),
-      endTime: normalizeTime(row.end_time),
-      status: row.status,
-      genreCode: row.genre_id
-        ? (GENRE_BY_ID.get(row.genre_id)?.code ?? null)
-        : null,
-      targetGenerations: row.target_generations,
-      note: row.note,
-      claims: (row.claims ?? []).map((claim) => ({
-        id: claim.id,
-        userId: claim.user_id,
-        username: claim.profiles?.username ?? "(不明)",
-        startTime: normalizeTime(claim.start_time),
-        endTime: normalizeTime(claim.end_time),
-        purpose: claim.purpose,
-      })),
-    });
-  }
-
-  const todayRoomIds = [
-    ...new Set(
-      ((todayRoomsResult.data ?? []) as { room_id: number }[]).map(
-        (r) => r.room_id,
-      ),
-    ),
-  ];
-
-  const error = monthResult.error ?? todayRoomsResult.error;
+  const notifications: NotificationRow[] = (
+    (notificationResult.data ?? []) as unknown as {
+      id: string;
+      type: NotificationRow["type"];
+      title: string;
+      body: string | null;
+      created_at: string;
+    }[]
+  ).map((row) => ({
+    id: row.id,
+    type: row.type,
+    title: row.title,
+    body: row.body,
+    createdAt: row.created_at,
+  }));
 
   return (
-    /*
-     * 縦を詰めるため見出しは sr-only にしてある。どのタブにいるかは
-     * 下部タブバーが示しており、画面内に大きな見出しを置くぶんだけ
-     * 日別ビューが下に押し出されていた。読み上げには残す。
-     */
     <main className="mx-auto max-w-2xl space-y-2 px-4 py-2">
-      <h1 className="sr-only">全体カレンダー</h1>
-
-      {error ? (
-        <p
-          role="alert"
-          className="rounded-lg bg-[var(--danger-bg)] px-3 py-2 text-sm text-[var(--danger-fg)]"
-        >
-          予定の取得に失敗しました: {error.message}
-        </p>
-      ) : null}
-
-      {/* 選択日に関わらず常に「今日」を示すカード。ミニカレンダーより上 (§6.1.1) */}
-      <RoomStatusBoard
-        today={today}
-        roomIds={todayRoomIds}
-        initialRows={
-          (roomStatusResult.data ?? []) as unknown as RoomStatusRow[]
-        }
-        currentUserId={profile?.user_id ?? ""}
-      />
-
-      {/* 部室の鍵の所持者 (§6.1.2)。施錠ボードとミニカレンダーの間 */}
-      <ClubKeyBoard
-        initialRows={toKeyHolderRows(keyHolderResult.data)}
-        currentUserId={profile?.user_id ?? ""}
-      />
+      <h1 className="sr-only">マイカレンダー</h1>
 
       {/*
-        key を渡して、サーバーが別の日付を返したときに CalendarView を作り直す。
-        これが無いと、月送りやブラウザの戻るでサーバーの選択日が変わっても
-        クライアント state に前の日付が残り、表示中の月に無い日を選んだ状態になる
-        (useState の初期値は再レンダーでは効かないため)。
+        key を渡して、サーバーが別の日付を返したときに作り直す。
+        月送りやブラウザの戻りでクライアント state が取り残されるのを防ぐ
+        (useState の初期値は再レンダーでは効かない)。タブ①②と同じ理由。
       */}
-      <CalendarView
+      <MyCalendarClient
         key={selectedDate}
-        monthAnchor={startOfMonth(selectedDate)}
+        monthAnchor={monthStart}
         initialDate={selectedDate}
         today={today}
-        markedDates={Object.keys(blocksByDate)}
-        blocksByDate={blocksByDate}
-        currentUserId={profile?.user_id ?? ""}
-        canManage={profile ? isCoordinatorOrAbove(profile.role) : false}
+        events={events}
+        todayEvents={todayEvents}
+        notifications={notifications}
+        numbers={numbers}
+        genreCodes={genreIds.flatMap((id) => {
+          const code = GENRE_BY_ID.get(id)?.code;
+          return code ? [code as string] : [];
+        })}
+        isOb={isOb}
+        currentUserId={profile.user_id}
       />
     </main>
   );

@@ -172,7 +172,7 @@ export function MyCalendarClient({
       ) : null}
 
       <LabelCalendar
-        basePath="/me"
+        basePath="/"
         monthAnchor={monthAnchor}
         selectedDate={selectedDate}
         today={today}

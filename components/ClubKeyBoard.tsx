@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 
 import {
   KEY_HISTORY_LIMIT,
@@ -8,6 +8,7 @@ import {
   type KeyHolderRow,
 } from "@/lib/club-key";
 import { createClient } from "@/lib/supabase/client";
+import { useLiveRefresh } from "@/lib/use-live-refresh";
 import { formatAsTokyoDateTime } from "@/lib/time";
 
 /**
@@ -23,8 +24,8 @@ import { formatAsTokyoDateTime } from "@/lib/time";
  * 鍵は日をまたいで同じ人が持っているのが普通なので。
  */
 
-/** 施錠状況ボードと同じ間隔で見直す (SPEC §6.1.1) */
-const POLL_INTERVAL_MS = 60_000;
+/** 施錠状況ボードと同じ間隔で見直す。**15秒** (SPEC §6.1.1 / v1.14) */
+const POLL_INTERVAL_MS = 15_000;
 
 export function ClubKeyBoard({
   initialRows,
@@ -54,10 +55,7 @@ export function ClubKeyBoard({
     setRows(toKeyHolderRows(data));
   }, []);
 
-  useEffect(() => {
-    const timer = setInterval(refresh, POLL_INTERVAL_MS);
-    return () => clearInterval(timer);
-  }, [refresh]);
+  useLiveRefresh(refresh, POLL_INTERVAL_MS);
 
   const holder = rows[0] ?? null;
   const isMine = holder?.userId === currentUserId;
