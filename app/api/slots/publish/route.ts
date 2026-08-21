@@ -1,6 +1,8 @@
+import { after } from "next/server";
 import { z } from "zod";
 
 import { requireRole } from "@/lib/auth/guard";
+import { sendPush } from "@/lib/push";
 import { unassignedRanges } from "@/lib/slots";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
@@ -198,6 +200,23 @@ export async function POST(request: Request) {
       { status: 207 },
     );
   }
+
+  // アプリ内のお知らせ (notifications) と同じ宛先へ、端末の通知としても送る。
+  // 応答を返してから走らせる — 150人ぶんの送信を待つと、公開ボタンの
+  // 反応が数秒遅れて「固まった」ように見える (SPEC §6.6)
+  after(async () => {
+    await sendPush({
+      category: "schedule",
+      userIds: rows.map((r) => r.user_id),
+      payload: {
+        title,
+        body: `${published}件のコマが公開されました`,
+        url: "/overview",
+        // 同じ月の公開を繰り返しても通知が積み上がらないようにする
+        tag: `schedule-${monthStart}`,
+      },
+    });
+  });
 
   return Response.json({
     published,

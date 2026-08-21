@@ -43,13 +43,11 @@ export function RoomStatusBoard({
   today,
   roomIds,
   initialRows,
-  currentUserId,
 }: {
   today: DateString;
   /** 今日、公開済み slots が1件以上ある部屋 */
   roomIds: number[];
   initialRows: RoomStatusRow[];
-  currentUserId: string;
 }) {
   const [rows, setRows] = useState(initialRows);
   const [fetchedAt, setFetchedAt] = useState<Date | null>(null);
@@ -77,24 +75,28 @@ export function RoomStatusBoard({
   // 頻度が低いのに対しクエリを半減できるため、この割り切りを採る。
   useLiveRefresh(refresh, POLL_INTERVAL_MS);
 
+  /**
+   * 切り替えは **API 経由** (v1.15)。以前はここから直接 upsert していたが、
+   * プッシュ通知をこの操作から出すようになったため、ブラウザに書かせると
+   * **切り替えていないのに「開錠しました」を全員へ投げられてしまう**。
+   * サーバー側もセッションのクライアントで書くので、RLS の条件
+   * (当日のみ・本人・OB 不可) はこれまで通り効く。
+   */
   async function toggle(roomId: number, current: boolean) {
     setPendingRoomId(roomId);
     setError(null);
 
-    const supabase = createClient();
-    const { error: upsertError } = await supabase.from("room_status").upsert(
-      {
-        date: today,
-        room_id: roomId,
-        is_unlocked: !current,
-        // RLS が updated_by = auth.uid() を要求する。なりすましは DB で弾かれる
-        updated_by: currentUserId,
-      },
-      { onConflict: "date,room_id" },
-    );
+    const res = await fetch("/api/room-status", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ roomId, isUnlocked: !current }),
+    });
 
-    if (upsertError) {
-      setError(`切り替えに失敗しました: ${upsertError.message}`);
+    if (!res.ok) {
+      const data = (await res.json().catch(() => null)) as {
+        error?: string;
+      } | null;
+      setError(data?.error ?? "切り替えに失敗しました");
       setPendingRoomId(null);
       return;
     }

@@ -28,6 +28,8 @@ import {
 } from "@/lib/theme";
 import type { Profile } from "@/lib/types";
 
+import { PushSection } from "./PushSection";
+
 /**
  * 設定画面の操作部 (SPEC.md §6.4.1)
  *
@@ -40,12 +42,15 @@ export function SettingsClient({
   initialSubgenre2,
   initialSubgenre3,
   baseUrl,
+  vapidPublicKey,
 }: {
   profile: Profile;
   initialToken: string | null;
   initialSubgenre2: number | null;
   initialSubgenre3: number | null;
   baseUrl: string;
+  /** 空文字なら通知が未設定の環境。PushSection が「非対応」として扱う */
+  vapidPublicKey: string;
 }) {
   const router = useRouter();
   const [token, setToken] = useState(initialToken);
@@ -184,6 +189,14 @@ export function SettingsClient({
           onError={setError}
           onNotice={setNotice}
         />
+      ) : null}
+
+      {/*
+        通知は現役だけに配る (練習日程・鍵はどちらも OB に関係が無い。SPEC §6.6)。
+        受け取れないのに設定欄だけあると、オンにしても何も来ない状態になる
+      */}
+      {profile.role !== "ob" ? (
+        <PushSection vapidPublicKey={vapidPublicKey} />
       ) : null}
 
       <ThemeSection />

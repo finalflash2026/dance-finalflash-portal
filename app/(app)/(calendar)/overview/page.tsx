@@ -172,7 +172,6 @@ export default async function OverviewCalendarPage({
         initialRows={
           (roomStatusResult.data ?? []) as unknown as RoomStatusRow[]
         }
-        currentUserId={profile?.user_id ?? ""}
       />
 
       {/* 部室の鍵の所持者 (§6.1.2)。施錠ボードとミニカレンダーの間 */}
