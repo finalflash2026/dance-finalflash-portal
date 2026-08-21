@@ -217,6 +217,21 @@
   }
 }
 
+/*
+ * 引っぱって更新 (SPEC §12 / v1.16)
+ *
+ * ホーム画面から開いたときだけ、上端での弾みを止める。
+ * 自前の「引っぱって更新」が指を追う邪魔になるのと、Android の
+ * standalone にはブラウザ由来の同じ操作が残っていて**二重に読み込む**ため。
+ * ブラウザのタブでは触らない (そちらは元の操作をそのまま使う)。
+ */
+@media (display-mode: standalone) {
+  html,
+  body {
+    overscroll-behavior-y: contain;
+  }
+}
+
 body {
   background: var(--background);
   color: var(--foreground);

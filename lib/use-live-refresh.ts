@@ -2,6 +2,8 @@
 
 import { useEffect } from "react";
 
+import { REFRESH_EVENT } from "@/lib/refresh-signal";
+
 /**
  * 掲示板系カードの自動再取得 (SPEC.md §6.1.1 / §6.1.2 / v1.14)
  *
@@ -67,11 +69,15 @@ export function useLiveRefresh(
     document.addEventListener("visibilitychange", onVisible);
     // iOS はタブ切り替えで visibilitychange が来ないことがあるので focus も見る
     window.addEventListener("focus", onVisible);
+    // 引っぱって更新 (§12)。router.refresh() では state を持つこちらは
+    // 変わらないので、合図をもらって自分で取り直す
+    window.addEventListener(REFRESH_EVENT, refresh);
 
     return () => {
       stop();
       document.removeEventListener("visibilitychange", onVisible);
       window.removeEventListener("focus", onVisible);
+      window.removeEventListener(REFRESH_EVENT, refresh);
     };
   }, [refresh, intervalMs]);
 }
