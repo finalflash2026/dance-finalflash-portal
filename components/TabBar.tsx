@@ -43,11 +43,12 @@ export function TabBar({ role }: { role: Role }) {
       aria-label="メインナビゲーション"
     >
       {/*
-       * 島は**画面幅いっぱいまで伸ばす**(v1.14.1)。内容なりの幅だと
-       * 画面の6割ほどしか占めず、左右の余白のほうが目立って浮いて見えなかった。
-       * `max-w-sm` は大きい画面での上限 (指の届く範囲に収める)。
+       * 島の幅は **300px** (v1.14.2)。この値は two 段階で決まった:
+       *   内容なり (約244px) … 余白のほうが目立ち、浮いて見えない
+       *   画面いっぱい (約358px) … 今度は長すぎる
+       * その中間に置いてある。`w-full` は画面が 300px より狭いときの保険。
        */}
-      <ul className="glass flex w-full max-w-sm gap-1 rounded-full p-1">
+      <ul className="glass flex w-full max-w-[300px] gap-1 rounded-full p-1">
         {tabs.map((tab, index) => {
           const active = index === currentIndex;
           return (

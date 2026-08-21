@@ -1,6 +1,5 @@
-import Link from "next/link";
-
 import { PageTransition } from "@/components/PageTransition";
+import { SettingsButton } from "@/components/SettingsButton";
 import { SwipeTabs } from "@/components/SwipeTabs";
 import { TabBar } from "@/components/TabBar";
 import { getCurrentProfile } from "@/lib/auth/session";
@@ -43,13 +42,7 @@ export default async function AppLayout({
             </p>
           ) : null}
         </div>
-        <Link
-          href="/settings"
-          aria-label="設定"
-          className="glass flex h-10 w-10 shrink-0 items-center justify-center rounded-full"
-        >
-          <MenuIcon />
-        </Link>
+        <SettingsButton />
       </header>
 
       <SwipeTabs role={role}>
@@ -58,31 +51,5 @@ export default async function AppLayout({
 
       <TabBar role={role} />
     </div>
-  );
-}
-
-/**
- * 設定の入口 (SPEC §12 / v1.14)
- *
- * 上から順に短くなる3本線。文字の「設定」から替えたのは、
- * 画面の幅を文字に取られていたのと、浮いた丸ボタンに文字が収まらないため。
- * 意味は `aria-label` が持つので、読み上げでは今までどおり「設定」と読まれる。
- */
-function MenuIcon() {
-  return (
-    <svg
-      width="18"
-      height="14"
-      viewBox="0 0 18 14"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      aria-hidden
-    >
-      <line x1="1" y1="1" x2="17" y2="1" />
-      <line x1="1" y1="7" x2="12" y2="7" />
-      <line x1="1" y1="13" x2="7" y2="13" />
-    </svg>
   );
 }

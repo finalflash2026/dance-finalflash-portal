@@ -118,13 +118,22 @@ export function ClubKeyBoard({
           )}
         </p>
 
+        {/*
+         * ボタンは**すりガラス**にしてある (v1.14.2)。タブバーと同じ質感で、
+         * 「押せるもの」であることが枠線よりはっきり出る。角は大きめに丸めて
+         * タブバーのピルと揃える。
+         *
+         * 文言は「所持中に変更」。**今の状態ではなく、押すと何が起きるかを書く。**
+         * 「私が持っています」は事実の申告に読め、既に自分が持っている人が
+         * 押してよいのか迷う。
+         */}
         <button
           type="button"
           onClick={claim}
           disabled={pending || isMine}
-          className="shrink-0 rounded-lg border border-[var(--foreground)] px-3 py-1.5 text-xs font-bold disabled:border-[var(--border)] disabled:text-[var(--muted)] disabled:opacity-60"
+          className="glass shrink-0 rounded-2xl px-3.5 py-2 text-xs font-bold disabled:text-[var(--muted)] disabled:opacity-60"
         >
-          {isMine ? "自分が所持中" : "私が持っています"}
+          {isMine ? "自分が所持中" : "所持中に変更"}
         </button>
       </div>
 

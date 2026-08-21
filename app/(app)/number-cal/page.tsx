@@ -47,12 +47,37 @@ export default async function NumberCalendarPage({
     date && DATE_PATTERN.test(date) ? date : today;
 
   const supabase = await createClient();
-  const { data, error } = await supabase
-    .from("number_events")
-    .select("id, number_id, date, start_time, end_time, place, note, numbers(name)")
-    .gte("date", startOfMonth(selectedDate))
-    .lte("date", endOfMonth(selectedDate))
-    .order("date");
+  // 予定と所属ナンバーを**同時に**取る。片方ずつ待つ理由が無い
+  const [{ data, error }, numbersResult] = await Promise.all([
+    supabase
+      .from("number_events")
+      .select(
+        "id, number_id, date, start_time, end_time, place, note, numbers(name)",
+      )
+      .gte("date", startOfMonth(selectedDate))
+      .lte("date", endOfMonth(selectedDate))
+      .order("date"),
+    supabase
+      .from("numbers")
+      .select("id, name, owner_id, number_members(user_id)")
+      .order("created_at"),
+  ]);
+
+  // 絞り込みはクエリに書いていない。RLS の sel_numbers (= is_number_member) が
+  // そのまま効いていて、非メンバーにはナンバーの存在自体が見えない
+  const numbers = (
+    (numbersResult.data ?? []) as unknown as {
+      id: string;
+      name: string;
+      owner_id: string;
+      number_members: { user_id: string }[] | null;
+    }[]
+  ).map((row) => ({
+    id: row.id,
+    name: row.name,
+    isOwner: row.owner_id === profile.user_id,
+    memberCount: (row.number_members ?? []).length,
+  }));
 
   const events = (
     (data ?? []) as unknown as {
@@ -78,7 +103,7 @@ export default async function NumberCalendarPage({
 
   return (
     <main className="mx-auto max-w-2xl space-y-2 px-4 py-2">
-      <h1 className="sr-only">ナンバーカレンダー</h1>
+      <h1 className="sr-only">ナンバー</h1>
 
       {error ? (
         <p
@@ -101,6 +126,8 @@ export default async function NumberCalendarPage({
         today={today}
         events={events}
         currentUserId={profile.user_id}
+        numbers={numbers}
+        numbersError={numbersResult.error?.message ?? null}
       />
     </main>
   );

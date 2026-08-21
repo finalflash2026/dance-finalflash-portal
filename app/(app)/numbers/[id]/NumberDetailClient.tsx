@@ -78,8 +78,8 @@ export function NumberDetailClient({
   return (
     <main className="mx-auto max-w-2xl space-y-4 px-4 py-3">
       <div className="flex items-center gap-2">
-        <Link href="/numbers" className="text-sm text-[var(--muted)]">
-          ‹ 一覧
+        <Link href="/number-cal" className="text-sm text-[var(--muted)]">
+          ‹ ナンバー
         </Link>
       </div>
 
@@ -187,7 +187,7 @@ function DeleteSection({
       onError(`削除できませんでした: ${error.message}`);
       return;
     }
-    router.push("/numbers");
+    router.push("/number-cal");
     router.refresh();
   }
 
@@ -665,7 +665,7 @@ function MembersTab({
     }
     if (self) {
       // 自分が抜けたらもうこのページは見られない (RLS で 404 になる)
-      router.push("/numbers");
+      router.push("/number-cal");
       return;
     }
     router.refresh();

@@ -1,11 +1,11 @@
 "use client";
 
-import Link from "next/link";
 import { useState } from "react";
 
 import { AttendanceSheet } from "@/components/AttendanceSheet";
 import { DayTimeline, type TimelineEvent } from "@/components/DayTimeline";
 import { MiniCalendar } from "@/components/MiniCalendar";
+import { NumberList, type NumberSummary } from "@/components/NumberList";
 import { numberColor } from "@/lib/numbers";
 import { formatDateLabel } from "@/lib/time";
 import type { DateString } from "@/lib/types";
@@ -36,12 +36,17 @@ export function NumberCalendarClient({
   today,
   events,
   currentUserId,
+  numbers,
+  numbersError,
 }: {
   monthAnchor: DateString;
   initialDate: DateString;
   today: DateString;
   events: NumberEventRow[];
   currentUserId: string;
+  /** 所属しているナンバー。タブを開いた時点で出す (v1.14.2) */
+  numbers: NumberSummary[];
+  numbersError: string | null;
 }) {
   const [selectedDate, setSelectedDate] = useState(initialDate);
   /** 出欠管理窓を開いている予定 (SPEC §6.4.2。タブ②からも同じ窓を開ける) */
@@ -73,17 +78,19 @@ export function NumberCalendarClient({
 
   return (
     <>
-      <div className="flex items-center justify-between gap-2">
-        <p className="text-sm text-[var(--muted)]">
-          所属しているナンバーの予定
-        </p>
-        <Link
-          href="/numbers"
-          className="shrink-0 rounded-lg border border-[var(--border)] px-3 py-1 text-sm"
-        >
-          ナンバー管理
-        </Link>
-      </div>
+      {/*
+        並びは **所属ナンバー → 新規作成 → カレンダー** (v1.14.2)。
+        タブ②を開いてまず知りたいのは「今どのナンバーに入っているか」で、
+        日程の確認はそこから入る。以前はカレンダーだけが出ていて、
+        ナンバーの管理は「ナンバー管理」ボタンの先にあった。
+      */}
+      <NumberList
+        numbers={numbers}
+        currentUserId={currentUserId}
+        loadError={numbersError}
+      />
+
+      <h2 className="pt-1 text-sm font-bold">ナンバーの予定</h2>
 
       <MiniCalendar
         basePath="/number-cal"
