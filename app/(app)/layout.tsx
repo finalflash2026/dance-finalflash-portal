@@ -1,4 +1,5 @@
 import { PageTransition } from "@/components/PageTransition";
+import { PullToRefresh } from "@/components/PullToRefresh";
 import { SettingsButton } from "@/components/SettingsButton";
 import { SwipeTabs } from "@/components/SwipeTabs";
 import { TabBar } from "@/components/TabBar";
@@ -45,9 +46,11 @@ export default async function AppLayout({
         <SettingsButton />
       </header>
 
-      <SwipeTabs role={role}>
-        <PageTransition>{children}</PageTransition>
-      </SwipeTabs>
+      <PullToRefresh>
+        <SwipeTabs role={role}>
+          <PageTransition>{children}</PageTransition>
+        </SwipeTabs>
+      </PullToRefresh>
 
       <TabBar role={role} />
     </div>
