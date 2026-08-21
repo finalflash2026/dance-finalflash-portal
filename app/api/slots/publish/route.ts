@@ -209,8 +209,9 @@ export async function POST(request: Request) {
       category: "schedule",
       userIds: rows.map((r) => r.user_id),
       payload: {
-        title,
-        body: `${published}件のコマが公開されました`,
+        // アプリ内のお知らせ (notifications) は月と件数まで出すが、
+        // 端末の通知は開くきっかけになれば足りるので短く固定する
+        title: "新しい日程が公開されました",
         url: "/overview",
         // 同じ月の公開を繰り返しても通知が積み上がらないようにする
         tag: `schedule-${monthStart}`,

@@ -50,8 +50,17 @@ export function isPushConfigured(): boolean {
 }
 
 export interface PushPayload {
+  /**
+   * 通知の本文。**1行で完結させる** (v1.15.1)。
+   *
+   * ロック画面では見出ししか読まれないことが多く、2行に分けると
+   * 肝心の「誰が」「どこを」が畳まれて見えなくなる。
+   * 「22BREAKせいあがスタジオ101を開けました」のように、
+   * これだけ読めば用が足りる形にする。
+   */
   title: string;
-  body: string;
+  /** 添える説明。基本は付けない (title で完結させるため) */
+  body?: string;
   /** タップしたときに開くパス (例: `/overview`) */
   url: string;
   /**
