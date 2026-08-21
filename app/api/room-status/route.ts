@@ -80,8 +80,10 @@ export async function POST(request: Request) {
       category: "room",
       userIds: recipients,
       payload: {
-        title: `${room.name} が${parsed.data.isUnlocked ? "開錠" : "施錠"}されました`,
-        body: `${profile.username} さんが切り替えました`,
+        // 「誰が」「どこを」「どうした」を1行に収める (SPEC §6.6)
+        title: `${profile.username}が${room.name}を${
+          parsed.data.isUnlocked ? "開けました" : "閉めました"
+        }`,
         url: "/overview",
         // 同じ部屋の開け閉めは置き換える。往復しても通知が積み上がらない
         tag: `room-${room.id}`,

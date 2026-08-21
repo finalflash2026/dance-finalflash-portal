@@ -51,8 +51,7 @@ export async function POST() {
       category: "key",
       userIds: recipients,
       payload: {
-        title: "部室の鍵の所持者が変わりました",
-        body: `${profile.username} さんが持っています`,
+        title: `${profile.username}が鍵を持っています`,
         url: "/overview",
         // 所持者は1人なので、常に最新の1件だけ残ればよい
         tag: "club-key",
