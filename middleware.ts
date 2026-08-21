@@ -89,7 +89,11 @@ export const config = {
      * /login へリダイレクトされ、ログイン前にホーム画面へ追加した人に
      * アプリ名 (ff Calendar) と standalone が効かない (SPEC §12)。
      * 中身は公開情報しか無いので認証を要求する理由も無い。
+     *
+     * **sw.js も外す。** Service Worker はセッションと無関係に取得される
+     * ことがあり、ログインHTMLが返るとスクリプトとして解釈できず
+     * 登録そのものが失敗する (SPEC §6.6)。中身は固定のコードだけ。
      */
-    "/((?!_next/static|_next/image|favicon.ico|manifest.webmanifest|api/cal|api/health|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)",
+    "/((?!_next/static|_next/image|favicon.ico|manifest.webmanifest|sw.js|api/cal|api/health|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)",
   ],
 };

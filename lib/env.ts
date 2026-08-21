@@ -68,3 +68,27 @@ export function appHost(): string {
 export function cronSecret(): string | undefined {
   return process.env.CRON_SECRET || undefined;
 }
+
+/**
+ * Web Push の公開鍵 (SPEC §6.6)。**ブラウザに渡す前提の値**で、秘密ではない。
+ * 購読を作るときに `applicationServerKey` として要る。
+ */
+export const VAPID_PUBLIC_KEY = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY ?? "";
+
+/**
+ * Web Push の送信に必要な3点 (SPEC §6.6)。**サーバー専用**。
+ *
+ * 揃っていなければ null を返し、呼び出し側は通知を「送らない」で済ませる。
+ * 通知は本体機能の付随物なので、鍵が未設定というだけで練習日程の公開や
+ * 鍵の切り替えそのものが失敗してはいけない。
+ */
+export function vapidConfig(): {
+  publicKey: string;
+  privateKey: string;
+  subject: string;
+} | null {
+  const privateKey = process.env.VAPID_PRIVATE_KEY ?? "";
+  const subject = process.env.VAPID_SUBJECT ?? "";
+  if (!VAPID_PUBLIC_KEY || !privateKey || !subject) return null;
+  return { publicKey: VAPID_PUBLIC_KEY, privateKey, subject };
+}

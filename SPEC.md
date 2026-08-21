@@ -11,6 +11,7 @@
 | v1.5 | タブ①に**「今日の練習場所」施錠状況ボード**を追加(room_status新設。○=開錠済/×=施錠中、既定×、誰でも切替可。§6.1.1) |
 | v1.6 | **OB/OGロールを追加**。卒業者はアカウント削除ではなくOBへ移行し、タブ②③(ナンバー・マイカレンダー)のみ利用可能に。縦イベでのナンバー参加を継続できる(§3.6) |
 | v1.7 | **仕様変更2件**。①空き申請の時間粒度を**15分刻み→10分刻み**に変更(§6.1)。UI で丸めるだけでなく`claims`のCHECK制約でDB側でも強制する(クライアントからRLS経由で直接insertする設計のため、UIだけでは回避できてしまう)。②**タブ③のミニカレンダーをドット表示→予定ラベル表示**に変更(§6.0/§6.4)。タブ①②はドットのまま。あわせて`room_status.updated_at`をUPDATE時に更新するトリガを追加(§6.1.1の「3時間以上経過」判定が既定値のままでは機能しないため) |
+| v1.15 | **機能追加1件**。**プッシュ通知**(§6.6)。練習日程の公開・練習場所の施錠/開錠・部室の鍵の所持者変更の3つを端末の通知として届ける。`push_subscriptions` 新設(端末ごと・カテゴリ別のオン/オフ)。Service Worker は **push と notificationclick だけ**を持ち、オフライン用のキャッシュは持たない(古いデプロイが端末に残る事故を避けるため)。あわせて施錠ボードと部室の鍵の書き込みを**クライアント直接からサーバー経由に変更**(`POST /api/room-status` / `POST /api/club-key/claim`)— ブラウザに書かせたままだと**切り替えていないのに「開錠しました」を全員へ通知できてしまう**ため。RLS は変えず、サーバー側もセッションのクライアントで書く |
 | v1.14.1 | v1.14 の実運用で出た調整2件。①下部タブバーの島を**画面幅いっぱいまで伸ばし、各タブが均等に割る**ようにした(§12)。内容なりの幅では画面の6割ほどしか占めず、余白のほうが目立っていた。②施錠ボードと部室の鍵を**表示のたびに1回取り直す**ようにした(§6.1.1 / §13.1)。ルーターキャッシュ(30秒)が効いている間にタブを戻ると初期値が最大30秒前のもので、そこからポーリングを待つと最大45秒古い鍵の状態が出ていた。**キャッシュは縮めず、鮮度が要るカード側で取り直す** |
 | v1.14 | **仕様変更5件**(テスト運用の指摘による)。①**タブの並びを「マイ / 全体 / ナンバー」に変更し、マイカレンダーを `/` にした**(§6.0 / §7)。毎日開くのはマイカレンダーで、起動のたびに1タップ移動していたため。全体カレンダーは `/overview`、旧 `/me` は308転送。②施錠ボードと部室の鍵の自動再取得を**60秒→15秒**にし、**画面が隠れている間は止めて復帰時に即取得**するようにした(§6.1.1 / §6.1.2)。③**クライアント側ルーターキャッシュを30秒保持**してタブ切替の待ちを無くした(§13.1)。④下部タブバーを**画面から浮いた島型のすりガラス**にし、ヘッダの設定を**三本線アイコン**に変更(§12)。⑤**横スワイプでのタブ移動**と、画面遷移・モーダルの**入場アニメーション**を追加(§12)。横スクロールする表とモーダルの中では拾わない |
 | v1.13.2 | 実装時の修正(仕様変更なし)。ホーム画面から開いたとき、**ライトモードでも画面上端が黒くなる**のを修正(§12)。マニフェストの `background_color` を黒にしていたのが原因で、iOS はこれをスプラッシュだけでなく上端の塗りにも使う。あわせて `theme-color` を静的にも出すようにした(タグが無いと iOS が `background_color` を使うため) |
@@ -105,7 +106,12 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=
 SUPABASE_SERVICE_ROLE_KEY=        # サーバー専用。クライアントに絶対露出させない
 APP_BASE_URL=https://<デプロイURL> # ics内UIDドメイン・購読URL生成に使用
 CRON_SECRET=                      # Vercel Cron認証用ランダム文字列
+NEXT_PUBLIC_VAPID_PUBLIC_KEY=     # プッシュ通知の公開鍵。ブラウザに渡す前提の値
+VAPID_PRIVATE_KEY=                # サーバー専用
+VAPID_SUBJECT=mailto:...          # 配信事業者への連絡先 (Web Push の要件)
 ```
+- VAPID の3つは `npx web-push generate-vapid-keys` で作る。**未設定でも動く**(通知だけが無効になり、設定画面には「非対応」と出る)。通知は本体機能の付随物であり、鍵が無いというだけで練習日程の公開や鍵の切り替えが失敗してはならない(§6.6)。
+- **鍵を作り直すと既存の購読がすべて無効になる。** 全員が設定画面で登録し直すまで通知が届かなくなるため、差し替えは避ける。
 
 ---
 
@@ -232,8 +238,10 @@ CRON_SECRET=                      # Vercel Cron認証用ランダム文字列
 - `0004_slots_no_overlap.sql` … v1.8.1 の差分(slots の同一予約枠内の排他制約)
 - `0005_drop_attendance_notify.sql` … v1.11 の差分(出欠のお知らせトリガを削除)
 - `0006_graduate_to_ob.sql` … v1.11.1 の差分(OB移行の自動処理をまとめたDB関数)
+- `0007_club_key_holders.sql` … v1.12 の差分(部室の鍵の所持者。§6.1.2)
+- `0008_push_subscriptions.sql` … v1.15 の差分(プッシュ通知の届け先。§6.6)
 
-本節 = 0001 + 0002 + 0003 + 0004 + 0005 + 0006 を適用した状態。
+本節 = 0001 + 0002 + 0003 + 0004 + 0005 + 0006 + 0007 + 0008 を適用した状態。
 
 ```sql
 -- =========================================================
@@ -497,6 +505,40 @@ create trigger trg_room_status_touch
 before insert or update on public.room_status
 for each row execute function public.touch_room_status_updated_at();
 
+-- ---------- 部室の鍵を今持っている人(v1.12追加) ----------
+-- 部室の鍵は1本しかなく手渡しで回っている。「今どこにあるか」を共有する。
+-- **1行を書き換えるのではなく、受け渡しのたびに1行足す。**
+--   - 現在の所持者 = taken_at が最新の行
+--   - 行方が分からなくなったとき「最後に持っていた人」からたどれる
+--   - 更新の競合(2人が同時に押す)を考えなくてよい
+-- room_status と違い**日付でリセットしない**(日をまたいで同じ人が持つのが普通)。
+create table public.club_key_holders (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references public.profiles(user_id) on delete cascade,
+  taken_at timestamptz not null default now()
+);
+create index club_key_holders_taken_at_idx
+  on public.club_key_holders (taken_at desc);
+
+-- ---------- プッシュ通知の届け先(v1.15追加) ----------
+-- Web Push はブラウザが発行する endpoint 宛に投げる。
+-- **端末ごと・ブラウザごとに1行**(同じ人が iPhone と PC を使えば2行)。
+-- 鍵(p256dh / auth)は endpoint とセットで初めて意味を持つ。
+create table public.push_subscriptions (
+  endpoint text primary key,
+  user_id uuid not null references public.profiles(user_id) on delete cascade,
+  p256dh text not null,
+  auth text not null,
+  -- カテゴリ別のオン/オフを端末ごとに持つ。切る手段が無いと通知そのものを
+  -- 切られてしまい、練習日程の公開まで届かなくなる(§6.6)
+  notify_schedule boolean not null default true,
+  notify_room boolean not null default true,
+  notify_key boolean not null default true,
+  created_at timestamptz not null default now()
+);
+create index push_subscriptions_user_idx
+  on public.push_subscriptions (user_id);
+
 -- ---------- 管理操作の監査ログ(v1.4追加) ----------
 create table public.admin_audit_logs (
   id uuid primary key default gen_random_uuid(),
@@ -617,6 +659,8 @@ alter table public.number_events   enable row level security;
 alter table public.notifications   enable row level security;
 alter table public.attendances     enable row level security;
 alter table public.room_status     enable row level security;
+alter table public.club_key_holders enable row level security;
+alter table public.push_subscriptions enable row level security;
 alter table public.admin_audit_logs enable row level security;
 alter table public.calendar_tokens enable row level security;  -- ポリシー無し=クライアント全拒否
 alter table public.app_settings    enable row level security;  -- 同上(service roleのみ)
@@ -717,6 +761,26 @@ create policy upd_rstatus on public.room_status for update to authenticated
   using (date = (now() at time zone 'Asia/Tokyo')::date and public.app_role() <> 'ob')
   with check (updated_by = auth.uid() and public.app_role() <> 'ob'
               and date = (now() at time zone 'Asia/Tokyo')::date);
+
+-- club_key_holders: 閲覧は現役全員。**自分が持っていることしか宣言できない**。
+-- update / delete のポリシーは置かない = 誰も書き換えられない
+-- (押し間違えたら正しい人がもう一度押せばよく、履歴を消す理由が無い)。
+create policy sel_key on public.club_key_holders for select to authenticated
+  using (public.app_role() <> 'ob');
+create policy ins_key on public.club_key_holders for insert to authenticated
+  with check (user_id = auth.uid() and public.app_role() <> 'ob');
+
+-- push_subscriptions: **本人の行しか触れない**。他人の購読を消せると
+-- その人の通知を止められてしまう。登録自体はサーバー(service role)経由だが、
+-- RLS でも同じ条件を二重に置く(§13.2)。
+create policy sel_push on public.push_subscriptions for select to authenticated
+  using (user_id = auth.uid());
+create policy ins_push on public.push_subscriptions for insert to authenticated
+  with check (user_id = auth.uid());
+create policy upd_push on public.push_subscriptions for update to authenticated
+  using (user_id = auth.uid()) with check (user_id = auth.uid());
+create policy del_push on public.push_subscriptions for delete to authenticated
+  using (user_id = auth.uid());
 
 -- admin_audit_logs: adminのみ閲覧。書込はservice roleのみ(ポリシー無し)
 create policy sel_audit on public.admin_audit_logs for select to authenticated
@@ -1004,6 +1068,57 @@ insert into public.room_aliases (alias, room_id) values
 - サブジャンル(2/3ジャン)に新しい1ジャンと同じジャンルが登録されていた場合は、重複を避けるため当該サブジャンル行を自動削除する。
 - 監査のため、変更内容(旧値→新値・実行者・日時)を `admin_audit_logs` に記録する。
 
+### 6.6 プッシュ通知(v1.15追加)
+
+アプリを開かないと分からなかった3つを、端末の通知として届ける。**アプリ内のお知らせ(`notifications`)を置き換えるものではなく、並行して出す。**
+
+**送る契機と宛先**
+
+| 契機 | 実装 | 宛先 |
+|---|---|---|
+| 練習日程の公開・更新 | `POST /api/slots/publish` に追記 | 現役全員(OB除く。既存の `schedule_updated` と同じ) |
+| 練習場所の施錠/開錠 | **`POST /api/room-status`**(新規) | 現役全員 |
+| 部室の鍵の所持者変更 | **`POST /api/club-key/claim`**(新規) | 現役全員 |
+
+- **操作した本人には送らない。** 自分が押した鍵の通知が自分の端末に返ってくるのは邪魔でしかない。
+- 鍵の開閉は部屋を絞らず、**今日予約がある部屋すべて**を現役全員へ配る。部屋ごとの購読は作らない(絞る手間に対して、通知を切る手段があれば足りる)。
+
+**偽造の防止(重要)**
+
+施錠ボードと部室の鍵は、v1.14 まで**ブラウザから直接 upsert / insert していた**。通知をこの操作から出すようになった以上、その形のままでは**切り替えていないのに「開錠しました」を全員へ投げられる**。そこで書き込みをサーバー経由に変えた。
+
+- サーバー側も**セッションのクライアントで書く**。service role にすると RLS の条件(当日のみ・`updated_by` は本人・OB不可)を自前で書き直すことになり、DB 側の定義と二重管理になる。RLS はそのまま最終防衛線として効かせる(§13.2)。
+- RLS 自体は変えていないので、直接 DB を叩けば board の値は今まで通り変えられる。**変わるのは「通知を伴わない」という点だけ**で、掲示板としての性質(誰でも切替可・後勝ち)は保つ。
+
+**送信の実装**
+
+- `web-push` + VAPID。`lib/push.ts` に集約する。
+- **404 / 410 が返った購読はその場で消す。** ブラウザを消した端末は復活しないので、放っておくと毎回そこへ投げてから失敗する分が溜まり続ける。
+- **応答を返してから送る**(`after()`)。150人ぶんの送信を待たせると、鍵を押してから ○ が変わるまでが目に見えて遅くなる。
+- **通知に中身を載せない。** ロック画面に出るため、見出しと行き先だけにして、詳細は開いた先で本人のセッションとして読ませる。
+- 同じ話題は `tag` で置き換える(`room-{id}` / `club-key` / `schedule-{月}`)。鍵の開け閉めが往復しても通知が積み上がらない。
+
+**購読の管理**
+
+- `push_subscriptions`(§5)は**端末ごとに1行**。同じ人が iPhone と PC を使えば2行になる。
+- **登録は service role で書く。** `endpoint` が主キーなので、同じ端末で別の人がログインし直すと既存の行とぶつかり、RLS 越しでは「他人の行の更新」として弾かれて2人目が登録できない。`user_id` はセッションから取ったものを必ず入れるので、なりすましはできない。
+- **解除は `endpoint` と `user_id` の両方で絞る。** endpoint だけで消せると、それを知っている者が他人の通知を止められる。
+- OB には設定欄自体を出さない。練習日程も鍵も OB には関係がなく(§3.6)、受け取れないのに設定だけあると、オンにしても何も来ない状態になる。
+
+**カテゴリ別のオン/オフ(端末ごと)**
+
+「練習日程の公開」「練習場所の鍵」「部室の鍵」の3つを別々に切れる。鍵の開閉は日によってはかなりの数になるため、**切る手段が無いと通知そのものを切られてしまい、練習日程まで届かなくなる**。
+
+**Service Worker**
+
+- `public/sw.js`。**`push` と `notificationclick` しか持たせない。**
+- **オフライン対応(アセットのキャッシュ)は入れない。** ①中身はすべてサーバー上のデータで、通信できなければ意味のある表示にならない ②**古いデプロイが端末に residual として残る事故**が起きやすく、修正を出しても一部の端末だけ古い画面のままになる。`fetch` ハンドラを持たないので、ページの読み込みはこれまで通りネットワークだけで完結する。
+- middleware の matcher から `sw.js` を外す。ログインHTMLが返るとスクリプトとして解釈できず、登録そのものが失敗する。
+
+**iOS の制約**
+
+ホーム画面に追加したアプリから開いたときしか購読できない(Safari のタブでは `PushManager` が存在しない)。設定画面では「非対応」で終わらせず、**追加の手順を書いて出す**。ここで黙って欄が消えると、使えない理由が誰にも分からない。
+
 ---
 
 ## 7. 画面一覧・ルーティング
@@ -1102,6 +1217,15 @@ username→ダミーメール合成→`signInWithPassword`。失敗時は「ID�
 - `{ signupPass?, coordinatorPass?, adminPass? }`。**空欄の項目は変更しない**(1つだけ変える場面が多いため)。6文字以上。
 - bcrypt(10ラウンド)でハッシュ化して `app_settings` に upsert。`updated_at` は明示的に更新する(既定値は insert 時にしか効かない)。
 - 監査ログには**変更したキー名だけ**を残す(値は平文ログ禁止)。既に付与されたロールは取り消されない。
+
+### 8.10 プッシュ通知系(v1.15追加)
+`POST /api/push/subscribe` / `POST /api/push/unsubscribe` / `POST /api/room-status` / `POST /api/club-key/claim`。すべて `runtime = "nodejs"`(`web-push` が Node の暗号APIを使うため)。詳細は §6.6。
+
+- `subscribe`: `{ endpoint, keys:{p256dh, auth}, prefs? }`。カテゴリの切り替えも同じ入口(ブラウザ側の購読は変わらず、行と列だけ書き換わる)。**service role で upsert**し、`user_id` はセッションから取る。
+- `unsubscribe`: `{ endpoint }`。**`user_id` でも絞る**(§6.6)。
+- `room-status`: `{ roomId, isUnlocked }`。**日付はサーバーが「今日」を入れる**(クライアントに決めさせない)。書き込みはセッションのクライアントで行い RLS を効かせる。RLS で弾かれた場合は403。
+- `club-key/claim`: 本文なし(誰が押したかはセッションで決まる)。
+- 通知の送信は `after()` で応答後に回す。**送信の失敗で本体の操作を失敗させない。**
 
 ---
 
@@ -1209,6 +1333,7 @@ VTIMEZONE: TZID=Asia/Tokyo (+0900固定, STANDARDのみ)
 - `<meta name="theme-color">` は**静的にも出しておく**(`viewport.themeColor`)。無いと iOS がタグを見つけられず `background_color` で上端を塗る。テーマの選択に応じた書き換えは、Next のメタタグより後ろに置いた inline script が行う。
 - **`manifest.webmanifest` は middleware の対象から外す。** 通すと未ログイン時に `/login` へリダイレクトされ、ログイン前にホーム画面へ追加した人にアプリ名と standalone が効かない。
 - iOSは追加時点のアイコンをキャッシュするため、**既に追加済みの人は削除して追加し直す**必要がある。
+- **PWA として持たせるのはここまでと、通知用の Service Worker だけ**(v1.15 / §6.6)。オフライン対応は入れない。
 - 破壊的操作(削除・公開済変更・トークン再発行・合言葉変更)は必ず確認ダイアログ。
 - エラーは日本語で具体的に(「先に申請が入りました」「合言葉が違います」等)。
 - ローディング中はスケルトン/スピナー表示。楽観更新は不要(要件: 同期はシビアでない)。
@@ -1239,6 +1364,7 @@ VTIMEZONE: TZID=Asia/Tokyo (+0900固定, STANDARDのみ)
 - 認可の最終防衛線は**RLS**(画面出し分けは補助)。service role key はサーバーのみ。外部有料APIは使用しない。
 - 購読トークンは32byte乱数(base64url)。URL漏洩時は本人が再発行。icsには他人のナンバー情報を絶対に含めない(§6.4のロジックのみで生成)。
 - 合言葉・各種パスワードはbcryptハッシュ保存。平文ログ禁止。
+- **全員に届く操作はサーバー経由にする**(v1.15 / §6.6)。RLS が書き込みを許していても、その書き込みが**全員の端末に通知を出す**なら、ブラウザから直接書かせてはいけない。実際には切り替えていない人が「開錠しました」を全員へ投げられてしまう。通知は取り消せないので、後から気付いても戻せない。
 - `/numbers/[id]` の非メンバーアクセスは404(403にしない=存在秘匿)。
 - 卒業者対応: adminがアカウント削除。合言葉は代替わりで変更(admin画面に注記)。
 

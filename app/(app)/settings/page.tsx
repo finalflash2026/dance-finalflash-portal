@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 
 import { SetupNotice } from "@/components/SetupNotice";
 import { getCurrentProfile } from "@/lib/auth/session";
-import { appBaseUrl, hasSupabaseEnv } from "@/lib/env";
+import { VAPID_PUBLIC_KEY, appBaseUrl, hasSupabaseEnv } from "@/lib/env";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
@@ -51,6 +51,7 @@ export default async function SettingsPage() {
       initialSubgenre2={subgenres.find((s) => s.slot === 2)?.genre_id ?? null}
       initialSubgenre3={subgenres.find((s) => s.slot === 3)?.genre_id ?? null}
       baseUrl={appBaseUrl()}
+      vapidPublicKey={VAPID_PUBLIC_KEY}
     />
   );
 }

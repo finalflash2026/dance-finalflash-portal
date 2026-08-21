@@ -72,15 +72,18 @@ export function ClubKeyBoard({
     setPending(true);
     setError(null);
 
-    const supabase = createClient();
-    // RLS が user_id = auth.uid() を要求する。他人を所持者にはできない
-    const { error: insertError } = await supabase
-      .from("club_key_holders")
-      .insert({ user_id: currentUserId });
+    // 登録は **API 経由** (v1.15)。ここから直接 insert していると、
+    // 実際には受け取っていない人が「◯◯が鍵を持っています」の通知だけを
+    // 全員へ流せてしまう。RLS の「自分の分しか宣言できない」条件は
+    // サーバー側でもセッションのクライアントを使うことで効いたままにしてある
+    const res = await fetch("/api/club-key/claim", { method: "POST" });
 
-    if (insertError) {
+    if (!res.ok) {
+      const data = (await res.json().catch(() => null)) as {
+        error?: string;
+      } | null;
       setPending(false);
-      setError(`登録できませんでした: ${insertError.message}`);
+      setError(data?.error ?? "登録できませんでした");
       return;
     }
 
