@@ -48,9 +48,16 @@ const THEME_COLORS: Record<Theme, string> = {
  * 上端を塗ってしまう。Next のメタタグはこの script より前に置かれるため、
  * ここで querySelector すれば必ず見つかる。
  */
-export const THEME_INIT_SCRIPT = `try{var t=localStorage.getItem(${JSON.stringify(THEME_STORAGE_KEY)})==="dark"?"dark":"light";if(t==="dark"){document.documentElement.dataset.theme="dark"}var m=document.querySelector('meta[name="theme-color"]');if(!m){m=document.createElement("meta");m.name="theme-color";document.head.appendChild(m)}m.content=t==="dark"?${JSON.stringify(THEME_COLORS.dark)}:${JSON.stringify(THEME_COLORS.light)}}catch(e){}`;
+export const THEME_INIT_SCRIPT = `try{var t=localStorage.getItem(${JSON.stringify(THEME_STORAGE_KEY)})==="light"?"light":"dark";if(t==="dark"){document.documentElement.dataset.theme="dark"}var m=document.querySelector('meta[name="theme-color"]');if(!m){m=document.createElement("meta");m.name="theme-color";document.head.appendChild(m)}m.content=t==="dark"?${JSON.stringify(THEME_COLORS.dark)}:${JSON.stringify(THEME_COLORS.light)}}catch(e){}`;
 
-/** `<html>` に反映する。ライトは属性を消す (既定がライトのため) */
+/**
+ * `<html>` に反映する。ライトは属性を消す。
+ *
+ * **CSS 側の素の `:root` はライトのまま**にしてある(v1.17 で既定をダークに
+ * 変えた後も)。ダークは属性が付いたときだけ効く形なので、
+ * 既定を切り替えるのは上の script と readStoredTheme だけで済む。
+ * CSS の役割を入れ替えると、全トークンを書き直すことになる。
+ */
 export function applyTheme(theme: Theme): void {
   if (theme === "dark") {
     document.documentElement.dataset.theme = "dark";
@@ -68,12 +75,21 @@ export function applyTheme(theme: Theme): void {
   meta.content = THEME_COLORS[theme];
 }
 
-/** 保存済みの選択。未設定・壊れた値はライト扱い */
+/**
+ * 保存済みの選択。**未設定・壊れた値はダーク扱い**(v1.17)。
+ *
+ * 既定をダークにしたので、判定は「`light` と保存されているか」で見る。
+ * `dark` かどうかで見ると、値が壊れていたときにライトへ落ちてしまう。
+ *
+ * 自分でライトを選んだ人は `light` が保存されているため、この変更では動かない。
+ */
 export function readStoredTheme(): Theme {
   try {
-    return localStorage.getItem(THEME_STORAGE_KEY) === "dark" ? "dark" : "light";
+    return localStorage.getItem(THEME_STORAGE_KEY) === "light"
+      ? "light"
+      : "dark";
   } catch {
-    return "light";
+    return "dark";
   }
 }
 
