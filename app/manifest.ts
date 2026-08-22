@@ -19,13 +19,20 @@ export default function manifest(): MetadataRoute.Manifest {
     start_url: "/",
     display: "standalone",
     /*
-     * **黒にしないこと。** iOS はこの色を起動時のスプラッシュだけでなく
-     * **画面上端(ステータスバーの下)の塗り**にも使う。アイコンの黒地に
+     * **既定のテーマの地の色と揃える** (v1.17 でダークが既定になった)。
+     *
+     * iOS はこの色を起動時のスプラッシュだけでなく**画面上端
+     * (ステータスバーの下)の塗り**にも使う。かつてアイコンの黒地に
      * 合わせて #000000 にしたところ、ライトモードでも上端が黒く残った。
-     * 既定のテーマ(ライト)の地の色と揃える。
+     *
+     * 今回ダークの地色 (#22272e) を入れても同じ事故にはならない。
+     * `<meta name="theme-color">` を**静的に必ず出している**ので iOS は
+     * そちらを見るし、ライトを選んだ端末では最初のペイント前に
+     * THEME_INIT_SCRIPT が白へ書き換える (lib/theme.ts)。
+     * ここが効くのは起動直後のスプラッシュだけで、既定のダークと揃う。
      */
-    background_color: "#ffffff",
-    theme_color: "#ffffff",
+    background_color: "#22272e",
+    theme_color: "#22272e",
     icons: [
       { src: "/icon-192.png", sizes: "192x192", type: "image/png" },
       { src: "/icon-512.png", sizes: "512x512", type: "image/png" },
