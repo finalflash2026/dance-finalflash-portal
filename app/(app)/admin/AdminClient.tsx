@@ -258,8 +258,8 @@ function PassphraseSection({
 
   const entries = [
     { field: "signupPass" as const, label: "サークル生合言葉", hint: "サインアップ時に必要" },
-    { field: "coordinatorPass" as const, label: "折衝パスワード", hint: "折衝へ昇格するとき" },
-    { field: "adminPass" as const, label: "管理者パスワード", hint: "管理者へ昇格するとき" },
+    { field: "coordinatorPass" as const, label: "折衝パスワード", hint: "折衝の権限を追加するとき" },
+    { field: "adminPass" as const, label: "管理者パスワード", hint: "3役(管理者)の権限を追加するとき" },
   ];
 
   const filled = entries.filter((e) => values[e.field].trim() !== "");
@@ -268,7 +268,7 @@ function PassphraseSection({
     if (
       !window.confirm(
         `${filled.map((e) => e.label).join("・")} を変更します。\n` +
-          "変更後は、新しい合言葉を知っている人しか登録・昇格できません。",
+          "変更後は、新しい合言葉を知っている人しか登録・権限の追加ができません。",
       )
     ) {
       return;
@@ -304,7 +304,7 @@ function PassphraseSection({
       <h2 className="text-base font-bold">合言葉</h2>
       <p className="text-xs text-[var(--muted)]">
         <strong>代替わり・卒業の時期には必ず変更してください</strong>
-        (SPEC §3.5)。空欄の項目は変更しません。変更しても、今のロールは取り消されません。
+        (SPEC §3.5)。空欄の項目は変更しません。変更しても、今の権限は取り消されません。
       </p>
 
       {entries.map((entry) => (
@@ -610,10 +610,10 @@ function EditPanel({
       </div>
 
       <Field
-        label="ロール"
+        label="権限"
         hint={
           isSelf
-            ? "自分自身のロールは変更できません (最後の管理者が消えるのを防ぐため)"
+            ? "自分自身の権限は変更できません (最後の3役が消えるのを防ぐため)"
             : "OB/OGにすると全体カレンダーと公式練が見えなくなります"
         }
       >

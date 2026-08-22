@@ -10,6 +10,7 @@ import {
   buttonClass,
   inputClass,
   secondaryButtonClass,
+  settingsSectionClass,
 } from "@/components/ui";
 import {
   GENRES,
@@ -104,7 +105,7 @@ export function SettingsClient({
         </p>
       ) : null}
 
-      <section className="space-y-3">
+      <section className={settingsSectionClass}>
         <h2 className="text-base font-bold">アカウント</h2>
         <dl className="space-y-1 text-sm">
           <div className="flex gap-3">
@@ -137,7 +138,7 @@ export function SettingsClient({
         />
       ) : null}
 
-      <section className="space-y-3">
+      <section className={settingsSectionClass}>
         <h2 className="text-base font-bold">カレンダー購読URL</h2>
         <p className="text-sm text-[var(--muted)]">
           Google / Apple カレンダーに登録すると、自分の予定が自動で反映されます。
@@ -182,15 +183,6 @@ export function SettingsClient({
         </button>
       </section>
 
-      {/* OB は合言葉が正しくても昇格できない (SPEC §3.6)。欄自体を出さない */}
-      {profile.role !== "ob" ? (
-        <RoleSection
-          role={profile.role}
-          onError={setError}
-          onNotice={setNotice}
-        />
-      ) : null}
-
       {/*
         通知は現役だけに配る (練習日程・鍵はどちらも OB に関係が無い。SPEC §6.6)。
         受け取れないのに設定欄だけあると、オンにしても何も来ない状態になる
@@ -201,7 +193,23 @@ export function SettingsClient({
 
       <ThemeSection />
 
-      <section className="space-y-3">
+      {/*
+        **設定の中では一番下** (v1.18.1)。日常的に使うのは通知やテーマで、
+        ここは折衝・3役になるときの一度きりの操作。上のほうにあると、
+        大半の人にとって用の無い欄が目立つ場所を占める。
+
+        OB は合言葉が正しくてもなれないため、欄自体を出さない (SPEC §3.6)。
+      */}
+      {profile.role !== "ob" ? (
+        <RoleSection
+          role={profile.role}
+          onError={setError}
+          onNotice={setNotice}
+        />
+      ) : null}
+
+      {/* ログアウトは設定ではなく操作なので、すべての後ろに置く */}
+      <section className={settingsSectionClass}>
         <h2 className="text-base font-bold">ログアウト</h2>
         <button
           type="button"
@@ -239,7 +247,7 @@ function ThemeSection() {
   }
 
   return (
-    <section className="space-y-3">
+    <section className={settingsSectionClass}>
       <h2 className="text-base font-bold">表示テーマ</h2>
       <p className="text-sm text-[var(--muted)]">
         この端末だけの設定です。別の端末では別に選べます。
@@ -315,12 +323,12 @@ function UrlRow({ label, url }: { label: string; url: string }) {
 }
 
 /**
- * ロール昇格と、折衝・管理画面への入口 (SPEC §6.4.1 / §3.4 / §7)
+ * 権限の追加と、折衝・管理画面への入口 (SPEC §6.4.1 / §3.4 / §7)
  *
  * 下部タブバーは ①全体 / ②ナンバー / ③マイ の3タブ固定なので、
  * **`/coordinator` と `/admin` への導線はここにしか無い** (SPEC §7)。
  *
- * 昇格の照合は /api/role/elevate (service role) が行う。
+ * 合言葉の照合は /api/role/elevate (service role) が行う。
  * ここは合言葉を送って結果を表示するだけで、権限の判断は一切しない。
  */
 function RoleSection({
@@ -349,11 +357,11 @@ function RoleSection({
       });
       const body = await res.json().catch(() => ({}));
       if (!res.ok) {
-        onError(body.error ?? "昇格に失敗しました");
+        onError(body.error ?? "権限を追加できませんでした");
         return;
       }
       setRolePassword("");
-      onNotice(body.message ?? "ロールを更新しました");
+      onNotice(body.message ?? "権限を追加しました");
       // ヘッダのロール表示と、下の折衝・管理リンクを反映させる
       router.refresh();
     } finally {
@@ -362,8 +370,8 @@ function RoleSection({
   }
 
   return (
-    <section className="space-y-3">
-      <h2 className="text-base font-bold">ロール</h2>
+    <section className={settingsSectionClass}>
+      <h2 className="text-base font-bold">権限</h2>
       <p className="text-sm text-[var(--muted)]">
         現在: <strong>{ROLE_LABELS[role]}</strong>
       </p>
@@ -389,8 +397,8 @@ function RoleSection({
 
       <form onSubmit={elevate} className="space-y-3">
         <Field
-          label="合言葉で昇格する"
-          hint="折衝または管理者の合言葉を入力してください。現在より下位のロールには変わりません。"
+          label="合言葉を入れて権限を追加する"
+          hint="折衝または3役の合言葉を入れると、その担当の画面が使えるようになります。いま持っている権限が減ることはありません。"
         >
           <input
             type="password"
@@ -405,7 +413,7 @@ function RoleSection({
           disabled={pending || rolePassword.length === 0}
           className={secondaryButtonClass}
         >
-          昇格する
+          権限を追加する
         </button>
       </form>
     </section>
@@ -481,7 +489,7 @@ function SubgenreSection({
   }
 
   return (
-    <section className="space-y-3">
+    <section className={settingsSectionClass}>
       <h2 className="text-base font-bold">サブジャンル</h2>
       <p className="text-sm text-[var(--muted)]">
         ここで選んだジャンルの公式練が、マイカレンダーと購読URLに含まれます。
