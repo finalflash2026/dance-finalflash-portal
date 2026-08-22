@@ -19,6 +19,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
  * 2) username 組立 → 重複チェック (409)
  * 3) auth.admin.createUser (ダミーメール, email_confirm: true)
  * 4) profiles insert
+ * 4b) user_subgenres insert (2ジャン・3ジャン。選ばれていれば。v1.19)
  * 5) calendar_tokens insert (32byte base64url)
  *
  * 3 以降で失敗したら作成済みの auth ユーザーを削除してロールバックする
@@ -46,8 +47,41 @@ const schema = z.object({
   password: z
     .string()
     .min(MIN_PASSWORD_LENGTH, `パスワードは${MIN_PASSWORD_LENGTH}文字以上にしてください`),
+  /**
+   * 確認用のもう一度の入力 (v1.19)。
+   * 画面側でも突き合わせるが、**API は直接叩けるのでここでも見る**。
+   */
+  passwordConfirm: z.string().min(1, "確認用のパスワードを入力してください"),
   passphrase: z.string().min(1, "サークル生合言葉を入力してください"),
-});
+  /** 2ジャン・3ジャン (v1.19)。未設定は null */
+  subgenre2Id: z.number().int().nullable().optional(),
+  subgenre3Id: z.number().int().nullable().optional(),
+})
+  .refine((v) => v.password === v.passwordConfirm, {
+    message: "パスワードが一致しません",
+    path: ["passwordConfirm"],
+  })
+  .refine(
+    (v) =>
+      [v.subgenre2Id, v.subgenre3Id].every(
+        (id) => id == null || GENRE_IDS.includes(id),
+      ),
+    { message: "選べないジャンルが指定されています", path: ["subgenre2Id"] },
+  )
+  .refine(
+    (v) =>
+      [v.subgenre2Id, v.subgenre3Id].every(
+        (id) => id == null || id !== v.mainGenreId,
+      ),
+    { message: "1ジャンと同じジャンルは選べません", path: ["subgenre2Id"] },
+  )
+  .refine(
+    (v) =>
+      v.subgenre2Id == null ||
+      v.subgenre3Id == null ||
+      v.subgenre2Id !== v.subgenre3Id,
+    { message: "2ジャンと3ジャンに同じジャンルは選べません", path: ["subgenre3Id"] },
+  );
 
 export async function POST(request: Request) {
   if (!checkRateLimit(`signup:${clientIp(request)}`)) {
@@ -71,8 +105,15 @@ export async function POST(request: Request) {
       { status: 400 },
     );
   }
-  const { generation, mainGenreId, displayName, password, passphrase } =
-    parsed.data;
+  const {
+    generation,
+    mainGenreId,
+    displayName,
+    password,
+    passphrase,
+    subgenre2Id,
+    subgenre3Id,
+  } = parsed.data;
 
   const admin = createAdminClient();
 
@@ -163,6 +204,36 @@ export async function POST(request: Request) {
       { error: `登録に失敗しました: ${profileError.message}` },
       { status: 500 },
     );
+  }
+
+  // ---- 4b. 2ジャン・3ジャン (v1.19) ----
+  // 登録時に選べるようにした。設定画面 (§6.4.1) から後で変えられる点は変わらない。
+  // 選ばなければ行を作らない = 今までどおり「未設定」
+  const subgenreRows = (
+    [
+      [2, subgenre2Id],
+      [3, subgenre3Id],
+    ] as const
+  )
+    .filter(([, genreId]) => genreId != null)
+    .map(([slot, genreId]) => ({
+      user_id: userId,
+      slot,
+      genre_id: genreId as number,
+    }));
+
+  if (subgenreRows.length > 0) {
+    const { error: subgenreError } = await admin
+      .from("user_subgenres")
+      .insert(subgenreRows);
+
+    if (subgenreError) {
+      await admin.auth.admin.deleteUser(userId);
+      return Response.json(
+        { error: `登録に失敗しました: ${subgenreError.message}` },
+        { status: 500 },
+      );
+    }
   }
 
   const { error: tokenError } = await admin.from("calendar_tokens").insert({
