@@ -150,11 +150,17 @@ export const PRACTICE_WEEKDAYS: readonly number[] = [1, 3, 4];
 
 // ---------- ロール (SPEC §3.1) ----------
 
+/**
+ * 画面に出すロールの呼び名 (SPEC.md §3.1 / v1.18.1)
+ *
+ * `admin` は **「3役(管理者)」**。サークル内では「3役」と呼ばれていて、
+ * 「管理者」だけだと自分のことだと気づかれなかった。
+ */
 export const ROLE_LABELS: Record<Role, string> = {
   ob: "OB/OG",
   member: "メンバー",
   coordinator: "折衝",
-  admin: "管理者",
+  admin: "3役(管理者)",
 };
 
 /** 折衝以上か (admin ⊃ coordinator ⊃ member の包含判定) */

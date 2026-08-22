@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 
+import { settingsSectionClass } from "@/components/ui";
 import { createClient } from "@/lib/supabase/client";
 
 /**
@@ -260,7 +261,7 @@ export function PushSection({ vapidPublicKey }: { vapidPublicKey: string }) {
   }
 
   return (
-    <section className="space-y-3">
+    <section className={settingsSectionClass}>
       <h2 className="text-base font-bold">通知</h2>
       <p className="text-sm text-[var(--muted)]">
         この端末だけの設定です。別の端末では別に登録が要ります。
