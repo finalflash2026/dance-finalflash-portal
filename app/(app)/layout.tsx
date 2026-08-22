@@ -1,5 +1,6 @@
 import { PageTransition } from "@/components/PageTransition";
 import { PullToRefresh } from "@/components/PullToRefresh";
+import { ServiceWorkerRegistrar } from "@/components/ServiceWorkerRegistrar";
 import { SettingsButton } from "@/components/SettingsButton";
 import { SwipeTabs } from "@/components/SwipeTabs";
 import { TabBar } from "@/components/TabBar";
@@ -53,6 +54,9 @@ export default async function AppLayout({
       </PullToRefresh>
 
       <TabBar role={role} />
+
+      {/* 静的ファイルを端末に持たせて、次回の起動を速くする (§13.1) */}
+      <ServiceWorkerRegistrar />
     </div>
   );
 }
