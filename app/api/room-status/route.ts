@@ -2,9 +2,9 @@ import { after } from "next/server";
 import { z } from "zod";
 
 import { getCurrentProfile } from "@/lib/auth/session";
-import { ROOM_BY_ID } from "@/lib/constants";
 import { hasSupabaseEnv } from "@/lib/env";
 import { activeMemberIds, sendPush } from "@/lib/push";
+import { fetchRoomMap } from "@/lib/rooms-server";
 import { createClient } from "@/lib/supabase/server";
 import { todayInTokyo } from "@/lib/time";
 
@@ -48,13 +48,13 @@ export async function POST(request: Request) {
     return Response.json({ error: "指定が不正です" }, { status: 400 });
   }
 
-  const room = ROOM_BY_ID.get(parsed.data.roomId);
+  const supabase = await createClient();
+  const room = (await fetchRoomMap(supabase)).get(parsed.data.roomId);
   if (!room) {
     return Response.json({ error: "その練習場所はありません" }, { status: 400 });
   }
 
   const today = todayInTokyo();
-  const supabase = await createClient();
   const { error } = await supabase.from("room_status").upsert(
     {
       date: today,

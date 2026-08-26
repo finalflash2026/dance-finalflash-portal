@@ -6,7 +6,7 @@
  * どちらにも出ない行や二重に出る行ができてしまうため、判定はここに集約する。
  */
 
-import { ROOM_BY_ID } from "@/lib/constants";
+import type { Room } from "@/lib/constants";
 import { validateRow } from "@/lib/import";
 import { toMinutes } from "@/lib/time";
 
@@ -26,10 +26,13 @@ export interface Row {
  * 手動で追加した行には元の表記が無いが、その場合の正式名は
  * 既に room_aliases 相当として解決できるのでエイリアス学習は起きない。
  */
-export function effectiveRoomRaw(row: Row): string {
+export function effectiveRoomRaw(
+  row: Row,
+  roomById: Map<number, Room>,
+): string {
   const raw = row.roomRaw.trim();
   if (raw) return raw;
-  return row.roomId !== null ? (ROOM_BY_ID.get(row.roomId)?.name ?? "") : "";
+  return row.roomId !== null ? (roomById.get(row.roomId)?.name ?? "") : "";
 }
 
 /**
@@ -37,12 +40,15 @@ export function effectiveRoomRaw(row: Row): string {
  * null 以外を返す行は**タイムラインに置けない**(時刻や部屋が確定しないため)ので、
  * 「要修正」カードとして別に並べる。
  */
-export function rowError(row: Row): string | null {
+export function rowError(
+  row: Row,
+  roomById: Map<number, Room>,
+): string | null {
   const checked = validateRow({
     date: row.date,
     start: row.start,
     end: row.end,
-    room: effectiveRoomRaw(row),
+    room: effectiveRoomRaw(row, roomById),
   });
   if (checked.error) return checked.error;
   if (row.roomId === null) return "部屋を選んでください";

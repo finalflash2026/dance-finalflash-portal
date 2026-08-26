@@ -6,14 +6,13 @@ import { useEffect, useState } from "react";
 import { ClaimSheet } from "@/components/ClaimSheet";
 import {
   GENRE_COLORS,
-  ROOMS,
-  ROOM_SECTIONS,
   SLOT_CLAIMED_COLOR,
   SLOT_OPEN_COLOR,
   SLOT_UNAVAILABLE_COLOR,
   type GenreCode,
 } from "@/lib/constants";
 import { splitOpenSlot, type ClaimInfo, type OpenSegment } from "@/lib/claims";
+import { useRoomById, useRoomSections } from "@/lib/rooms";
 import { createClient } from "@/lib/supabase/client";
 import {
   DAY_END_TIME,
@@ -92,16 +91,19 @@ export function DayGrid({
     range: { startTime: string; endTime: string };
   } | null>(null);
 
+  const sections = useRoomSections();
   const dayStart = toMinutes(DAY_START_TIME);
   const dayEnd = toMinutes(DAY_END_TIME);
   const totalHeight = (dayEnd - dayStart) * PX_PER_MINUTE;
 
   // その日に slot がある部屋だけを §4.2 の順で、section ごとにまとめる
   const usedRoomIds = new Set(blocks.map((b) => b.roomId));
-  const groups = ROOM_SECTIONS.map((section) => ({
-    section,
-    rooms: ROOMS.filter((r) => r.section === section && usedRoomIds.has(r.id)),
-  })).filter((g) => g.rooms.length > 0);
+  const groups = sections
+    .map((group) => ({
+      section: group.section,
+      rooms: group.rooms.filter((r) => usedRoomIds.has(r.id)),
+    }))
+    .filter((g) => g.rooms.length > 0);
   const flatRooms = groups.flatMap((g) => g.rooms);
 
   const ticks: number[] = [];
@@ -360,6 +362,7 @@ function DetailModal({
   ) => void;
 }) {
   const router = useRouter();
+  const roomById = useRoomById();
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -371,7 +374,7 @@ function DetailModal({
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [onClose]);
 
-  const room = ROOMS.find((r) => r.id === drawable.roomId);
+  const room = roomById.get(drawable.roomId);
   const segment = drawable.segment;
   const claim = segment?.kind === "claimed" ? segment.claim : null;
   const isFree = segment?.kind === "free";
