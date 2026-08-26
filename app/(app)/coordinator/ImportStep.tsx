@@ -1,9 +1,10 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 
 import { ErrorMessage, buttonClass, secondaryButtonClass } from "@/components/ui";
-import { ROOMS, ROOM_SECTIONS } from "@/lib/constants";
+import { useRoomById, useRoomSections } from "@/lib/rooms";
 import { COORDINATOR_PROMPT, CSV_HEADER_LINE } from "@/lib/import";
 import {
   finalizeTimeInput,
@@ -41,6 +42,7 @@ interface ParseResponse {
 }
 
 export function ImportStep() {
+  const roomById = useRoomById();
   const nextKey = useRef(0);
   const fileInput = useRef<HTMLInputElement>(null);
 
@@ -52,8 +54,8 @@ export function ImportStep() {
   const [pending, setPending] = useState(false);
   const [editingKey, setEditingKey] = useState<number | null>(null);
 
-  const invalidRows = rows.filter((row) => rowError(row) !== null);
-  const validRows = rows.filter((row) => rowError(row) === null);
+  const invalidRows = rows.filter((row) => rowError(row, roomById) !== null);
+  const validRows = rows.filter((row) => rowError(row, roomById) === null);
   const conflicts = findConflicts(validRows);
   // 完全一致は確定時に自動スキップされるので、要注意の「重なり」とは分けて数える
   const conflictValues = [...conflicts.values()];
@@ -116,7 +118,7 @@ export function ImportStep() {
             date: row.date.trim(),
             start: row.start.trim(),
             end: row.end.trim(),
-            roomRaw: effectiveRoomRaw(row),
+            roomRaw: effectiveRoomRaw(row, roomById),
             roomId: row.roomId,
           })),
         }),
@@ -242,7 +244,7 @@ export function ImportStep() {
                     <RowCard
                       row={row}
                       no={numberOf.get(row.key) ?? 0}
-                      error={rowError(row)}
+                      error={rowError(row, roomById)}
                       disabled={pending}
                       onChange={(patch) => update(row.key, patch)}
                       onRemove={() => remove(row.key)}
@@ -362,6 +364,8 @@ function EditModal({
   onRemove: () => void;
   onClose: () => void;
 }) {
+  const roomById = useRoomById();
+
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") onClose();
@@ -389,7 +393,7 @@ function EditModal({
         <RowCard
           row={row}
           no={no}
-          error={rowError(row)}
+          error={rowError(row, roomById)}
           disabled={disabled}
           onChange={onChange}
           onRemove={() => {
@@ -424,6 +428,8 @@ function RowCard({
   onChange: (patch: Partial<Row>) => void;
   onRemove: () => void;
 }) {
+  const sections = useRoomSections();
+  const [addingRoom, setAddingRoom] = useState(false);
   // date / time の専用input は使わない。'2026-02-30' や '25:00' のような
   // 不正値を勝手に空にしてしまい、CSVが何と書いてあったのか分からなくなるため
   const cell =
@@ -501,9 +507,13 @@ function RowCard({
           aria-label="部屋"
           value={row.roomId ?? ""}
           disabled={disabled}
-          onChange={(e) =>
-            onChange({ roomId: e.target.value ? Number(e.target.value) : null })
-          }
+          onChange={(e) => {
+            if (e.target.value === NEW_ROOM) {
+              setAddingRoom(true);
+              return;
+            }
+            onChange({ roomId: e.target.value ? Number(e.target.value) : null });
+          }}
           className={`${cell} flex-1 ${
             row.roomId === null
               ? "border-[var(--danger-fg)] font-bold text-[var(--danger-fg)]"
@@ -511,23 +521,160 @@ function RowCard({
           }`}
         >
           <option value="">部屋を選ぶ</option>
-          {ROOM_SECTIONS.map((section) => (
-            <optgroup key={section} label={section}>
-              {ROOMS.filter((r) => r.section === section).map((room) => (
+          {sections.map((group) => (
+            <optgroup key={group.section} label={group.section}>
+              {group.rooms.map((room) => (
                 <option key={room.id} value={room.id}>
                   {room.name}
                 </option>
               ))}
             </optgroup>
           ))}
+          {/*
+            一覧に無い場所はここから足せる (v1.20)。**取込を中断させない**のが
+            狙いで、以前は使える場所が増えるたびにコードを直す必要があった
+          */}
+          <option value={NEW_ROOM}>＋ 新しい練習場所を登録…</option>
         </select>
       </div>
+
+      {addingRoom ? (
+        <NewRoomForm
+          defaultName={row.roomRaw.trim()}
+          sections={sections.map((g) => g.section)}
+          onCancel={() => setAddingRoom(false)}
+          onCreated={(roomId) => {
+            setAddingRoom(false);
+            onChange({ roomId });
+          }}
+        />
+      ) : null}
 
       {error ? (
         <p role="alert" className="text-xs font-medium text-[var(--danger-fg)]">
           {error}
         </p>
       ) : null}
+    </div>
+  );
+}
+
+/** select の中で「新しく足す」を表す値。部屋の id と混ざらない文字列にする */
+const NEW_ROOM = "__new_room__";
+
+/**
+ * 練習場所の新規登録 (SPEC.md §4.2 / §6.2 Step1 / v1.20)
+ *
+ * CSVに知らない場所が出てきたときに、**取込を中断せずその場で足す**ための欄。
+ * 以前は使える場所が増えるたびにコードを直してデプロイする必要があった。
+ *
+ * 名前はCSVの表記を初期値にする。だいたいそのまま使えるし、直すにしても
+ * 打ち直しより楽なため。所在は既存のものを候補に出しつつ、
+ * 新しい所在 (南大沢市民センターのような) も打てるようにする。
+ *
+ * 登録できたら `router.refresh()` でレイアウトを描き直す。部屋の一覧は
+ * そこで読み込んでいるので、これをしないと足した場所が選択肢に出てこない
+ * (取込中の行はクライアント state なので消えない)。
+ */
+function NewRoomForm({
+  defaultName,
+  sections,
+  onCancel,
+  onCreated,
+}: {
+  defaultName: string;
+  sections: string[];
+  onCancel: () => void;
+  onCreated: (roomId: number) => void;
+}) {
+  const router = useRouter();
+  const [name, setName] = useState(defaultName);
+  const [section, setSection] = useState(sections[0] ?? "");
+  const [pending, setPending] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function submit() {
+    setPending(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/rooms", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name,
+          section,
+          // CSVの表記を覚えさせる。次回から自動で解決される
+          alias: defaultName || undefined,
+        }),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setError(body.error ?? "登録に失敗しました");
+        return;
+      }
+      onCreated(body.room.id as number);
+      router.refresh();
+    } catch {
+      setError("通信に失敗しました");
+    } finally {
+      setPending(false);
+    }
+  }
+
+  const cell =
+    "w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-2 py-1.5 text-sm outline-none";
+
+  return (
+    <div className="space-y-2 rounded-lg border border-[var(--border)] bg-[var(--surface)] p-2">
+      <p className="text-xs font-bold">新しい練習場所を登録</p>
+      <input
+        aria-label="練習場所の名前"
+        value={name}
+        placeholder="例: 柔道場(体育館)"
+        disabled={pending}
+        onChange={(e) => setName(e.target.value)}
+        className={cell}
+      />
+      <input
+        aria-label="所在"
+        value={section}
+        placeholder="例: 南大沢市民センター"
+        list="room-sections"
+        disabled={pending}
+        onChange={(e) => setSection(e.target.value)}
+        className={cell}
+      />
+      <datalist id="room-sections">
+        {sections.map((s) => (
+          <option key={s} value={s} />
+        ))}
+      </datalist>
+      <p className="text-[11px] text-[var(--muted)]">
+        所在はカレンダーの列の見出しになります。新しい所在も入力できます
+      </p>
+      {error ? (
+        <p role="alert" className="text-xs text-[var(--danger-fg)]">
+          {error}
+        </p>
+      ) : null}
+      <div className="flex gap-2">
+        <button
+          type="button"
+          onClick={submit}
+          disabled={pending || !name.trim() || !section.trim()}
+          className="flex-1 rounded-lg border border-[var(--foreground)] px-3 py-1.5 text-xs font-bold disabled:opacity-50"
+        >
+          {pending ? "登録中…" : "登録して選ぶ"}
+        </button>
+        <button
+          type="button"
+          onClick={onCancel}
+          disabled={pending}
+          className="rounded-lg border border-[var(--border)] px-3 py-1.5 text-xs"
+        >
+          やめる
+        </button>
+      </div>
     </div>
   );
 }

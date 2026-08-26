@@ -7,13 +7,13 @@ import type { DayBlock } from "@/components/DayGrid";
 import { ErrorMessage, buttonClass, inputClass } from "@/components/ui";
 import { freeRanges, stepOptions, validateClaim } from "@/lib/claims";
 import {
-  ROOMS,
   SLOT_CLAIMED_COLOR,
   SLOT_OPEN_COLOR,
   SLOT_UNAVAILABLE_COLOR,
   GENRE_COLORS,
   type GenreCode,
 } from "@/lib/constants";
+import { useRoomById } from "@/lib/rooms";
 import { createClient } from "@/lib/supabase/client";
 import {
   CLAIM_STEP_MINUTES,
@@ -63,6 +63,7 @@ export function ClaimSheet({
   currentUserId: string;
   onClose: () => void;
 }) {
+  const roomById = useRoomById();
   const router = useRouter();
   const [confirming, setConfirming] = useState(false);
   const [pending, setPending] = useState(false);
@@ -101,7 +102,7 @@ export function ClaimSheet({
     }
   }
 
-  const room = ROOMS.find((r) => r.id === slot.roomId);
+  const room = roomById.get(slot.roomId);
   const validation = validateClaim(slot, slot.claims, startTime, endTime);
 
   async function submit() {

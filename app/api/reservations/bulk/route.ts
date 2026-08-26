@@ -1,7 +1,6 @@
 import { z } from "zod";
 
 import { requireRole } from "@/lib/auth/guard";
-import { ROOM_BY_ID } from "@/lib/constants";
 import {
   MAX_ROWS_PER_REQUEST,
   buildRoomResolver,
@@ -9,6 +8,7 @@ import {
   roomKey,
   validateRow,
 } from "@/lib/import";
+import { fetchRoomMap } from "@/lib/rooms-server";
 import { createClient } from "@/lib/supabase/server";
 import { normalizeTime } from "@/lib/time";
 
@@ -64,6 +64,12 @@ export async function POST(request: Request) {
   }
   const { rows } = parsed.data;
 
+  const supabase = await createClient();
+
+  // 部屋の一覧はDBが正 (v1.20)。折衝係が画面から足せるようになったため、
+  // 定数と突き合わせると新しい部屋が「存在しない」と弾かれてしまう
+  const roomIds = new Set((await fetchRoomMap(supabase)).keys());
+
   // ---- 行の再検証 (SPEC §9.4) ----
   for (const [index, row] of rows.entries()) {
     const checked = validateRow({
@@ -78,15 +84,13 @@ export async function POST(request: Request) {
         { status: 400 },
       );
     }
-    if (!ROOM_BY_ID.has(row.roomId)) {
+    if (!roomIds.has(row.roomId)) {
       return Response.json(
         { error: `${index + 1}行目: 部屋を選んでください` },
         { status: 400 },
       );
     }
   }
-
-  const supabase = await createClient();
 
   // ---- import_files の存在確認 ----
   // 存在しない id を渡すと外部キー違反で insert 全体が落ちる。

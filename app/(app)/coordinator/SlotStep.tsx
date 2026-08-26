@@ -3,7 +3,8 @@
 import { useEffect, useState } from "react";
 
 import { ErrorMessage, buttonClass, secondaryButtonClass } from "@/components/ui";
-import { GENRES, PRACTICE_WEEKDAYS, ROOM_BY_ID } from "@/lib/constants";
+import { useRoomById } from "@/lib/rooms";
+import { GENRES, PRACTICE_WEEKDAYS } from "@/lib/constants";
 import {
   SLOT_PRESET_MINUTES,
   SLOT_STATUS_LABELS,
@@ -47,6 +48,7 @@ import {
  */
 
 export function SlotStep() {
+  const roomById = useRoomById();
   const [month, setMonth] = useState<DateString>(() =>
     startOfMonth(todayInTokyo()),
   );
@@ -132,7 +134,7 @@ export function SlotStep() {
   async function cancelReservation(reservation: ReservationInfo) {
     const claims = reservation.slots.flatMap((slot) => slot.claims);
     const lines = [
-      `${formatDateLabel(reservation.date)} ${ROOM_BY_ID.get(reservation.roomId)?.name ?? ""}`,
+      `${formatDateLabel(reservation.date)} ${roomById.get(reservation.roomId)?.name ?? ""}`,
       `${formatTimeRange(reservation.startTime, reservation.endTime)} の予約枠を取り消します。`,
     ];
     if (reservation.slots.length > 0) {
@@ -523,6 +525,7 @@ function SlotEditor({
   onDelete: () => void;
   onClose: () => void;
 }) {
+  const roomById = useRoomById();
   const [draft, setDraft] = useState<SlotDraft>(initial);
 
   useEffect(() => {
@@ -572,7 +575,7 @@ function SlotEditor({
           </h3>
           <p className="text-xs text-[var(--muted)]">
             {formatDateLabel(reservation.date)}{" "}
-            {ROOM_BY_ID.get(reservation.roomId)?.name} / 予約枠{" "}
+            {roomById.get(reservation.roomId)?.name} / 予約枠{" "}
             {formatTimeRange(reservation.startTime, reservation.endTime)}
           </p>
         </div>

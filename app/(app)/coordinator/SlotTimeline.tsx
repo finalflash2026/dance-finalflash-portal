@@ -3,12 +3,12 @@
 import {
   GENRE_BY_ID,
   GENRE_COLORS,
-  ROOM_BY_ID,
   SLOT_OPEN_COLOR,
   SLOT_UNAVAILABLE_COLOR,
   shortRoomName,
   type GenreCode,
 } from "@/lib/constants";
+import { useRoomById } from "@/lib/rooms";
 import { SLOT_STATUS_LABELS, splitReservation, type SlotInfo } from "@/lib/slots";
 import {
   DAY_END_TIME,
@@ -69,6 +69,7 @@ export function SlotTimeline({
   onCancelReservation: (reservation: ReservationInfo) => void;
   disabled: boolean;
 }) {
+  const roomById = useRoomById();
   if (reservations.length === 0) return null;
 
   // 軸は 09:00〜22:00 を基本に、はみ出す予約枠があれば時間単位で広げる
@@ -137,15 +138,15 @@ export function SlotTimeline({
                 >
                   <span
                     className="truncate text-[11px] text-[var(--muted)]"
-                    title={ROOM_BY_ID.get(reservation.roomId)?.name}
+                    title={roomById.get(reservation.roomId)?.name}
                   >
-                    {shortRoomName(ROOM_BY_ID.get(reservation.roomId)?.name ?? "?")}
+                    {shortRoomName(roomById.get(reservation.roomId)?.name ?? "?")}
                   </span>
                   <button
                     type="button"
                     disabled={disabled}
                     onClick={() => onCancelReservation(reservation)}
-                    aria-label={`${formatDateLabel(reservation.date)} ${ROOM_BY_ID.get(reservation.roomId)?.name} の予約枠を取り消す`}
+                    aria-label={`${formatDateLabel(reservation.date)} ${roomById.get(reservation.roomId)?.name} の予約枠を取り消す`}
                     title="この予約枠を取り消す"
                     className="ml-auto mr-1 shrink-0 rounded px-1 text-xs text-[var(--muted)]"
                   >

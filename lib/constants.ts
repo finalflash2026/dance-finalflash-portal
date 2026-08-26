@@ -94,17 +94,25 @@ export const SLOT_CLAIMED_COLOR = {
 
 // ---------- 部屋 (SPEC §4.2) ----------
 
-/** 列グループ。①カレンダーの列はこの順で section ごとにまとめる */
-export const ROOM_SECTIONS = ["7号館", "フレスコ", "講堂", "アリーナ"] as const;
-
-export type RoomSection = (typeof ROOM_SECTIONS)[number];
-
-export const ROOMS: ReadonlyArray<{
+/**
+ * 練習場所 (SPEC §4.2)
+ *
+ * **正はDBの `rooms` テーブル**(v1.20)。折衝係が取込画面から足せるように
+ * したため、コードの固定リストでは追いつかない。画面では `lib/rooms.tsx` の
+ * `useRooms()` を使うこと。
+ *
+ * ここに残してあるのは**Supabase 未設定でも画面が出るようにするための
+ * 控え**で、0001 の初期データと同じ12件。増えたぶんは入っていない。
+ */
+export interface Room {
   id: number;
   name: string;
-  section: RoomSection;
+  /** 所在。列の見出しに使う。固定の一覧は持たない (v1.20) */
+  section: string;
   sortOrder: number;
-}> = [
+}
+
+export const ROOMS: ReadonlyArray<Room> = [
   { id: 1, name: "スタジオ101(7号館)", section: "7号館", sortOrder: 1 },
   { id: 2, name: "練習室1(フレスコ)", section: "フレスコ", sortOrder: 2 },
   { id: 3, name: "練習室2(フレスコ)", section: "フレスコ", sortOrder: 3 },
@@ -119,6 +127,7 @@ export const ROOMS: ReadonlyArray<{
   { id: 12, name: "剣道場(体育館)", section: "アリーナ", sortOrder: 12 },
 ];
 
+/** 控えの id 引き。画面では useRoomById() を使うこと (v1.20) */
 export const ROOM_BY_ID = new Map(ROOMS.map((r) => [r.id, r]));
 
 /**

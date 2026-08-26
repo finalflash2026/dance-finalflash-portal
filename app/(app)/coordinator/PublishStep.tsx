@@ -3,7 +3,7 @@
 import { useState } from "react";
 
 import { ErrorMessage, buttonClass } from "@/components/ui";
-import { ROOM_BY_ID } from "@/lib/constants";
+import { useRoomById } from "@/lib/rooms";
 import { SLOT_STATUS_LABELS, unassignedRanges } from "@/lib/slots";
 import { formatDateLabel, formatTimeRange, startOfMonth, todayInTokyo } from "@/lib/time";
 import type { DateString } from "@/lib/types";
@@ -21,6 +21,7 @@ import { useMonthReservations } from "./useMonthReservations";
  * お知らせは配ってしまうと戻せないので、押す前に件数を必ず出す。
  */
 export function PublishStep() {
+  const roomById = useRoomById();
   const [month, setMonth] = useState<DateString>(() =>
     startOfMonth(todayInTokyo()),
   );
@@ -128,7 +129,7 @@ export function PublishStep() {
                       {SLOT_STATUS_LABELS[slot.status]}
                     </span>{" "}
                     <span className="text-xs text-[var(--muted)]">
-                      @{ROOM_BY_ID.get(reservation.roomId)?.name}
+                      @{roomById.get(reservation.roomId)?.name}
                     </span>
                   </li>
                 ))}

@@ -2,7 +2,7 @@
 
 import { useCallback, useState } from "react";
 
-import { ROOMS } from "@/lib/constants";
+import { useRooms } from "@/lib/rooms";
 import { createClient } from "@/lib/supabase/client";
 import { useLiveRefresh } from "@/lib/use-live-refresh";
 import { formatAsTokyoTime } from "@/lib/time";
@@ -49,6 +49,7 @@ export function RoomStatusBoard({
   roomIds: number[];
   initialRows: RoomStatusRow[];
 }) {
+  const allRooms = useRooms();
   const [rows, setRows] = useState(initialRows);
   const [fetchedAt, setFetchedAt] = useState<Date | null>(null);
   const [pendingRoomId, setPendingRoomId] = useState<number | null>(null);
@@ -104,7 +105,7 @@ export function RoomStatusBoard({
     setPendingRoomId(null);
   }
 
-  const rooms = ROOMS.filter((room) => roomIds.includes(room.id));
+  const rooms = allRooms.filter((room) => roomIds.includes(room.id));
 
   if (rooms.length === 0) {
     return (

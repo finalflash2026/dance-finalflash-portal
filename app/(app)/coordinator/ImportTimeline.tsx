@@ -2,10 +2,9 @@
 
 import {
   RESERVATION_BLOCK_COLOR,
-  ROOMS,
-  ROOM_BY_ID,
   shortRoomName,
 } from "@/lib/constants";
+import { useRoomById, useRooms, type Room } from "@/lib/rooms";
 import {
   DAY_END_TIME,
   DAY_START_TIME,
@@ -47,7 +46,7 @@ interface DayGroup {
 }
 
 /** 日付順 → §4.2 の部屋順 に整える */
-function groupRows(rows: Row[]): DayGroup[] {
+function groupRows(rows: Row[], allRooms: readonly Room[]): DayGroup[] {
   const byDate = new Map<string, Row[]>();
   for (const row of rows) {
     const list = byDate.get(row.date);
@@ -67,7 +66,7 @@ function groupRows(rows: Row[]): DayGroup[] {
       }
       return {
         date,
-        lanes: ROOMS.filter((room) => byRoom.has(room.id)).map((room) => ({
+        lanes: allRooms.filter((room) => byRoom.has(room.id)).map((room) => ({
           roomId: room.id,
           rows: byRoom.get(room.id) ?? [],
         })),
@@ -84,6 +83,8 @@ export function ImportTimeline({
   conflicts: Map<number, Conflict>;
   onSelect: (key: number) => void;
 }) {
+  const allRooms = useRooms();
+  const roomById = useRoomById();
   if (rows.length === 0) return null;
 
   // 軸は 09:00〜22:00 を基本にしつつ、はみ出す枠があれば時間単位で広げる。
@@ -101,7 +102,7 @@ export function ImportTimeline({
   const hours: number[] = [];
   for (let m = axisStart; m <= axisEnd; m += 60) hours.push(m);
 
-  const groups = groupRows(rows);
+  const groups = groupRows(rows, allRooms);
 
   return (
     /*
@@ -151,9 +152,9 @@ export function ImportTimeline({
                 <div
                   className="sticky left-0 z-20 shrink-0 truncate bg-[var(--background)] px-2 text-[11px] leading-[26px] text-[var(--muted)]"
                   style={{ width: LABEL_WIDTH }}
-                  title={ROOM_BY_ID.get(lane.roomId)?.name}
+                  title={roomById.get(lane.roomId)?.name}
                 >
-                  {shortRoomName(ROOM_BY_ID.get(lane.roomId)?.name ?? "?")}
+                  {shortRoomName(roomById.get(lane.roomId)?.name ?? "?")}
                 </div>
 
                 <div
@@ -199,10 +200,11 @@ function Block({
   axisStart: number;
   onSelect: (key: number) => void;
 }) {
+  const roomById = useRoomById();
   const start = toMinutes(row.start);
   const end = toMinutes(row.end);
   const label = formatTimeRange(row.start, row.end);
-  const roomName = ROOM_BY_ID.get(row.roomId as number)?.name ?? "";
+  const roomName = roomById.get(row.roomId as number)?.name ?? "";
 
   const warning =
     conflict === "duplicate"

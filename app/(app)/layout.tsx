@@ -6,6 +6,11 @@ import { SwipeTabs } from "@/components/SwipeTabs";
 import { TabBar } from "@/components/TabBar";
 import { getCurrentProfile } from "@/lib/auth/session";
 import { ROLE_LABELS } from "@/lib/constants";
+import { hasSupabaseEnv } from "@/lib/env";
+import { RoomsProvider } from "@/lib/rooms";
+import { ROOMS } from "@/lib/constants";
+import { fetchRooms } from "@/lib/rooms-server";
+import { createClient } from "@/lib/supabase/server";
 import type { Role } from "@/lib/types";
 
 /**
@@ -26,7 +31,14 @@ import type { Role } from "@/lib/types";
 export default async function AppLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
-  const profile = await getCurrentProfile();
+  // **並列で取る。** 部屋は全画面で使うが、profile を待ってから引くと
+  // 往復が1つ増えて起動が遅くなる (§13.1)
+  const [profile, rooms] = await Promise.all([
+    getCurrentProfile(),
+    hasSupabaseEnv()
+      ? createClient().then(fetchRooms)
+      : Promise.resolve(ROOMS),
+  ]);
   // Supabase 未設定 (セットアップ前) は member 相当で表示する
   const role: Role = profile?.role ?? "member";
 
@@ -47,11 +59,13 @@ export default async function AppLayout({
         <SettingsButton />
       </header>
 
-      <PullToRefresh>
-        <SwipeTabs role={role}>
-          <PageTransition>{children}</PageTransition>
-        </SwipeTabs>
-      </PullToRefresh>
+      <RoomsProvider rooms={rooms}>
+        <PullToRefresh>
+          <SwipeTabs role={role}>
+            <PageTransition>{children}</PageTransition>
+          </SwipeTabs>
+        </PullToRefresh>
+      </RoomsProvider>
 
       <TabBar role={role} />
 
