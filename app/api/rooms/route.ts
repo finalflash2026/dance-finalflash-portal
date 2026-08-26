@@ -85,11 +85,32 @@ export async function POST(request: Request) {
   let room = (existing as RoomRow | null) ?? null;
 
   if (!room) {
-    // sort_order は id と揃える。並びは「登録した順」で足りていて、
-    // 折衝係に番号を考えさせる価値が無い
+    // **並び順は insert のときに決める。** `sort_order` は NOT NULL なので、
+    // 後から update する形にすると insert そのものが通らない。
+    //
+    // 値は「今の最後の次」。並びは登録した順で足りていて、折衝係に番号を
+    // 考えさせる価値が無い。id は 0009 で入れた連番が決める。
+    const { data: last, error: lastError } = await admin
+      .from("rooms")
+      .select("sort_order")
+      .order("sort_order", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (lastError) {
+      return Response.json(
+        { error: `並び順を決められませんでした: ${lastError.message}` },
+        { status: 503 },
+      );
+    }
+
+    // 同時に2人が足すと同じ番号になりうるが、`sort_order` は一意ではないので
+    // 並びが隣り合うだけで実害が無い。ここを厳密にする価値は薄い
+    const sortOrder = ((last as { sort_order: number } | null)?.sort_order ?? 0) + 1;
+
     const { data: created, error: createError } = await admin
       .from("rooms")
-      .insert({ name, section })
+      .insert({ name, section, sort_order: sortOrder })
       .select("id, name, section, sort_order")
       .single();
 
@@ -100,14 +121,6 @@ export async function POST(request: Request) {
       );
     }
     room = created as unknown as RoomRow;
-
-    const { error: orderError } = await admin
-      .from("rooms")
-      .update({ sort_order: room.id })
-      .eq("id", room.id);
-    if (orderError) {
-      console.error("[rooms] 並び順を設定できませんでした", orderError.message);
-    }
   }
 
   // 別名の登録。**失敗しても本体は成功として返す。**
