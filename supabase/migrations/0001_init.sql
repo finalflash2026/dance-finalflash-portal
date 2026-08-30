@@ -36,7 +36,7 @@ create table public.room_aliases (
 -- ---------- ユーザー ----------
 create table public.profiles (
   user_id uuid primary key references auth.users(id) on delete cascade,
-  username text unique not null,          -- 22BREAKせいあ
+  username text unique not null,          -- 22BREAKたろう
   generation smallint not null,           -- 期
   main_genre_id smallint not null references public.genres(id),
   display_name text not null,             -- 名前部分

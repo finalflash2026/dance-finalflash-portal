@@ -52,7 +52,7 @@ export function LoginForm({ initialUsername }: { initialUsername: string }) {
 
   return (
     <form onSubmit={onSubmit} className="space-y-4">
-      <Field label="ユーザーID" hint="例: 22BREAKせいあ">
+      <Field label="ユーザーID" hint="例: 22BREAKたろう">
         <input
           className={inputClass}
           value={username}
