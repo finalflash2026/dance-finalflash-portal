@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
+import { AttendanceSheet } from "@/components/AttendanceSheet";
 import {
   ErrorMessage,
   buttonClass,
@@ -11,12 +12,12 @@ import {
   secondaryButtonClass,
 } from "@/components/ui";
 import { GENRES, GENRE_BY_ID } from "@/lib/constants";
+import { formatSpanRange, spansMidnight } from "@/lib/day-span";
 import { numberColor } from "@/lib/numbers";
 import { createClient } from "@/lib/supabase/client";
 import {
   finalizeTimeInput,
   formatDateLabel,
-  formatTimeRange,
   normalizeDateInput,
   normalizeTimeInput,
   todayInTokyo,
@@ -128,8 +129,10 @@ export function NumberDetailClient({
       {tab === "events" ? (
         <EventsTab
           numberId={number.id}
+          numberName={number.name}
           events={events}
           isOwner={isOwner}
+          currentUserId={currentUserId}
           onError={setError}
         />
       ) : (
@@ -246,25 +249,32 @@ function DeleteSection({
 /** 日程一覧。owner だけが追加/編集/削除できる (SPEC §6.3「日程管理(ownerのみ)」) */
 function EventsTab({
   numberId,
+  numberName,
   events,
   isOwner,
+  currentUserId,
   onError,
 }: {
   numberId: string;
+  /** 出欠管理窓の見出しに使う (v1.21) */
+  numberName: string;
   events: NumberEvent[];
   isOwner: boolean;
+  currentUserId: string;
   onError: (message: string | null) => void;
 }) {
   const router = useRouter();
   const [editing, setEditing] = useState<NumberEvent | null>(null);
   const [creating, setCreating] = useState(false);
+  /** 出欠管理窓を開いている予定 (v1.21)。日程の行から直接開ける */
+  const [attending, setAttending] = useState<NumberEvent | null>(null);
   const [pending, setPending] = useState(false);
   const today = todayInTokyo();
 
   async function remove(event: NumberEvent) {
     if (
       !window.confirm(
-        `${formatDateLabel(event.date)} ${formatTimeRange(event.startTime, event.endTime)} の予定を削除しますか?`,
+        `${formatDateLabel(event.date)} ${formatSpanRange(event.startTime, event.endTime)} の予定を削除しますか?`,
       )
     ) {
       return;
@@ -317,20 +327,33 @@ function EventsTab({
                 event.date < today ? "opacity-50" : ""
               }`}
             >
-              <div className="min-w-0 flex-1">
+              {/*
+                行そのものを押すと出欠管理窓が開く (v1.21)。
+                これまではカレンダー経由でしか開けず、日程が並んでいる
+                ここからは出欠を出せなかった。**主催でなくても押せる** —
+                出欠は全員が答えるもので、編集権限とは別の話
+              */}
+              <button
+                type="button"
+                onClick={() => {
+                  onError(null);
+                  setAttending(event);
+                }}
+                className="min-w-0 flex-1 text-left"
+              >
                 <p className="text-sm">
                   <span className="font-medium">
                     {formatDateLabel(event.date)}
                   </span>{" "}
                   <span className="tabular-nums text-[var(--muted)]">
-                    {formatTimeRange(event.startTime, event.endTime)}
+                    {formatSpanRange(event.startTime, event.endTime)}
                   </span>
                 </p>
                 <p className="truncate text-xs text-[var(--muted)]">
                   @{event.place}
                   {event.note ? ` / ${event.note}` : ""}
                 </p>
-              </div>
+              </button>
               {isOwner ? (
                 <div className="flex shrink-0 gap-1">
                   <button
@@ -368,6 +391,19 @@ function EventsTab({
             setEditing(null);
           }}
           onError={onError}
+        />
+      ) : null}
+
+      {attending ? (
+        <AttendanceSheet
+          target={{ kind: "numberEvent", id: attending.id }}
+          title={numberName}
+          date={attending.date}
+          startTime={attending.startTime}
+          endTime={attending.endTime}
+          location={attending.place}
+          currentUserId={currentUserId}
+          onClose={() => setAttending(null)}
         />
       ) : null}
     </div>
@@ -408,7 +444,9 @@ function EventEditor({
     /^\d{4}-\d{2}-\d{2}$/.test(date) &&
     /^([01]\d|2[0-3]):[0-5]\d$/.test(startTime) &&
     /^([01]\d|2[0-3]):[0-5]\d$/.test(endTime) &&
-    startTime < endTime &&
+    // **終了が開始以前なら翌日まで** (v1.21)。23:00〜翌06:00 の夜通し練習を
+    // 登録できるようにした。同じ時刻だけは通さない (0分か24時間か決まらない)
+    startTime !== endTime &&
     place.trim().length > 0;
 
   async function save() {
@@ -504,6 +542,19 @@ function EventEditor({
         <p className="text-xs text-[var(--muted)]">
           数字だけでも入力できます (1900 → 19:00)
         </p>
+        {/*
+          日をまたぐ予定はその場で知らせる (v1.21)。23:00〜06:00 と打ったとき、
+          翌朝まで続く扱いになったことが分からないと、打ち間違いなのか
+          意図どおりなのか本人にも判断できない
+        */}
+        {spansMidnight(startTime, endTime) &&
+        /^\d{2}:\d{2}$/.test(startTime) &&
+        /^\d{2}:\d{2}$/.test(endTime) ? (
+          <p className="rounded-lg bg-[var(--surface)] px-3 py-2 text-xs">
+            日をまたぐ予定として登録します ({formatSpanRange(startTime, endTime)})。
+            カレンダーには両日に出ます
+          </p>
+        ) : null}
 
         <label className="block">
           <span className="text-sm font-medium">場所</span>

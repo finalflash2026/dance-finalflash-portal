@@ -12,11 +12,11 @@ import {
   type AttendanceRow,
   type Participant,
 } from "@/lib/attendance";
+import { formatSpanRange } from "@/lib/day-span";
 import { createClient } from "@/lib/supabase/client";
 import {
   finalizeTimeInput,
   formatDateLabel,
-  formatTimeRange,
   normalizeTimeInput,
 } from "@/lib/time";
 import type { AttendanceStatus, DateString } from "@/lib/types";
@@ -225,7 +225,7 @@ export function AttendanceSheet({
         <div>
           <h3 className="text-base font-bold">{title}</h3>
           <p className="text-xs text-[var(--muted)]">
-            {formatDateLabel(date)} {formatTimeRange(startTime, endTime)}
+            {formatDateLabel(date)} {formatSpanRange(startTime, endTime)}
             {location ? ` @${location}` : ""}
           </p>
         </div>

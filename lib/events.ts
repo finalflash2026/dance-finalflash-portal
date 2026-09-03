@@ -1,6 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-import { normalizeTime } from "@/lib/time";
+import { addDays, normalizeTime } from "@/lib/time";
 import type { DateString, MyEvent, Profile } from "@/lib/types";
 
 /**
@@ -243,7 +243,9 @@ async function getNumberEvents(
     .from("number_events")
     .select("id, number_id, date, start_time, end_time, place, numbers(name)")
     .in("number_id", numberIds)
-    .gte("date", from)
+    // **前日ぶんも取る** (v1.21)。23:00〜翌06:00 のように前日から跨いできた
+    // 予定は date が範囲の外にあり、そのままでは初日に何も出ない
+    .gte("date", addDays(from, -1))
     .lte("date", to);
 
   if (error) {

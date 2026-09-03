@@ -18,6 +18,7 @@ import {
   type GenreCode,
 } from "@/lib/constants";
 import { eventColor, eventFilterKey } from "@/lib/event-display";
+import { expandByDay, spanNote } from "@/lib/day-span";
 import { numberColor } from "@/lib/numbers";
 import { formatDateLabel, formatTimeRange } from "@/lib/time";
 import type { DateString, MyEvent } from "@/lib/types";
@@ -92,25 +93,40 @@ export function MyCalendarClient({
     filter === "all" || eventFilterKey(event) === filter;
 
   const visible = events.filter(matches);
+  // **日をまたぐ予定は2日ぶんに割る** (v1.21 / lib/day-span.ts)。
+  // event.date だけで束ねると、23:00〜翌06:00 の翌日ぶんが丸ごと落ちる
+  const entries = expandByDay(visible);
+
+  // ラベルカレンダーは「その日に何があるか」だけを出すので予定そのものを渡す。
+  // またぐ予定は両日の断片に入っているため、**ラベルも2日に出る**
   const eventsByDate = new Map<DateString, MyEvent[]>();
-  for (const event of visible) {
-    const list = eventsByDate.get(event.date) ?? [];
-    list.push(event);
-    eventsByDate.set(event.date, list);
+  for (const entry of entries) {
+    const list = eventsByDate.get(entry.date) ?? [];
+    list.push(entry.event);
+    eventsByDate.set(entry.date, list);
   }
 
-  const dayList = eventsByDate.get(selectedDate) ?? [];
-  const dayEvents: TimelineEvent[] = dayList.map((event) => ({
-    key: `${event.kind}-${event.sourceId}`,
-    startTime: event.startTime,
-    endTime: event.endTime,
-    title: event.title,
-    subtitle: event.location,
-    color: eventColor(event),
-  }));
+  // 日別タイムラインは断片のほう (24:00 / 00:00 で切った範囲) を使う
+  const dayList = entries.filter((entry) => entry.date === selectedDate);
+  const dayEvents: TimelineEvent[] = dayList.map((entry) => {
+    const note = spanNote(entry.part, entry.event.startTime, entry.event.endTime);
+    return {
+      key: `${entry.event.kind}-${entry.event.sourceId}`,
+      startTime: entry.startTime,
+      endTime: entry.endTime,
+      title: entry.event.title,
+      subtitle: note
+        ? [entry.event.location, note].filter(Boolean).join(" · ")
+        : entry.event.location,
+      color: eventColor(entry.event),
+    };
+  });
   // タイムラインは表示用の型しか持たないので、タップされたものを key で引き直す
   const byKey = new Map(
-    dayList.map((event) => [`${event.kind}-${event.sourceId}`, event]),
+    dayList.map((entry) => [
+      `${entry.event.kind}-${entry.event.sourceId}`,
+      entry.event,
+    ]),
   );
   const selectedEvent = selectedKey ? (byKey.get(selectedKey) ?? null) : null;
 

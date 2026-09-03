@@ -1,4 +1,5 @@
 import { appHost } from "@/lib/env";
+import { eventEndDate } from "@/lib/day-span";
 import type { MyEvent } from "@/lib/types";
 
 /**
@@ -68,7 +69,13 @@ function buildEvent(event: MyEvent, host: string, dtstamp: string): string[] {
     `UID:${uid}`,
     `DTSTAMP:${dtstamp}`,
     `DTSTART;TZID=Asia/Tokyo:${localStamp(event.date, event.startTime)}`,
-    `DTEND;TZID=Asia/Tokyo:${localStamp(event.date, event.endTime)}`,
+    // **終了は「終わる日」で書く** (v1.21)。23:00〜翌06:00 のような予定を
+    // 同じ日付で書くと、終了が開始より前になり、カレンダーアプリ側で
+    // 予定が消えるか長さ0として扱われる
+    `DTEND;TZID=Asia/Tokyo:${localStamp(
+      eventEndDate(event.date, event.startTime, event.endTime),
+      event.endTime,
+    )}`,
     `SUMMARY:${escapeText(event.title)}`,
   ];
   if (event.location) {
