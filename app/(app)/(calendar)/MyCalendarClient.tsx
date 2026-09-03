@@ -13,6 +13,7 @@ import {
   type NotificationRow,
 } from "@/components/NotificationList";
 import {
+  GENRES,
   GENRE_COLORS,
   SLOT_CLAIMED_COLOR,
   type GenreCode,
@@ -235,6 +236,14 @@ function attendanceTarget(event: MyEvent): AttendanceTarget {
   }
   if (event.kind === "number") {
     return { kind: "numberEvent", id: event.sourceId };
+  }
+  // スタ練も公式練と同じように出欠を答えられる (§6.3.1 / v1.24)。
+  // 参加者の一覧を出すのにジャンルIDが要るので、コードから引き直す
+  if (event.kind === "studio") {
+    const genreId = GENRES.find((g) => g.code === event.genreCode)?.id;
+    if (genreId !== undefined) {
+      return { kind: "studioPractice", id: event.sourceId, genreId };
+    }
   }
   return { kind: "info" };
 }
