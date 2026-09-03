@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
+import { AttendanceSheet } from "@/components/AttendanceSheet";
 import { ErrorMessage, buttonClass, inputClass } from "@/components/ui";
 import { formatSpanRange, spansMidnight } from "@/lib/day-span";
 import { createClient } from "@/lib/supabase/client";
@@ -63,6 +64,8 @@ export function StudioPracticeSection({
   const [note, setNote] = useState("");
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  /** 出欠管理窓を開いているスタ練 (v1.24)。行をタップして開く */
+  const [attending, setAttending] = useState<StudioPractice | null>(null);
 
   const valid =
     /^\d{4}-\d{2}-\d{2}$/.test(date) &&
@@ -145,7 +148,19 @@ export function StudioPracticeSection({
         <ul className="divide-y divide-[var(--border)] rounded-xl border border-[var(--border)]">
           {practices.map((practice) => (
             <li key={practice.id} className="flex items-center gap-2 px-3 py-2">
-              <div className="min-w-0 flex-1">
+              {/*
+                行を押すと出欠管理窓が開く (v1.24)。公式練・ナンバー練と同じ窓。
+                **登録した本人でなくても押せる** — 出欠は参加する側が答えるもので、
+                日程を立てた人かどうかとは別の話 (§6.4.2)
+              */}
+              <button
+                type="button"
+                onClick={() => {
+                  setError(null);
+                  setAttending(practice);
+                }}
+                className="min-w-0 flex-1 text-left"
+              >
                 <p className="text-sm">
                   <span className="font-medium">
                     {formatDateLabel(practice.date)}
@@ -159,7 +174,7 @@ export function StudioPracticeSection({
                   {practice.note ? ` / ${practice.note}` : ""}
                   <span className="ml-1">({practice.createdByName})</span>
                 </p>
-              </div>
+              </button>
               {/* 消せるのは登録した本人だけ。RLS も同じ条件 */}
               {practice.createdBy === currentUserId ? (
                 <button
@@ -278,6 +293,23 @@ export function StudioPracticeSection({
           スタ練の日程を追加する
         </button>
       )}
+
+      {attending ? (
+        <AttendanceSheet
+          target={{
+            kind: "studioPractice",
+            id: attending.id,
+            genreId,
+          }}
+          title={`${genreCode}スタ練`}
+          date={attending.date}
+          startTime={attending.startTime}
+          endTime={attending.endTime}
+          location={attending.place}
+          currentUserId={currentUserId}
+          onClose={() => setAttending(null)}
+        />
+      ) : null}
 
       {practices.length === 0 && !open ? (
         <p className="text-xs text-[var(--muted)]">
