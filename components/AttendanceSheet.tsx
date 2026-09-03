@@ -98,7 +98,7 @@ export function AttendanceSheet({
       target.kind === "slot"
         ? await loadSlotParticipants(supabase, target.id)
         : target.kind === "studioPractice"
-          ? await loadGenreParticipants(supabase, target.genreId, null)
+          ? await loadStudioParticipants(supabase, target.id, target.genreId)
           : await loadNumberParticipants(supabase, target.id);
 
     if (people.error) {
@@ -441,10 +441,38 @@ async function loadSlotParticipants(
 }
 
 /**
+ * スタ練の参加者 (SPEC §6.3.1 / v1.25)
+ *
+ * ジャンルと**対象期**の両方で絞る。公式練とまったく同じ条件で、
+ * 違いは「どこから期を引くか」だけ。
+ */
+async function loadStudioParticipants(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  supabase: any,
+  practiceId: string,
+  genreId: number,
+): Promise<People> {
+  const { data, error } = await supabase
+    .from("genre_practices")
+    .select("target_generations")
+    .eq("id", practiceId)
+    .maybeSingle();
+
+  if (error || !data) {
+    return { people: [], error: "スタ練の情報を取得できませんでした" };
+  }
+  return loadGenreParticipants(
+    supabase,
+    genreId,
+    (data as { target_generations: number[] | null }).target_generations,
+  );
+}
+
+/**
  * そのジャンルを1〜3ジャンに持つ現役 (SPEC §6.4.2)。
  *
- * 公式練とスタ練で共用する。**違いは期の絞り込みだけ** —
- * 公式練は対象期を持つが、スタ練は有志の集まりで期を問わない (§6.3.1)。
+ * 公式練とスタ練で共用する。どちらも対象期を持ち (v1.25)、
+ * `null` なら期を問わない。**条件を2か所に持たない**ため関数を1つにしてある。
  */
 async function loadGenreParticipants(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any

@@ -35,7 +35,7 @@ export default async function NumberTabPage() {
   const isOb = profile.role === "ob";
   const supabase = await createClient();
 
-  const [numbersResult, practicesResult] = await Promise.all([
+  const [numbersResult, practicesResult, generationsResult] = await Promise.all([
     supabase
       .from("numbers")
       .select("id, name, owner_id, number_members(user_id)")
@@ -47,12 +47,25 @@ export default async function NumberTabPage() {
       : supabase
           .from("genre_practices")
           .select(
-            "id, date, start_time, end_time, place, note, created_by, profiles(username)",
+            "id, date, start_time, end_time, place, note, target_generations, created_by, profiles(username)",
           )
           .eq("genre_id", profile.main_genre_id)
           .gte("date", today)
           .order("date"),
+    // 対象期の候補。現役に実在する期だけを出す (§6.3.1 / v1.25)。
+    // 折衝のコマ割りエディタと同じ考え方で、居ない期を選ばせても意味が無い
+    isOb
+      ? Promise.resolve({ data: [], error: null })
+      : supabase.from("profiles").select("generation").neq("role", "ob"),
   ]);
+
+  const generations = [
+    ...new Set(
+      ((generationsResult.data ?? []) as { generation: number }[]).map(
+        (row) => row.generation,
+      ),
+    ),
+  ].sort((a, b) => b - a);
 
   const numbers = (
     (numbersResult.data ?? []) as unknown as {
@@ -76,6 +89,7 @@ export default async function NumberTabPage() {
       end_time: string;
       place: string;
       note: string | null;
+      target_generations: number[] | null;
       created_by: string;
       profiles: { username: string } | null;
     }[]
@@ -86,6 +100,7 @@ export default async function NumberTabPage() {
     endTime: normalizeTime(row.end_time),
     place: row.place,
     note: row.note,
+    targetGenerations: row.target_generations,
     createdBy: row.created_by,
     createdByName: row.profiles?.username ?? "(不明)",
   }));
@@ -112,6 +127,7 @@ export default async function NumberTabPage() {
         }
         mainGenreId={isOb ? null : profile.main_genre_id}
         practices={practices}
+        generations={generations}
       />
     </main>
   );

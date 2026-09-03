@@ -23,6 +23,7 @@ export function NumberCalendarClient({
   mainGenreCode,
   mainGenreId,
   practices,
+  generations,
 }: {
   currentUserId: string;
   numbers: NumberSummary[];
@@ -31,6 +32,8 @@ export function NumberCalendarClient({
   mainGenreCode: string | null;
   mainGenreId: number | null;
   practices: StudioPractice[];
+  /** 対象期の候補 (現役に実在する期。新しい順) */
+  generations: number[];
 }) {
   return (
     <>
@@ -49,6 +52,7 @@ export function NumberCalendarClient({
           genreCode={mainGenreCode}
           genreId={mainGenreId}
           practices={practices}
+          generations={generations}
           currentUserId={currentUserId}
         />
       ) : null}
