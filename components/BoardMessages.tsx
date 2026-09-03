@@ -130,12 +130,22 @@ export function BoardMessages({
         onClick={() => setOpen(true)}
         className="mt-1.5 flex w-full items-center gap-1.5 rounded-lg border border-[var(--border)] px-2 py-1 text-left text-[11px]"
       >
-        <span className="shrink-0 font-bold">
-          連絡{messages.length > 0 ? ` ${messages.length}件` : ""}
-        </span>
-        <span className="min-w-0 flex-1 truncate text-[var(--muted)]">
-          {latest ? `${latest.username}: ${latest.body}` : "まだありません"}
-        </span>
+        {/*
+          0件のときは「連絡」と本文を分けず1つの文にする。
+          分けたままだと「連絡 はまだありません」と隙間が空いて読みにくい
+        */}
+        {latest ? (
+          <>
+            <span className="shrink-0 font-bold">連絡 {messages.length}件</span>
+            <span className="min-w-0 flex-1 truncate text-[var(--muted)]">
+              {latest.username}: {latest.body}
+            </span>
+          </>
+        ) : (
+          <span className="min-w-0 flex-1 truncate text-[var(--muted)]">
+            連絡はまだありません
+          </span>
+        )}
         <span aria-hidden className="shrink-0 text-[var(--muted)]">
           ›
         </span>
@@ -177,7 +187,7 @@ export function BoardMessages({
             <div className="min-h-0 flex-1 space-y-2 overflow-y-auto px-4 py-3">
               {messages.length === 0 ? (
                 <p className="py-6 text-center text-sm text-[var(--muted)]">
-                  まだ連絡はありません
+                  連絡はまだありません
                 </p>
               ) : (
                 messages.map((message) => (
