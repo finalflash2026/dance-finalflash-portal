@@ -231,7 +231,7 @@ export function BoardMessages({
                 rows={2}
                 maxLength={MESSAGE_MAX_LENGTH}
                 disabled={pending}
-                placeholder="例: 控室136の鍵はリハ室にいる僕が持っています"
+                placeholder="メッセージを入力"
                 onChange={(e) => setDraft(e.target.value)}
                 className="w-full resize-none rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2 text-base outline-none focus:border-[var(--foreground)]"
               />
