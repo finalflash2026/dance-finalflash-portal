@@ -224,7 +224,12 @@ export function BoardMessages({
               )}
             </div>
 
-            <div className="space-y-2 border-t border-[var(--border)] px-4 py-3">
+            {/*
+              `safe-bottom` はホームバーのぶんの余白 (globals.css)。
+              この窓は下のボタンを固定していて**スクロールでも逃げられない**ので、
+              入れ忘れると「書き込む」が押しにくいままになる
+            */}
+            <div className="safe-bottom space-y-2 border-t border-[var(--border)] px-4 py-3">
               <textarea
                 aria-label="連絡の内容"
                 value={draft}

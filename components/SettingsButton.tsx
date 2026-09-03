@@ -8,10 +8,15 @@ import { useEffect, useRef } from "react";
  * ヘッダの設定ボタン (SPEC.md §12)
  *
  * **開くだけでなく閉じられる** (v1.14.2)。設定を開いたあと同じ場所をもう一度
- * 押すと、直前に見ていた画面へ戻る。今までは下のタブを押すしかなく、
+ * 押すと、設定に入る前の画面へ戻る。今までは下のタブを押すしかなく、
  * 「全体カレンダーを見ていたのに、閉じたらマイカレンダーにいた」が起きていた。
  *
- * **直前の画面はこのコンポーネントが覚える。** 置き場所は `(app)/layout.tsx` で、
+ * **戻る先は「1つ前」ではなく「設定に入る前」** (v1.27.1)。画面は
+ * タブ → 設定 → 管理者/折衝 の順に積み上がるので、1つ前へ戻すと
+ * 設定 → 管理者 → 設定 と辿ったときに**閉じたはずが管理者画面に出る**。
+ * 設定より上に積んだものはまとめて畳んで、タブの画面へ戻す。
+ *
+ * **入る前の画面はこのコンポーネントが覚える。** 置き場所は `(app)/layout.tsx` で、
  * レイアウトはタブ間の移動でも設定への移動でも作り直されないため、
  * ref がそのまま残る。
  *
@@ -21,6 +26,19 @@ import { useEffect, useRef } from "react";
 
 const SETTINGS_PATH = "/settings";
 
+/**
+ * 設定と、その上に積まれる画面。**閉じる先の候補にしない。**
+ * 管理者画面と折衝画面は設定の中からしか入口が無く、
+ * 「設定を閉じた先」として妥当なのはタブ側の画面だけ。
+ */
+const ABOVE_TABS = [SETTINGS_PATH, "/admin", "/coordinator"];
+
+function isAboveTabs(pathname: string): boolean {
+  return ABOVE_TABS.some(
+    (path) => pathname === path || pathname.startsWith(`${path}/`),
+  );
+}
+
 /** 浮いた丸ボタン。タブバーと同じすりガラス */
 const BUTTON_CLASS =
   "glass flex h-10 w-10 shrink-0 items-center justify-center rounded-full";
@@ -28,10 +46,20 @@ const BUTTON_CLASS =
 export function SettingsButton() {
   const pathname = usePathname();
   const router = useRouter();
+  /** 設定に入る前に見ていた画面。日付などの指定ごと覚える */
   const cameFrom = useRef<string | null>(null);
+  /** 設定の上に何も積んでいない (= 戻るが1回で足りる) か */
+  const oneStepBack = useRef(false);
 
   useEffect(() => {
-    if (pathname !== SETTINGS_PATH) cameFrom.current = pathname;
+    if (!isAboveTabs(pathname)) {
+      // タブ側の画面。`?date=` まで含めて覚え、戻ったときに同じ日を出す
+      cameFrom.current = `${pathname}${window.location.search}`;
+      oneStepBack.current = true;
+    } else if (pathname !== SETTINGS_PATH) {
+      // 管理者・折衝へ入った。ここから設定に戻っても、履歴は伸びたまま
+      oneStepBack.current = false;
+    }
   }, [pathname]);
 
   if (pathname !== SETTINGS_PATH) {
@@ -47,12 +75,16 @@ export function SettingsButton() {
       type="button"
       aria-label="設定を閉じる"
       onClick={() => {
-        if (cameFrom.current) {
-          // 戻るを使う。push だと履歴が伸び続け、端末の戻るで設定を
-          // 何度も通ることになる
+        if (!cameFrom.current) {
+          router.push("/");
+        } else if (oneStepBack.current) {
+          // 素直に開いただけなら戻るで済ませる。push だと履歴が伸び続け、
+          // 端末の戻るで設定を何度も通ることになる
           router.back();
         } else {
-          router.push("/");
+          // 設定の上に管理者・折衝を積んでいる。何回戻ればよいかは
+          // 数えられない (端末の戻るでも動く) ので、行き先を直接指定する
+          router.push(cameFrom.current);
         }
       }}
       className={BUTTON_CLASS}
