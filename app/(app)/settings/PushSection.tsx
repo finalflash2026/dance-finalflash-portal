@@ -21,6 +21,8 @@ export interface PushPrefs {
   schedule: boolean;
   room: boolean;
   key: boolean;
+  /** 掲示板の連絡 (§6.1.3 / v1.27) */
+  message: boolean;
 }
 
 const CATEGORIES: {
@@ -43,9 +45,19 @@ const CATEGORIES: {
     label: "部室の鍵",
     hint: "部室の鍵の所持者が変わったとき",
   },
+  {
+    key: "message",
+    label: "掲示板の連絡",
+    hint: "練習場所・部室の鍵の欄に書き込みがあったとき",
+  },
 ];
 
-const DEFAULT_PREFS: PushPrefs = { schedule: true, room: true, key: true };
+const DEFAULT_PREFS: PushPrefs = {
+  schedule: true,
+  room: true,
+  key: true,
+  message: true,
+};
 
 /**
  * VAPID の公開鍵は base64url の文字列で渡されるが、
@@ -101,7 +113,7 @@ export function PushSection({ vapidPublicKey }: { vapidPublicKey: string }) {
     const supabase = createClient();
     const { data } = await supabase
       .from("push_subscriptions")
-      .select("notify_schedule, notify_room, notify_key")
+      .select("notify_schedule, notify_room, notify_key, notify_message")
       .eq("endpoint", subscription.endpoint)
       .maybeSingle();
 
@@ -110,11 +122,14 @@ export function PushSection({ vapidPublicKey }: { vapidPublicKey: string }) {
         notify_schedule: boolean;
         notify_room: boolean;
         notify_key: boolean;
+        notify_message: boolean | null;
       };
       setPrefs({
         schedule: row.notify_schedule,
         room: row.notify_room,
         key: row.notify_key,
+        // 列を足す前に登録した端末は null で返る。既定はオン
+        message: row.notify_message ?? true,
       });
     }
   }, []);

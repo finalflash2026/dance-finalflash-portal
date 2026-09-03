@@ -6,6 +6,7 @@ import type { DayBlock } from "@/components/DayGrid";
 import { RoomStatusBoard, type RoomStatusRow } from "@/components/RoomStatusBoard";
 import { SetupNotice } from "@/components/SetupNotice";
 import { getCurrentProfile } from "@/lib/auth/session";
+import { toBoardMessages } from "@/lib/board-messages";
 import { KEY_HISTORY_LIMIT, toKeyHolderRows } from "@/lib/club-key";
 import { GENRE_BY_ID } from "@/lib/constants";
 import { hasSupabaseEnv } from "@/lib/env";
@@ -77,8 +78,13 @@ export default async function OverviewCalendarPage({
 
   const supabase = await createClient();
 
-  const [monthResult, todayRoomsResult, roomStatusResult, keyHolderResult] =
-    await Promise.all([
+  const [
+    monthResult,
+    todayRoomsResult,
+    roomStatusResult,
+    keyHolderResult,
+    messagesResult,
+  ] = await Promise.all([
     // 1. 選択月の slots + claims + 申請者名 (SPEC §13.1)
     supabase
       .from("slots")
@@ -110,7 +116,25 @@ export default async function OverviewCalendarPage({
       .select("id, user_id, taken_at, profiles(username)")
       .order("taken_at", { ascending: false })
       .limit(KEY_HISTORY_LIMIT),
+
+    // 5. 掲示板の連絡 (§6.1.3)。**2つのボードぶんをまとめて1回で取る** —
+    //    別々に投げると往復が1つ増えるだけで、量はどちらも数件しかない
+    supabase
+      .from("board_messages")
+      .select("id, scope, date, body, user_id, created_at, profiles(username)")
+      .or(`and(scope.eq.room,date.eq.${today}),scope.eq.club_key`)
+      .order("created_at", { ascending: true }),
     ]);
+
+  const messageRows = (messagesResult.data ?? []) as unknown as {
+    scope: "room" | "club_key";
+  }[];
+  const roomMessages = toBoardMessages(
+    messageRows.filter((row) => row.scope === "room"),
+  );
+  const keyMessages = toBoardMessages(
+    messageRows.filter((row) => row.scope === "club_key"),
+  );
 
   // 日付ごとにまとめておく。クライアント側は選択日で引くだけで済む
   const blocksByDate: Record<DateString, DayBlock[]> = {};
@@ -172,12 +196,15 @@ export default async function OverviewCalendarPage({
         initialRows={
           (roomStatusResult.data ?? []) as unknown as RoomStatusRow[]
         }
+        initialMessages={roomMessages}
+        currentUserId={profile?.user_id ?? ""}
       />
 
       {/* 部室の鍵の所持者 (§6.1.2)。施錠ボードとミニカレンダーの間 */}
       <ClubKeyBoard
         initialRows={toKeyHolderRows(keyHolderResult.data)}
         currentUserId={profile?.user_id ?? ""}
+        initialMessages={keyMessages}
       />
 
       {/*
