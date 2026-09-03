@@ -225,13 +225,11 @@ export function BoardMessages({
             </div>
 
             {/*
-              下端は**ホームバーのぶんだけ余分に空ける**。ホーム画面から開くと
-              画面の隅まで自前で描く設定 (viewport-fit=cover) になっていて、
-              一番下に置いたものは iPhone のホームバーの下に潜る。
-              この窓は下のボタンを固定しているのでスクロールでも逃げられず、
-              「書き込む」が押しにくいままになっていた。
+              `safe-bottom` はホームバーのぶんの余白 (globals.css)。
+              この窓は下のボタンを固定していて**スクロールでも逃げられない**ので、
+              入れ忘れると「書き込む」が押しにくいままになる
             */}
-            <div className="space-y-2 border-t border-[var(--border)] px-4 pt-3 pb-[calc(env(safe-area-inset-bottom)+1rem)]">
+            <div className="safe-bottom space-y-2 border-t border-[var(--border)] px-4 py-3">
               <textarea
                 aria-label="連絡の内容"
                 value={draft}

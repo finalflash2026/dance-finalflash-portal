@@ -425,7 +425,7 @@ function DetailModal({
         role="dialog"
         aria-modal="true"
         aria-label="コマの詳細"
-        className="sheet-in relative z-10 w-full max-w-sm rounded-t-2xl bg-[var(--background)] p-5 sm:rounded-2xl"
+        className="sheet-in safe-bottom relative z-10 w-full max-w-sm rounded-t-2xl bg-[var(--background)] p-5 sm:rounded-2xl"
       >
         <h3 className="text-lg font-bold">{drawable.label}</h3>
         <dl className="mt-3 space-y-2 text-sm">

@@ -489,7 +489,7 @@ function EventEditor({
       <div
         role="dialog"
         aria-modal="true"
-        className="sheet-in relative z-10 max-h-[90dvh] w-full max-w-md space-y-3 overflow-y-auto rounded-t-2xl bg-[var(--background)] p-4 sm:rounded-2xl"
+        className="sheet-in safe-bottom relative z-10 max-h-[90dvh] w-full max-w-md space-y-3 overflow-y-auto rounded-t-2xl bg-[var(--background)] p-4 sm:rounded-2xl"
       >
         <h3 className="text-base font-bold">
           {initial ? "日程を編集" : "日程を追加"}

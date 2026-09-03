@@ -158,7 +158,7 @@ export function ClaimSheet({
         role="dialog"
         aria-modal="true"
         aria-label="空き時間の申請"
-        className="sheet-in relative z-10 max-h-[90dvh] w-full max-w-md overflow-y-auto rounded-t-2xl bg-[var(--background)] p-5 sm:rounded-2xl"
+        className="sheet-in safe-bottom relative z-10 max-h-[90dvh] w-full max-w-md overflow-y-auto rounded-t-2xl bg-[var(--background)] p-5 sm:rounded-2xl"
       >
         {confirming ? (
           <>

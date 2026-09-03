@@ -233,7 +233,7 @@ export function AttendanceSheet({
       <div
         role="dialog"
         aria-modal="true"
-        className="sheet-in relative z-10 max-h-[90dvh] w-full max-w-md space-y-4 overflow-y-auto rounded-t-2xl bg-[var(--background)] p-4 sm:rounded-2xl"
+        className="sheet-in safe-bottom relative z-10 max-h-[90dvh] w-full max-w-md space-y-4 overflow-y-auto rounded-t-2xl bg-[var(--background)] p-4 sm:rounded-2xl"
       >
         <div>
           <h3 className="text-base font-bold">{title}</h3>
