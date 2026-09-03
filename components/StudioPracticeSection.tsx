@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
+import { AttendanceSheet } from "@/components/AttendanceSheet";
 import { ErrorMessage, buttonClass, inputClass } from "@/components/ui";
 import { formatSpanRange, spansMidnight } from "@/lib/day-span";
 import { createClient } from "@/lib/supabase/client";
@@ -38,6 +39,8 @@ export interface StudioPractice {
   endTime: string;
   place: string;
   note: string | null;
+  /** null = 期を問わない。公式練 (slots.target_generations) と同じ約束 (v1.25) */
+  targetGenerations: number[] | null;
   createdBy: string;
   createdByName: string;
 }
@@ -46,23 +49,32 @@ export function StudioPracticeSection({
   genreCode,
   genreId,
   practices,
+  generations,
   currentUserId,
 }: {
   genreCode: string;
   genreId: number;
   /** 自分の1ジャンのスタ練 (今日以降) */
   practices: StudioPractice[];
+  /** 対象期の候補 (現役に実在する期。新しい順) */
+  generations: number[];
   currentUserId: string;
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
+  /** 編集中のスタ練。null なら新規 (v1.25) */
+  const [editing, setEditing] = useState<StudioPractice | null>(null);
   const [date, setDate] = useState("");
   const [startTime, setStartTime] = useState("");
   const [endTime, setEndTime] = useState("");
   const [place, setPlace] = useState("");
   const [note, setNote] = useState("");
+  /** null = 全期対象。公式練と同じ約束 */
+  const [targets, setTargets] = useState<number[] | null>(null);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  /** 出欠管理窓を開いているスタ練 (v1.24)。行をタップして開く */
+  const [attending, setAttending] = useState<StudioPractice | null>(null);
 
   const valid =
     /^\d{4}-\d{2}-\d{2}$/.test(date) &&
@@ -78,27 +90,69 @@ export function StudioPracticeSection({
     setEndTime("");
     setPlace("");
     setNote("");
+    setTargets(null);
+    setEditing(null);
     setOpen(false);
   }
 
-  async function create() {
+  /** 既存の内容を欄に載せて開く (v1.25) */
+  function startEdit(practice: StudioPractice) {
+    setError(null);
+    setEditing(practice);
+    setDate(practice.date);
+    setStartTime(practice.startTime);
+    setEndTime(practice.endTime);
+    setPlace(practice.place);
+    setNote(practice.note ?? "");
+    setTargets(practice.targetGenerations);
+    setOpen(true);
+  }
+
+  /** 期を1つ切り替える。全部外したら「全期」に戻す (公式練と同じ扱い) */
+  function toggleGeneration(generation: number) {
+    setTargets((prev) => {
+      if (prev === null) {
+        // 全期対象から1つだけ外す = その期以外を選んだ状態にする
+        return generations.filter((g) => g !== generation);
+      }
+      const next = prev.includes(generation)
+        ? prev.filter((g) => g !== generation)
+        : [...prev, generation];
+      return next.length === 0 || next.length === generations.length
+        ? null
+        : next;
+    });
+  }
+
+  async function save() {
     setPending(true);
     setError(null);
     const supabase = createClient();
-    // RLS が genre_id = 自分の1ジャン と created_by = auth.uid() を要求する。
-    // ここで genreId を渡しても、他ジャンルには書けない
-    const { error: insertError } = await supabase.from("genre_practices").insert({
-      genre_id: genreId,
+    const payload = {
       date,
       start_time: startTime,
       end_time: endTime,
       place: place.trim(),
       note: note.trim() || null,
-      created_by: currentUserId,
-    });
+      target_generations: targets,
+    };
+    // RLS が genre_id = 自分の1ジャン と created_by = auth.uid() を要求する。
+    // ここで genreId を渡しても、他ジャンルには書けない
+    const { error: writeError } = editing
+      ? await supabase
+          .from("genre_practices")
+          .update(payload)
+          .eq("id", editing.id)
+      : await supabase.from("genre_practices").insert({
+          ...payload,
+          genre_id: genreId,
+          created_by: currentUserId,
+        });
     setPending(false);
-    if (insertError) {
-      setError(`登録できませんでした: ${insertError.message}`);
+    if (writeError) {
+      setError(
+        `${editing ? "変更" : "登録"}できませんでした: ${writeError.message}`,
+      );
       return;
     }
     reset();
@@ -145,7 +199,19 @@ export function StudioPracticeSection({
         <ul className="divide-y divide-[var(--border)] rounded-xl border border-[var(--border)]">
           {practices.map((practice) => (
             <li key={practice.id} className="flex items-center gap-2 px-3 py-2">
-              <div className="min-w-0 flex-1">
+              {/*
+                行を押すと出欠管理窓が開く (v1.24)。公式練・ナンバー練と同じ窓。
+                **登録した本人でなくても押せる** — 出欠は参加する側が答えるもので、
+                日程を立てた人かどうかとは別の話 (§6.4.2)
+              */}
+              <button
+                type="button"
+                onClick={() => {
+                  setError(null);
+                  setAttending(practice);
+                }}
+                className="min-w-0 flex-1 text-left"
+              >
                 <p className="text-sm">
                   <span className="font-medium">
                     {formatDateLabel(practice.date)}
@@ -159,17 +225,32 @@ export function StudioPracticeSection({
                   {practice.note ? ` / ${practice.note}` : ""}
                   <span className="ml-1">({practice.createdByName})</span>
                 </p>
-              </div>
-              {/* 消せるのは登録した本人だけ。RLS も同じ条件 */}
+                {practice.targetGenerations ? (
+                  <p className="text-xs text-[var(--muted)]">
+                    対象: {practice.targetGenerations.join("・")}期
+                  </p>
+                ) : null}
+              </button>
+              {/* 直せる・消せるのは登録した本人だけ。RLS も同じ条件 */}
               {practice.createdBy === currentUserId ? (
-                <button
-                  type="button"
-                  disabled={pending}
-                  onClick={() => remove(practice)}
-                  className="shrink-0 rounded border border-[var(--border)] px-2 py-1 text-xs text-[var(--danger-fg)]"
-                >
-                  削除
-                </button>
+                <div className="flex shrink-0 gap-1">
+                  <button
+                    type="button"
+                    disabled={pending}
+                    onClick={() => startEdit(practice)}
+                    className="rounded border border-[var(--border)] px-2 py-1 text-xs"
+                  >
+                    編集
+                  </button>
+                  <button
+                    type="button"
+                    disabled={pending}
+                    onClick={() => remove(practice)}
+                    className="rounded border border-[var(--border)] px-2 py-1 text-xs text-[var(--danger-fg)]"
+                  >
+                    削除
+                  </button>
+                </div>
               ) : null}
             </li>
           ))}
@@ -241,6 +322,41 @@ export function StudioPracticeSection({
             />
           </label>
 
+          {/*
+            対象期 (v1.25)。公式練と同じ約束で、**既定は全期**。
+            「1年生だけの基礎練」のような回を立てられるようにするためで、
+            普段は触らない想定なので既定のまま進めても登録できる
+          */}
+          <div>
+            <span className="text-sm font-medium">対象の期</span>
+            <div className="mt-1 flex flex-wrap gap-1">
+              {generations.map((generation) => {
+                const on = targets === null || targets.includes(generation);
+                return (
+                  <button
+                    key={generation}
+                    type="button"
+                    disabled={pending}
+                    onClick={() => toggleGeneration(generation)}
+                    aria-pressed={on}
+                    className={`rounded-full border px-3 py-1 text-xs ${
+                      on
+                        ? "border-[var(--primary)] bg-[var(--primary)] font-bold text-[var(--primary-fg)]"
+                        : "border-[var(--border)] text-[var(--muted)]"
+                    }`}
+                  >
+                    {generation}期
+                  </button>
+                );
+              })}
+            </div>
+            <p className="mt-1 text-xs text-[var(--muted)]">
+              {targets === null
+                ? "全ての期が対象です"
+                : `${targets.join("・")}期のカレンダーにだけ出ます`}
+            </p>
+          </div>
+
           <label className="block">
             <span className="text-sm font-medium">メモ (任意)</span>
             <input
@@ -255,10 +371,14 @@ export function StudioPracticeSection({
           <button
             type="button"
             disabled={pending || !valid}
-            onClick={create}
+            onClick={save}
             className={buttonClass}
           >
-            {pending ? "登録中…" : `${genreCode}のスタ練として登録する`}
+            {pending
+              ? "保存中…"
+              : editing
+                ? "この内容に変更する"
+                : `${genreCode}のスタ練として登録する`}
           </button>
           <button
             type="button"
@@ -278,6 +398,23 @@ export function StudioPracticeSection({
           スタ練の日程を追加する
         </button>
       )}
+
+      {attending ? (
+        <AttendanceSheet
+          target={{
+            kind: "studioPractice",
+            id: attending.id,
+            genreId,
+          }}
+          title={`${genreCode}スタ練`}
+          date={attending.date}
+          startTime={attending.startTime}
+          endTime={attending.endTime}
+          location={attending.place}
+          currentUserId={currentUserId}
+          onClose={() => setAttending(null)}
+        />
+      ) : null}
 
       {practices.length === 0 && !open ? (
         <p className="text-xs text-[var(--muted)]">

@@ -49,6 +49,8 @@ export type AttendanceTarget =
       ids: string[];
     }
   | { kind: "numberEvent"; id: string }
+  /** スタ練 (§6.3.1 / v1.24)。対象はそのジャンルを持つ現役全員 */
+  | { kind: "studioPractice"; id: string; genreId: number }
   /** 空き申請など、出欠の対象にならないもの (SPEC §6.4.2) */
   | { kind: "info" };
 
@@ -95,7 +97,9 @@ export function AttendanceSheet({
     const people =
       target.kind === "slot"
         ? await loadSlotParticipants(supabase, target.id)
-        : await loadNumberParticipants(supabase, target.id);
+        : target.kind === "studioPractice"
+          ? await loadStudioParticipants(supabase, target.id, target.genreId)
+          : await loadNumberParticipants(supabase, target.id);
 
     if (people.error) {
       setError(people.error);
@@ -107,7 +111,9 @@ export function AttendanceSheet({
     const { data, error: attendanceError } =
       target.kind === "slot"
         ? await query.in("slot_id", target.ids)
-        : await query.eq("number_event_id", target.id);
+        : target.kind === "studioPractice"
+          ? await query.eq("genre_practice_id", target.id)
+          : await query.eq("number_event_id", target.id);
 
     if (attendanceError) {
       setError(`出欠を取得できませんでした: ${attendanceError.message}`);
@@ -149,7 +155,12 @@ export function AttendanceSheet({
     setPending(true);
     setError(null);
     const supabase = createClient();
-    const key = target.kind === "slot" ? "slot_id" : "number_event_id";
+    const key =
+      target.kind === "slot"
+        ? "slot_id"
+        : target.kind === "studioPractice"
+          ? "genre_practice_id"
+          : "number_event_id";
     const { error: writeError } = await supabase.from("attendances").upsert(
       {
         user_id: currentUserId,
@@ -195,7 +206,9 @@ export function AttendanceSheet({
     const { error: deleteError } =
       target.kind === "slot"
         ? await remove.in("slot_id", target.ids)
-        : await remove.eq("number_event_id", target.id);
+        : target.kind === "studioPractice"
+          ? await remove.eq("genre_practice_id", target.id)
+          : await remove.eq("number_event_id", target.id);
     setPending(false);
 
     if (deleteError) {
@@ -424,6 +437,49 @@ async function loadSlotParticipants(
     .target_generations;
   if (genreId === null) return { people: [] };
 
+  return loadGenreParticipants(supabase, genreId, generations);
+}
+
+/**
+ * スタ練の参加者 (SPEC §6.3.1 / v1.25)
+ *
+ * ジャンルと**対象期**の両方で絞る。公式練とまったく同じ条件で、
+ * 違いは「どこから期を引くか」だけ。
+ */
+async function loadStudioParticipants(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  supabase: any,
+  practiceId: string,
+  genreId: number,
+): Promise<People> {
+  const { data, error } = await supabase
+    .from("genre_practices")
+    .select("target_generations")
+    .eq("id", practiceId)
+    .maybeSingle();
+
+  if (error || !data) {
+    return { people: [], error: "スタ練の情報を取得できませんでした" };
+  }
+  return loadGenreParticipants(
+    supabase,
+    genreId,
+    (data as { target_generations: number[] | null }).target_generations,
+  );
+}
+
+/**
+ * そのジャンルを1〜3ジャンに持つ現役 (SPEC §6.4.2)。
+ *
+ * 公式練とスタ練で共用する。どちらも対象期を持ち (v1.25)、
+ * `null` なら期を問わない。**条件を2か所に持たない**ため関数を1つにしてある。
+ */
+async function loadGenreParticipants(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  supabase: any,
+  genreId: number,
+  generations: number[] | null,
+): Promise<People> {
   // 2/3ジャンでそのジャンルを持つ人を先に集める。
   // profiles 側の or 条件に流し込むため
   const { data: subgenres } = await supabase

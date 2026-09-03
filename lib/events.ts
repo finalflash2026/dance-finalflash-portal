@@ -289,8 +289,9 @@ async function getNumberEvents(
  * 自分のジャンル (1/2/3ジャン) のものを引く。**ナンバーと違って所属の概念が無く**、
  * そのジャンルを取っていれば自動的に自分の予定になる。
  *
- * 公式練と違い**期での絞り込みは無い**。公式練は期ごとに対象を決めるが、
- * スタ練は有志の集まりで、来たい人が来る性質のため。
+ * **対象期も公式練と同じように持つ** (v1.25)。スタ練は「折衝が公式練として
+ * コマを割り振っていないだけで、中身は公式練」なので、
+ * 「1年生だけの基礎練」のような回を立てられる必要がある。null は期を問わない。
  */
 async function getStudioPracticeEvents(
   supabase: SupabaseClient,
@@ -303,7 +304,7 @@ async function getStudioPracticeEvents(
 
   const { data, error } = await supabase
     .from("genre_practices")
-    .select("id, genre_id, date, start_time, end_time, place")
+    .select("id, genre_id, date, start_time, end_time, place, target_generations")
     .in("genre_id", genreIds)
     // 前日から跨いできた予定を拾う (v1.21 と同じ理由)
     .gte("date", addDays(from, -1))
@@ -320,7 +321,16 @@ async function getStudioPracticeEvents(
     start_time: string;
     end_time: string;
     place: string;
-  }[]).map((row) => {
+    target_generations: number[] | null;
+  }[])
+    // 対象期の判定 (v1.25)。公式練と同じ約束で null は期を問わない。
+    // 配列の包含は JS 側で絞る (件数が少なく、条件が読みやすいため)
+    .filter(
+      (row) =>
+        row.target_generations === null ||
+        row.target_generations.includes(profile.generation),
+    )
+    .map((row) => {
     const code = GENRE_BY_ID.get(row.genre_id)?.code ?? null;
     return {
       kind: "studio" as const,
