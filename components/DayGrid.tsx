@@ -77,13 +77,11 @@ export function DayGrid({
   date,
   blocks,
   currentUserId,
-  canManage,
 }: {
   date: DateString;
   blocks: DayBlock[];
   currentUserId: string;
   /** 折衝以上か。他人の申請も取消せる (SPEC §6.1-5) */
-  canManage: boolean;
 }) {
   const [selected, setSelected] = useState<Drawable | null>(null);
   const [claiming, setClaiming] = useState<{
@@ -223,7 +221,6 @@ export function DayGrid({
           drawable={selected}
           date={date}
           currentUserId={currentUserId}
-          canManage={canManage}
           onClose={() => setSelected(null)}
           onClaim={(slot, range) => {
             setSelected(null);
@@ -347,14 +344,12 @@ function DetailModal({
   drawable,
   date,
   currentUserId,
-  canManage,
   onClose,
   onClaim,
 }: {
   drawable: Drawable;
   date: DateString;
   currentUserId: string;
-  canManage: boolean;
   onClose: () => void;
   onClaim: (
     slot: DayBlock,
@@ -379,7 +374,14 @@ function DetailModal({
   const claim = segment?.kind === "claimed" ? segment.claim : null;
   const isFree = segment?.kind === "free";
   // 取消は本人 or 折衝以上 (SPEC §6.1-5)。最終的な可否は RLS del_claims が決める
-  const canCancel = claim ? claim.userId === currentUserId || canManage : false;
+  /*
+   * **取り消せるのは申請した本人だけ** (v1.22)。
+   * 以前は折衝以上にも出していたが、他人の申請を取り消せてしまうと
+   * 報告があった。申請は「その人がその時間に練習する」という本人の
+   * 意思表示で、消えたことに本人が気づく手段が無い。
+   * RLS 側 (del_claims) でも本人だけに絞ってある。
+   */
+  const canCancel = claim ? claim.userId === currentUserId : false;
 
   async function cancelClaim() {
     if (!claim) return;
