@@ -31,7 +31,6 @@ export function CalendarView({
   markedDates,
   blocksByDate,
   currentUserId,
-  canManage,
 }: {
   /** 表示中の月 */
   monthAnchor: DateString;
@@ -46,7 +45,6 @@ export function CalendarView({
   /** 申請の取消ボタンを出すかの判定に使う */
   currentUserId: string;
   /** 折衝以上か。他人の申請も取消せる (SPEC §6.1-5) */
-  canManage: boolean;
 }) {
   const [selectedDate, setSelectedDate] = useState(initialDate);
 
@@ -87,7 +85,6 @@ export function CalendarView({
           date={selectedDate}
           blocks={blocksByDate[selectedDate] ?? []}
           currentUserId={currentUserId}
-          canManage={canManage}
         />
       </section>
     </>

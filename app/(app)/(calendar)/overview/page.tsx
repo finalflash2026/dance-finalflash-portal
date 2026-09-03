@@ -7,7 +7,7 @@ import { RoomStatusBoard, type RoomStatusRow } from "@/components/RoomStatusBoar
 import { SetupNotice } from "@/components/SetupNotice";
 import { getCurrentProfile } from "@/lib/auth/session";
 import { KEY_HISTORY_LIMIT, toKeyHolderRows } from "@/lib/club-key";
-import { GENRE_BY_ID, isCoordinatorOrAbove } from "@/lib/constants";
+import { GENRE_BY_ID } from "@/lib/constants";
 import { hasSupabaseEnv } from "@/lib/env";
 import { createClient } from "@/lib/supabase/server";
 import {
@@ -194,7 +194,6 @@ export default async function OverviewCalendarPage({
         markedDates={Object.keys(blocksByDate)}
         blocksByDate={blocksByDate}
         currentUserId={profile?.user_id ?? ""}
-        canManage={profile ? isCoordinatorOrAbove(profile.role) : false}
       />
     </main>
   );
