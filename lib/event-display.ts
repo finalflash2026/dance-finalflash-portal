@@ -19,7 +19,9 @@ export function eventColor(event: MyEvent): { bg: string; fg: string } {
   if (event.kind === "number" && event.numberId) {
     return numberColor(event.numberId);
   }
-  if (event.kind === "genre" && event.genreCode) {
+  // スタ練は公式練と同じ色 (v1.23)。同じジャンルの練習を色で分けると、
+  // 「BREAKの予定」を探すのに2色を覚えることになる
+  if ((event.kind === "genre" || event.kind === "studio") && event.genreCode) {
     const color = GENRE_COLORS[event.genreCode as GenreCode];
     if (color) return color;
   }
@@ -36,6 +38,8 @@ export function eventColor(event: MyEvent): { bg: string; fg: string } {
  */
 export function eventShortLabel(event: MyEvent): string {
   if (event.kind === "genre") return event.genreCode ?? "公式練";
+  // マスは狭いので、スタ練であることは色ではなく短い印で示す
+  if (event.kind === "studio") return `${event.genreCode ?? ""}ス`;
   if (event.kind === "claim") return "空き";
   return event.title;
 }
@@ -50,6 +54,10 @@ export function eventFilterKey(event: MyEvent): string {
   if (event.kind === "number" && event.numberId) {
     return `number:${event.numberId}`;
   }
-  if (event.kind === "genre") return `genre:${event.genreCode ?? "?"}`;
+  // **スタ練は公式練と同じキー** (v1.23)。BREAK を押したら
+  // 「BREAK公式練」と「BREAKスタ練」の両方が出る
+  if (event.kind === "genre" || event.kind === "studio") {
+    return `genre:${event.genreCode ?? "?"}`;
+  }
   return "claim";
 }

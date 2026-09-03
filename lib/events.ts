@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
+import { GENRE_BY_ID } from "@/lib/constants";
 import { addDays, normalizeTime } from "@/lib/time";
 import type { DateString, MyEvent, Profile } from "@/lib/types";
 
@@ -42,7 +43,12 @@ export async function getMyEvents(
     events.push(...(await getClaimEvents(supabase, profile, from, to)));
   }
 
-  // ---- 3. ナンバー練 (OB も対象。縦イベに参加し続けられるようにするため) ----
+  // ---- 3. スタ練 (現役のみ。公式練と同じ扱い。§6.3.1 / v1.23) ----
+  if (profile.role !== "ob") {
+    events.push(...(await getStudioPracticeEvents(supabase, profile, from, to)));
+  }
+
+  // ---- 4. ナンバー練 (OB も対象。縦イベに参加し続けられるようにするため) ----
   events.push(...(await getNumberEvents(supabase, profile, from, to)));
 
   return sortEvents(events);
@@ -275,6 +281,62 @@ async function getNumberEvents(
     numberId: row.number_id,
     genreCode: null,
   }));
+}
+
+/**
+ * スタ練 (SPEC §6.3.1 / v1.23)
+ *
+ * 自分のジャンル (1/2/3ジャン) のものを引く。**ナンバーと違って所属の概念が無く**、
+ * そのジャンルを取っていれば自動的に自分の予定になる。
+ *
+ * 公式練と違い**期での絞り込みは無い**。公式練は期ごとに対象を決めるが、
+ * スタ練は有志の集まりで、来たい人が来る性質のため。
+ */
+async function getStudioPracticeEvents(
+  supabase: SupabaseClient,
+  profile: Profile,
+  from: DateString,
+  to: DateString,
+): Promise<MyEvent[]> {
+  const genreIds = await getMyGenreIds(supabase, profile);
+  if (genreIds.length === 0) return [];
+
+  const { data, error } = await supabase
+    .from("genre_practices")
+    .select("id, genre_id, date, start_time, end_time, place")
+    .in("genre_id", genreIds)
+    // 前日から跨いできた予定を拾う (v1.21 と同じ理由)
+    .gte("date", addDays(from, -1))
+    .lte("date", to);
+
+  if (error) {
+    throw new Error(`スタ練の取得に失敗しました: ${error.message}`);
+  }
+
+  return ((data ?? []) as unknown as {
+    id: string;
+    genre_id: number;
+    date: DateString;
+    start_time: string;
+    end_time: string;
+    place: string;
+  }[]).map((row) => {
+    const code = GENRE_BY_ID.get(row.genre_id)?.code ?? null;
+    return {
+      kind: "studio" as const,
+      sourceId: row.id,
+      sourceIds: [row.id],
+      date: row.date,
+      startTime: normalizeTime(row.start_time),
+      endTime: normalizeTime(row.end_time),
+      // 見出しは「{ジャンル}スタ練」。公式練と並んだとき、
+      // 同じ色でも何の予定か読んで分かるようにする
+      title: `${code ?? "?"}スタ練`,
+      location: row.place,
+      numberId: null,
+      genreCode: code,
+    };
+  });
 }
 
 /**

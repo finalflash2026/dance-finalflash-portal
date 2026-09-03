@@ -26,6 +26,9 @@ const UID_PREFIX: Record<MyEvent["kind"], string> = {
   genre: "slot",
   claim: "claim",
   number: "numev",
+  // スタ練 (v1.23)。**他と重ならない接頭辞にすること** —
+  // UID がぶつかると購読側で別の予定に上書きされる
+  studio: "gprac",
 };
 
 export function buildCalendar(events: MyEvent[], username: string): string {
