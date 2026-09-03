@@ -5,6 +5,7 @@ import { getCurrentProfile } from "@/lib/auth/session";
 import { hasSupabaseEnv } from "@/lib/env";
 import { createClient } from "@/lib/supabase/server";
 import {
+  addDays,
   endOfMonth,
   normalizeTime,
   startOfMonth,
@@ -54,7 +55,9 @@ export default async function NumberCalendarPage({
       .select(
         "id, number_id, date, start_time, end_time, place, note, numbers(name)",
       )
-      .gte("date", startOfMonth(selectedDate))
+      // **前日ぶんも取る** (v1.21)。前日から跨いできた予定は date が
+      // 月の外にあり、そのままでは1日に何も出ない
+      .gte("date", addDays(startOfMonth(selectedDate), -1))
       .lte("date", endOfMonth(selectedDate))
       .order("date"),
     supabase

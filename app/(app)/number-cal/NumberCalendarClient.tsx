@@ -6,6 +6,7 @@ import { AttendanceSheet } from "@/components/AttendanceSheet";
 import { DayTimeline, type TimelineEvent } from "@/components/DayTimeline";
 import { MiniCalendar } from "@/components/MiniCalendar";
 import { NumberList, type NumberSummary } from "@/components/NumberList";
+import { expandByDay, spanNote } from "@/lib/day-span";
 import { numberColor } from "@/lib/numbers";
 import { formatDateLabel } from "@/lib/time";
 import type { DateString } from "@/lib/types";
@@ -64,17 +65,26 @@ export function NumberCalendarClient({
     );
   }
 
-  const markedDates = [...new Set(events.map((event) => event.date))];
-  const dayList = events.filter((event) => event.date === selectedDate);
-  const dayEvents: TimelineEvent[] = dayList.map((event) => ({
-    key: event.id,
-    startTime: event.startTime,
-    endTime: event.endTime,
-    title: event.numberName,
-    subtitle: event.place,
-    color: numberColor(event.numberId),
-  }));
-  const selected = dayList.find((event) => event.id === selectedId) ?? null;
+  // **日をまたぐ予定は2日ぶんに割る** (v1.21 / lib/day-span.ts)。
+  // 印もタイムラインも両日に出る
+  const entries = expandByDay(events);
+  const markedDates = [...new Set(entries.map((entry) => entry.date))];
+  const dayList = entries.filter((entry) => entry.date === selectedDate);
+  const dayEvents: TimelineEvent[] = dayList.map((entry) => {
+    const note = spanNote(entry.part, entry.event.startTime, entry.event.endTime);
+    return {
+      key: entry.event.id,
+      startTime: entry.startTime,
+      endTime: entry.endTime,
+      title: entry.event.numberName,
+      subtitle: note
+        ? [entry.event.place, note].filter(Boolean).join(" · ")
+        : entry.event.place,
+      color: numberColor(entry.event.numberId),
+    };
+  });
+  const selected =
+    dayList.find((entry) => entry.event.id === selectedId)?.event ?? null;
 
   return (
     <>
