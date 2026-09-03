@@ -202,7 +202,12 @@ export interface AppSetting {
 
 /** マイカレンダー / ics で共通に扱うイベント (SPEC §6.4 / §10) */
 export interface MyEvent {
-  kind: "genre" | "claim" | "number";
+  /**
+   * `studio` = スタ練 (§6.3.1 / v1.23)。ジャンルの有志がスタジオを取って行う練習。
+   * **表示のうえでは公式練 (`genre`) と同じ扱い**にする — 同じ色、同じ絞り込みキー。
+   * 利用者から見れば「BREAKの練習」で、主催が公式かどうかは探すときの関心事ではない。
+   */
+  kind: "genre" | "claim" | "number" | "studio";
   /** ics の UID に使う恒久 ID (元テーブルの主キー) */
   sourceId: string;
   /**
