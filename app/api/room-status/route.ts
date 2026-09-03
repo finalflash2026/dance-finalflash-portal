@@ -80,8 +80,16 @@ export async function POST(request: Request) {
       category: "room",
       userIds: recipients,
       payload: {
-        // 「誰が」「どこを」「どうした」を1行に収める (SPEC §6.6)
-        title: `${profile.username}が${room.name}を${
+        /*
+         * **1行目に誰が、2行目に何をしたか** (SPEC §6.6 / v1.26)。
+         *
+         * 以前は1行に収めていたが、ユーザーIDと場所名がどちらも長く、
+         * iPhone のロック画面では肝心の「開けました/閉めました」まで
+         * 表示されずに切れていた。**通知で一番知りたいのは開いたかどうか**
+         * なので、そこを2行目の先頭側に置く。
+         */
+        title: profile.username,
+        body: `${room.name}を${
           parsed.data.isUnlocked ? "開けました" : "閉めました"
         }`,
         url: "/overview",
