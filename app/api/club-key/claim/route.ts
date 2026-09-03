@@ -51,7 +51,9 @@ export async function POST() {
       category: "key",
       userIds: recipients,
       payload: {
-        title: `${profile.username}が鍵を持っています`,
+        // 施錠の通知と同じ形に揃える (v1.26)。1行目に誰が、2行目に何を
+        title: profile.username,
+        body: "部室の鍵を持っています",
         url: "/overview",
         // 所持者は1人なので、常に最新の1件だけ残ればよい
         tag: "club-key",
