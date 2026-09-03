@@ -224,7 +224,14 @@ export function BoardMessages({
               )}
             </div>
 
-            <div className="space-y-2 border-t border-[var(--border)] px-4 py-3">
+            {/*
+              下端は**ホームバーのぶんだけ余分に空ける**。ホーム画面から開くと
+              画面の隅まで自前で描く設定 (viewport-fit=cover) になっていて、
+              一番下に置いたものは iPhone のホームバーの下に潜る。
+              この窓は下のボタンを固定しているのでスクロールでも逃げられず、
+              「書き込む」が押しにくいままになっていた。
+            */}
+            <div className="space-y-2 border-t border-[var(--border)] px-4 pt-3 pb-[calc(env(safe-area-inset-bottom)+1rem)]">
               <textarea
                 aria-label="連絡の内容"
                 value={draft}
