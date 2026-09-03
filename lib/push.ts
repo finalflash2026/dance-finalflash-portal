@@ -24,12 +24,15 @@ import { createAdminClient } from "@/lib/supabase/admin";
  */
 
 /** 通知の種類。購読側 (push_subscriptions) の列と1対1で対応する */
-export type PushCategory = "schedule" | "room" | "key";
+export type PushCategory = "schedule" | "room" | "key" | "message";
 
 const CATEGORY_COLUMN: Record<PushCategory, string> = {
   schedule: "notify_schedule",
   room: "notify_room",
   key: "notify_key",
+  // 掲示板の連絡 (§6.1.3 / v1.27)。**鍵の開閉とは別に切れるようにする** —
+  // 連絡は数が多くなりうるので、まとめると「うるさいから鍵ごと切る」が起きる
+  message: "notify_message",
 };
 
 interface SubscriptionRow {

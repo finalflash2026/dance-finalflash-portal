@@ -7,6 +7,8 @@ import {
   toKeyHolderRows,
   type KeyHolderRow,
 } from "@/lib/club-key";
+import { BoardMessages } from "@/components/BoardMessages";
+import type { BoardMessage } from "@/lib/board-messages";
 import { createClient } from "@/lib/supabase/client";
 import { useLiveRefresh } from "@/lib/use-live-refresh";
 import { formatAsTokyoDateTime } from "@/lib/time";
@@ -30,10 +32,13 @@ const POLL_INTERVAL_MS = 15_000;
 export function ClubKeyBoard({
   initialRows,
   currentUserId,
+  initialMessages,
 }: {
   /** 新しい順。先頭が現在の所持者 */
   initialRows: KeyHolderRow[];
   currentUserId: string;
+  /** 部室の鍵についての連絡 (§6.1.3 / v1.27)。日付では区切らない */
+  initialMessages: BoardMessage[];
 }) {
   const [rows, setRows] = useState(initialRows);
   const [pending, setPending] = useState(false);
@@ -151,6 +156,13 @@ export function ClubKeyBoard({
           </ul>
         </details>
       ) : null}
+
+      <BoardMessages
+        scope="club_key"
+        date={null}
+        initialMessages={initialMessages}
+        currentUserId={currentUserId}
+      />
     </section>
   );
 }

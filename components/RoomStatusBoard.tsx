@@ -2,6 +2,8 @@
 
 import { useCallback, useState } from "react";
 
+import { BoardMessages } from "@/components/BoardMessages";
+import type { BoardMessage } from "@/lib/board-messages";
 import { useRooms } from "@/lib/rooms";
 import { createClient } from "@/lib/supabase/client";
 import { useLiveRefresh } from "@/lib/use-live-refresh";
@@ -43,11 +45,16 @@ export function RoomStatusBoard({
   today,
   roomIds,
   initialRows,
+  initialMessages,
+  currentUserId,
 }: {
   today: DateString;
   /** 今日、公開済み slots が1件以上ある部屋 */
   roomIds: number[];
   initialRows: RoomStatusRow[];
+  /** 今日の連絡 (§6.1.3 / v1.27) */
+  initialMessages: BoardMessage[];
+  currentUserId: string;
 }) {
   const allRooms = useRooms();
   const [rows, setRows] = useState(initialRows);
@@ -109,8 +116,17 @@ export function RoomStatusBoard({
 
   if (rooms.length === 0) {
     return (
-      <section className="rounded-xl border border-[var(--border)] px-4 py-3 text-sm text-[var(--muted)]">
-        今日は練習場所の予約がありません
+      <section className="rounded-xl border border-[var(--border)] px-4 py-3">
+        <p className="text-sm text-[var(--muted)]">
+          今日は練習場所の予約がありません
+        </p>
+        {/* 予約が無い日でも連絡は残せる (鍵の受け渡しなど) */}
+        <BoardMessages
+          scope="room"
+          date={today}
+          initialMessages={initialMessages}
+          currentUserId={currentUserId}
+        />
       </section>
     );
   }
@@ -195,6 +211,14 @@ export function RoomStatusBoard({
           );
         })}
       </ul>
+
+      {/* ○×では表せない状況を書き残す欄 (§6.1.3)。中身は窓の中 */}
+      <BoardMessages
+        scope="room"
+        date={today}
+        initialMessages={initialMessages}
+        currentUserId={currentUserId}
+      />
     </section>
   );
 }

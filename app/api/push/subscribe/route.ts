@@ -29,6 +29,7 @@ const schema = z.object({
       schedule: z.boolean(),
       room: z.boolean(),
       key: z.boolean(),
+      message: z.boolean(),
     })
     .optional(),
 });
@@ -68,6 +69,7 @@ export async function POST(request: Request) {
       notify_schedule: prefs?.schedule ?? true,
       notify_room: prefs?.room ?? true,
       notify_key: prefs?.key ?? true,
+      notify_message: prefs?.message ?? true,
     },
     { onConflict: "endpoint" },
   );
