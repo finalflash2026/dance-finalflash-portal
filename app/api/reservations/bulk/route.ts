@@ -8,17 +8,19 @@ import {
   roomKey,
   validateRow,
 } from "@/lib/import";
+import { groupTouchingSpans } from "@/lib/reservations";
 import { fetchRoomMap } from "@/lib/rooms-server";
 import { createClient } from "@/lib/supabase/server";
-import { normalizeTime } from "@/lib/time";
+import { normalizeTime, toMinutes } from "@/lib/time";
 
 /**
  * POST /api/reservations/bulk  (SPEC.md §8.5 / §6.2 Step1-4 / §9.4)
  *
- * 確認画面で人が目視・修正した予約行を一括登録する。3つの仕事をする:
+ * 確認画面で人が目視・修正した予約行を一括登録する。4つの仕事をする:
  *   1. エイリアス学習 — 未知だった部屋表記に当てた対応を room_aliases に残す
- *   2. 重複ガード — 同一 (date, room_id, start, end) の active な既存行はスキップ
- *   3. reservations に一括 insert し、import_files を confirmed にする
+ *   2. **つながっている行をまとめる** (v1.29.1)
+ *   3. 重複ガード — 同一 (date, room_id, start, end) の active な既存行はスキップ
+ *   4. reservations に一括 insert し、import_files を confirmed にする
  *
  * 行の検証は lib/import.ts の validateRow を**画面と同じルールで再実行**する。
  * 画面の入力欄を素通りして API を直接叩かれても不正行が入らないようにするため。
@@ -165,8 +167,43 @@ export async function POST(request: Request) {
     }
   }
 
-  // ---- 2. 重複ガード (SPEC §9.4) ----
-  const dates = [...new Set(rows.map((r) => r.date))];
+  // ---- 2. つながっている行をまとめる (SPEC §9.4 / v1.29.1) ----
+  // 施設の予約ページは続きの時間帯を別の行で出すことがある
+  // (17:30〜19:30 と 19:30〜21:30 で、実際は通しの 17:30〜21:30)。
+  // **2行のまま入れるとコマ割りが破綻する** — コマは予約枠の中に入る前提で、
+  // 境目をまたぐコマがどちらの枠にも収まらなくなる (lib/reservations.ts)。
+  const byRoom = new Map<string, typeof rows>();
+  for (const row of rows) {
+    const key = `${row.date}|${row.roomId}`;
+    const list = byRoom.get(key);
+    if (list) list.push(row);
+    else byRoom.set(key, [row]);
+  }
+
+  const merged: typeof rows = [];
+  let mergedAway = 0;
+  for (const list of byRoom.values()) {
+    const spans = list.map((row) => ({
+      ...row,
+      startTime: row.start,
+      endTime: row.end,
+    }));
+    for (const group of groupTouchingSpans(spans)) {
+      const first = group[0];
+      // **文字列比較にしない。** "9:00" と "19:00" のように桁が違うと
+      // 辞書順では逆になる (画面は丸めて送ってくるが、API は単独でも正しく動くこと)
+      const end = group.reduce(
+        (latest, span) =>
+          toMinutes(span.end) > toMinutes(latest) ? span.end : latest,
+        first.end,
+      );
+      mergedAway += group.length - 1;
+      merged.push({ ...first, end });
+    }
+  }
+
+  // ---- 3. 重複ガード (SPEC §9.4) ----
+  const dates = [...new Set(merged.map((r) => r.date))];
   const { data: existing, error: existingError } = await supabase
     .from("reservations")
     .select("date, room_id, start_time, end_time")
@@ -199,7 +236,7 @@ export async function POST(request: Request) {
   }[] = [];
   let skipped = 0;
 
-  for (const row of rows) {
+  for (const row of merged) {
     const key = reservationKey(row.date, row.roomId, row.start, row.end);
     // seen には DB の既存行と、この payload 内で既に採用した行の両方が入る
     // (同じ内容が2行あるCSVも1件だけ登録される)
@@ -218,7 +255,7 @@ export async function POST(request: Request) {
     });
   }
 
-  // ---- 3. 一括 insert ----
+  // ---- 4. 一括 insert ----
   if (toInsert.length > 0) {
     const { error } = await supabase.from("reservations").insert(toInsert);
     if (error) {
@@ -263,5 +300,6 @@ export async function POST(request: Request) {
     inserted: toInsert.length,
     skipped,
     learnedAliases: learned.size,
+    merged: mergedAway,
   });
 }
