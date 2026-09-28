@@ -30,6 +30,41 @@ import { useLiveRefresh } from "@/lib/use-live-refresh";
 const POLL_INTERVAL_MS = 15_000;
 
 /**
+ * キーボードが出ている間の「見えている範囲」を返す (v1.29.4)
+ *
+ * iOS でキーボードが出ると、**表示領域 (visual viewport) だけが縮んで
+ * 上にずれる**。`position: fixed` はページ側の座標に貼り付くので、
+ * 画面上では窓ごと上へ滑っていき、入力欄はキーボードから遠いところに残る。
+ *
+ * そこで**見えている範囲そのものに窓を合わせる**。上端と高さを毎回もらって
+ * 貼り直せば、入力欄はキーボードのすぐ上に来て、窓が勝手に動かなくなる。
+ *
+ * visualViewport が無い環境では null を返し、これまでどおり画面いっぱいに置く。
+ */
+function useVisibleArea(active: boolean): { top: number; height: number } | null {
+  const [area, setArea] = useState<{ top: number; height: number } | null>(null);
+
+  useEffect(() => {
+    const viewport = active ? window.visualViewport : null;
+    if (!viewport) {
+      setArea(null);
+      return;
+    }
+    const update = () =>
+      setArea({ top: viewport.offsetTop, height: viewport.height });
+    update();
+    viewport.addEventListener("resize", update);
+    viewport.addEventListener("scroll", update);
+    return () => {
+      viewport.removeEventListener("resize", update);
+      viewport.removeEventListener("scroll", update);
+    };
+  }, [active]);
+
+  return area;
+}
+
+/**
  * 打った内容に合わせて入力欄を伸ばす。
  *
  * **一度 auto に戻してから測る。** 前の高さが残っていると scrollHeight が
@@ -59,6 +94,8 @@ export function BoardMessages({
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const listRef = useRef<HTMLDivElement>(null);
+  const visibleArea = useVisibleArea(open);
 
   const refresh = useCallback(async () => {
     const supabase = createClient();
@@ -79,6 +116,12 @@ export function BoardMessages({
   }, [scope, date]);
 
   useLiveRefresh(refresh, POLL_INTERVAL_MS);
+
+  // 開いたら最新の連絡まで送る。古い順に並べているので、下が今の話
+  useEffect(() => {
+    if (!open || !listRef.current) return;
+    listRef.current.scrollTop = listRef.current.scrollHeight;
+  }, [open]);
 
   // 窓を開けている間は閉じるまで Esc で戻れるようにする (他のシートと同じ)
   useEffect(() => {
@@ -172,7 +215,8 @@ export function BoardMessages({
       {open ? (
         <div
           data-no-swipe
-          className="fixed inset-0 z-50 flex items-end justify-center sm:items-center"
+          className="fixed inset-x-0 top-0 z-50 flex h-[100dvh] items-end justify-center sm:items-center"
+          style={visibleArea ?? undefined}
         >
           <div
             className="backdrop-in absolute inset-0 bg-black/40"
@@ -187,7 +231,7 @@ export function BoardMessages({
               0〜2件のときに窓が指1本ぶんの高さしかなく、開いたことすら
               分かりにくかった。読む場所を先に確保しておく
             */
-            className="sheet-in relative z-10 flex h-[78dvh] max-h-[85dvh] w-full max-w-md flex-col rounded-t-2xl bg-[var(--background)] sm:h-[70vh] sm:rounded-2xl"
+            className="sheet-in relative z-10 flex h-[54dvh] max-h-full w-full max-w-md flex-col rounded-t-2xl bg-[var(--background)] sm:h-[58vh] sm:rounded-2xl"
           >
             <header className="flex items-baseline justify-between gap-2 border-b border-[var(--border)] px-4 py-3">
               <h3 className="text-base font-bold">
@@ -207,7 +251,10 @@ export function BoardMessages({
               </p>
             ) : null}
 
-            <div className="min-h-0 flex-1 space-y-2 overflow-y-auto px-4 py-3">
+            <div
+              ref={listRef}
+              className="min-h-0 flex-1 space-y-2 overflow-y-auto px-4 py-3"
+            >
               {messages.length === 0 ? (
                 <p className="flex h-full items-center justify-center text-sm text-[var(--muted)]">
                   連絡はまだありません
@@ -325,10 +372,15 @@ export function BoardMessages({
                 </button>
               </div>
 
-              <p className="px-1 text-[11px] text-[var(--muted)]">
-                書き込むと現役全員に通知が届きます
-                {draft.length > 0 ? ` (${draft.length}/${MESSAGE_MAX_LENGTH})` : ""}
-              </p>
+              {/*
+                文字数は**上限が近いときだけ**出す。常に出しておくと、
+                一言を書くだけの欄に毎回ついてまわって場所を取る
+              */}
+              {draft.length >= MESSAGE_MAX_LENGTH - 50 ? (
+                <p className="px-1 text-right text-[11px] text-[var(--muted)]">
+                  {draft.length}/{MESSAGE_MAX_LENGTH}
+                </p>
+              ) : null}
             </div>
           </div>
         </div>
