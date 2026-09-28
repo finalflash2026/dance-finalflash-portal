@@ -134,5 +134,48 @@ export function useMonthReservations(month: DateString) {
     load();
   }, [load]);
 
-  return { reservations, generations, loading, error, reload: load, setError };
+  /**
+   * 表から1セル書き換えたときに、手元の状態だけ差し替える (v1.28)。
+   *
+   * **月ぶんを読み直さない。** コマ割り表は1か月ぶんを数十回叩いて埋めるので、
+   * 1クリックごとに再読込すると毎回待たされる。保存の成否は書き込みの
+   * 戻り値で分かっているので、読み直す必要があるのは失敗したときだけ。
+   */
+  const applySlot = useCallback(
+    (reservationId: string, slot: SlotInfo) => {
+      setReservations((current) =>
+        current.map((reservation) =>
+          reservation.id !== reservationId
+            ? reservation
+            : {
+                ...reservation,
+                slots: reservation.slots.some((s) => s.id === slot.id)
+                  ? reservation.slots.map((s) => (s.id === slot.id ? slot : s))
+                  : [...reservation.slots, slot],
+              },
+        ),
+      );
+    },
+    [],
+  );
+
+  const dropSlot = useCallback((slotId: string) => {
+    setReservations((current) =>
+      current.map((reservation) => ({
+        ...reservation,
+        slots: reservation.slots.filter((slot) => slot.id !== slotId),
+      })),
+    );
+  }, []);
+
+  return {
+    reservations,
+    generations,
+    loading,
+    error,
+    reload: load,
+    setError,
+    applySlot,
+    dropSlot,
+  };
 }

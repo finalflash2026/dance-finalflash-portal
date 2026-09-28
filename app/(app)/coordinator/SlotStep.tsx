@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import { ErrorMessage, buttonClass, secondaryButtonClass } from "@/components/ui";
-import { useRoomById } from "@/lib/rooms";
+import { useRoomById, useRooms } from "@/lib/rooms";
 import { GENRES, PRACTICE_WEEKDAYS } from "@/lib/constants";
+import { cellKey, practiceDatesOfMonth } from "@/lib/slot-grid";
 import {
   SLOT_PRESET_MINUTES,
   SLOT_STATUS_LABELS,
@@ -30,18 +31,25 @@ import {
 import type { DateString, SlotStatus } from "@/lib/types";
 
 import { MonthNav } from "./MonthNav";
+import { PeriodPanel } from "./PeriodPanel";
+import { SlotGrid, type Brush, type PaintTarget } from "./SlotGrid";
 import { SlotTimeline } from "./SlotTimeline";
 import {
   useMonthReservations,
   type ReservationInfo,
 } from "./useMonthReservations";
+import { useSlotPeriods } from "./useSlotPeriods";
 
 /**
  * Step2: コマ割りエディタ (SPEC.md §6.2 Step2 / v1.9)
  *
  * 予約枠(第1層)を公式練・空き・使用不可のコマ(第2層)に割る。
- * 表示は月まとめタイムライン (SlotTimeline)。予約枠を1つずつ開く形だと
- * 月ぶんの埋め残しを把握しづらかった、という実運用の指摘による。
+ *
+ * 表示は2つ (v1.28):
+ *   **表** … 折衝係が Excel で作っているコマ割り表と同じ形 (SlotGrid)。
+ *            列=練習場所 / 行=日にち×コマ。普段はこちらで進める。
+ *   タイムライン … 縦=日付×部屋 / 横=時刻 (SlotTimeline)。
+ *            基準のコマに合わない半端な時間のコマは、表では扱えないのでこちら。
  *
  * 書き込みはブラウザから RLS 経由で直接行う (mod_slots が coordinator 以上を
  * 許可しているため)。検証は lib/slots.ts と DB の制約の二段構え。
@@ -52,8 +60,21 @@ export function SlotStep() {
   const [month, setMonth] = useState<DateString>(() =>
     startOfMonth(todayInTokyo()),
   );
-  const { reservations, generations, loading, error, reload, setError } =
-    useMonthReservations(month);
+  const {
+    reservations,
+    generations,
+    loading,
+    error,
+    reload,
+    setError,
+    applySlot,
+    dropSlot,
+  } = useMonthReservations(month);
+  const rooms = useRooms();
+  const periods = useSlotPeriods(month);
+  const [view, setView] = useState<"grid" | "timeline">("grid");
+  /** 同じセルへの二重書き込みを止める。連打すると重なり制約に当たるため */
+  const painting = useRef(new Set<string>());
   const [editing, setEditing] = useState<{
     reservation: ReservationInfo;
     draft: SlotDraft;
@@ -70,6 +91,21 @@ export function SlotStep() {
     ? reservations.filter((r) => PRACTICE_WEEKDAYS.includes(getWeekday(r.date)))
     : reservations;
   const hiddenCount = reservations.length - visibleReservations.length;
+
+  /**
+   * 表の行になる日にち。
+   *
+   * 月・水・木は**予約が無くても出す** — Excel でも空の列を残しておき、
+   * 「この日は取れなかった」ことが見えるようにしているため。
+   * 「すべての曜日」では、それに加えて予約のある日を足す
+   * (予約が無い日にコマは作れないので、空の行を30日ぶん並べても意味がない)。
+   */
+  const gridDates = useMemo(() => {
+    const practice = practiceDatesOfMonth(month, PRACTICE_WEEKDAYS);
+    if (practiceDaysOnly) return practice;
+    const withReservations = reservations.map((r) => r.date);
+    return [...new Set([...practice, ...withReservations])].sort();
+  }, [month, practiceDaysOnly, reservations]);
 
   const derived = deriveMonthGenerations(
     reservations.flatMap((r) => r.slots),
@@ -253,9 +289,146 @@ export function SlotStep() {
     reload();
   }
 
+  /**
+   * 表のセルを1つ書き換える (SPEC §6.2 Step2 / v1.28)。
+   *
+   * コマの時間は表の行が決めているので、時刻の入力は要らない。
+   * **押した瞬間に保存する。** 1か月ぶんで数十セル触るので、
+   * セルごとに窓を開いて「保存」を押させると手数が倍以上になる。
+   *
+   * 失敗したときだけ月ぶんを読み直す。成功時は手元の1コマだけ差し替える。
+   */
+  async function paint(target: PaintTarget, brush: Brush) {
+    const { date, room, period, cell } = target;
+    const key = cellKey(date, room.id, period.position);
+    if (painting.current.has(key)) return;
+
+    // 消す
+    if (brush.kind === "clear") {
+      if (!cell.slot) return;
+      const doomed = invalidatedClaims(cell.slot, null);
+      if (doomed.length > 0 && !confirmClaimLoss(doomed)) return;
+
+      painting.current.add(key);
+      const { error: deleteError } = await supabase
+        .from("slots")
+        .delete()
+        .eq("id", cell.slot.id);
+      painting.current.delete(key);
+
+      if (deleteError) {
+        setError(`コマを削除できませんでした: ${deleteError.message}`);
+        reload();
+        return;
+      }
+      setError(null);
+      dropSlot(cell.slot.id);
+      return;
+    }
+
+    const status: SlotStatus = brush.kind === "genre" ? "genre" : brush.kind;
+    const genreId = brush.kind === "genre" ? brush.genreId : null;
+
+    // 同じ内容なら触らない。塗り重ねても書き込みが走らないように
+    if (
+      cell.slot &&
+      cell.slot.status === status &&
+      cell.slot.genreId === genreId
+    ) {
+      return;
+    }
+
+    const payload = {
+      start_time: period.startTime,
+      end_time: period.endTime,
+      status,
+      genre_id: genreId,
+      // 対象期は月単位 (v1.9)。公式練でなくなったら消す
+      target_generations: status === "genre" ? monthGenerations : null,
+    };
+
+    if (cell.slot) {
+      const doomed = invalidatedClaims(cell.slot, {
+        status,
+        startTime: period.startTime,
+        endTime: period.endTime,
+      });
+      if (doomed.length > 0 && !confirmClaimLoss(doomed)) return;
+
+      const slotId = cell.slot.id;
+      const reservationId = reservations.find((r) =>
+        r.slots.some((slot) => slot.id === slotId),
+      )?.id;
+      if (!reservationId) {
+        reload();
+        return;
+      }
+
+      painting.current.add(key);
+      const { error: writeError } = await supabase
+        .from("slots")
+        .update(payload)
+        .eq("id", slotId);
+      painting.current.delete(key);
+
+      if (writeError) {
+        setError(describeSlotError(writeError));
+        reload();
+        return;
+      }
+      setError(null);
+      applySlot(reservationId, {
+        ...cell.slot,
+        startTime: period.startTime,
+        endTime: period.endTime,
+        status,
+        genreId,
+        targetGenerations: payload.target_generations,
+      });
+      return;
+    }
+
+    if (!cell.reservationId) return; // 予約が無いセルは押せない
+
+    painting.current.add(key);
+    const { data, error: writeError } = await supabase
+      .from("slots")
+      .insert({
+        ...payload,
+        reservation_id: cell.reservationId,
+        // date / room_id は予約枠から複製する (slots は表示のため非正規化して持つ)
+        date,
+        room_id: room.id,
+      })
+      .select("id")
+      .single();
+    painting.current.delete(key);
+
+    if (writeError || !data) {
+      setError(
+        writeError ? describeSlotError(writeError) : "コマを作れませんでした",
+      );
+      reload();
+      return;
+    }
+    setError(null);
+    applySlot(cell.reservationId, {
+      id: (data as { id: string }).id,
+      startTime: period.startTime,
+      endTime: period.endTime,
+      status,
+      genreId,
+      targetGenerations: payload.target_generations,
+      published: false,
+      claims: [],
+    });
+  }
+
   return (
     <div className="space-y-4">
       <MonthNav month={month} onChange={setMonth} disabled={pending} />
+
+      <ViewToggle view={view} onChange={setView} disabled={pending} />
 
       <MonthGenerationPicker
         candidates={generations}
@@ -266,7 +439,7 @@ export function SlotStep() {
         onToggle={toggleMonthGeneration}
       />
 
-      <ErrorMessage>{error}</ErrorMessage>
+      <ErrorMessage>{error ?? periods.error}</ErrorMessage>
 
       <WeekdayFilter
         practiceDaysOnly={practiceDaysOnly}
@@ -275,9 +448,42 @@ export function SlotStep() {
         disabled={pending}
       />
 
-      {/* 保存のたびに一覧が消えるとスクロール位置が飛ぶので、
-          「読み込み中」に差し替えるのは月を切り替えた直後だけにする */}
-      {visibleReservations.length === 0 ? (
+      {view === "grid" ? (
+        <>
+          <PeriodPanel
+            month={month}
+            table={periods.table}
+            snapshot={periods.snapshot}
+            onChange={periods.setTable}
+            onSave={(section, list) => {
+              void periods.save(section, list);
+            }}
+            onClearOverride={(section) => {
+              void periods.clearOverride(section);
+            }}
+            disabled={pending}
+          />
+
+          {reservations.length === 0 ? (
+            <p className="rounded-xl border border-[var(--border)] px-4 py-3 text-center text-sm text-[var(--muted)]">
+              {loading
+                ? "読み込み中…"
+                : "この月の予約枠はありません。①CSV取込 から登録すると ○ が付きます"}
+            </p>
+          ) : null}
+
+          <SlotGrid
+            dates={gridDates}
+            rooms={rooms}
+            table={periods.table}
+            reservations={reservations}
+            disabled={pending}
+            onPaint={paint}
+          />
+        </>
+      ) : /* 保存のたびに一覧が消えるとスクロール位置が飛ぶので、
+            「読み込み中」に差し替えるのは月を切り替えた直後だけにする */
+      visibleReservations.length === 0 ? (
         <p className="rounded-xl border border-[var(--border)] px-4 py-8 text-center text-sm text-[var(--muted)]">
           {loading
             ? "読み込み中…"
@@ -343,6 +549,49 @@ export function SlotStep() {
           onClose={() => setEditing(null)}
         />
       ) : null}
+    </div>
+  );
+}
+
+/**
+ * 表示の切り替え (SPEC §6.2 Step2 / v1.28)
+ *
+ * 普段は**表**。折衝の手順そのものが「この表を埋める」作業なので、
+ * 開いた直後からその形になっている必要がある。
+ * タイムラインは、基準のコマに合わない時間のコマを直すときの逃げ道として残す。
+ */
+function ViewToggle({
+  view,
+  onChange,
+  disabled,
+}: {
+  view: "grid" | "timeline";
+  onChange: (view: "grid" | "timeline") => void;
+  disabled: boolean;
+}) {
+  return (
+    <div className="flex gap-2">
+      {(
+        [
+          { value: "grid", label: "表 (コマ割り)" },
+          { value: "timeline", label: "タイムライン" },
+        ] as const
+      ).map((option) => (
+        <button
+          key={option.value}
+          type="button"
+          disabled={disabled}
+          onClick={() => onChange(option.value)}
+          aria-pressed={view === option.value}
+          className={`rounded-full border px-3 py-1 text-sm disabled:opacity-50 ${
+            view === option.value
+              ? "border-[var(--primary)] bg-[var(--primary)] font-bold text-[var(--primary-fg)]"
+              : "border-[var(--border)]"
+          }`}
+        >
+          {option.label}
+        </button>
+      ))}
     </div>
   );
 }

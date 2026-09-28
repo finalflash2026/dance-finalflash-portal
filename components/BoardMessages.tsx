@@ -190,37 +190,56 @@ export function BoardMessages({
                   連絡はまだありません
                 </p>
               ) : (
-                messages.map((message) => (
-                  <div
-                    key={message.id}
-                    className="rounded-lg bg-[var(--surface)] px-3 py-2"
-                  >
-                    <div className="flex items-baseline gap-2">
-                      <span className="min-w-0 flex-1 truncate text-xs font-bold">
-                        {message.username}
-                      </span>
-                      <span className="shrink-0 text-[10px] text-[var(--muted)]">
-                        {scope === "room"
-                          ? formatAsTokyoTime(message.createdAt)
-                          : formatAsTokyoDateTime(message.createdAt)}
-                      </span>
-                      {/* 消せるのは書いた本人だけ。RLS も同じ条件 */}
-                      {message.userId === currentUserId ? (
-                        <button
-                          type="button"
-                          disabled={pending}
-                          onClick={() => remove(message)}
-                          className="shrink-0 text-[10px] text-[var(--danger-fg)] underline"
+                messages.map((message) => {
+                  const mine = message.userId === currentUserId;
+                  return (
+                    <div
+                      key={message.id}
+                      className={`flex flex-col ${mine ? "items-end" : "items-start"}`}
+                    >
+                      {/* 自分の名前は出さない。右にあること自体が「自分」の印 */}
+                      {mine ? null : (
+                        <span className="max-w-full truncate px-1 text-[11px] text-[var(--muted)]">
+                          {message.username}
+                        </span>
+                      )}
+
+                      {/* 自分のぶんは並びを反転させ、時刻と削除を吹き出しの左に置く */}
+                      <div
+                        className={`flex max-w-[85%] items-end gap-1 ${mine ? "flex-row-reverse" : ""}`}
+                      >
+                        <p
+                          className={`min-w-0 whitespace-pre-wrap break-words rounded-2xl px-3 py-2 text-sm ${
+                            mine ? "rounded-br-sm" : "rounded-bl-sm"
+                          }`}
+                          style={{
+                            background: mine
+                              ? "var(--bubble-mine-bg)"
+                              : "var(--bubble-bg)",
+                          }}
                         >
-                          削除
-                        </button>
-                      ) : null}
+                          {message.body}
+                        </p>
+                        <span className="shrink-0 pb-0.5 text-[10px] text-[var(--muted)]">
+                          {scope === "room"
+                            ? formatAsTokyoTime(message.createdAt)
+                            : formatAsTokyoDateTime(message.createdAt)}
+                        </span>
+                        {/* 消せるのは書いた本人だけ。RLS も同じ条件 */}
+                        {mine ? (
+                          <button
+                            type="button"
+                            disabled={pending}
+                            onClick={() => remove(message)}
+                            className="shrink-0 pb-0.5 text-[10px] text-[var(--danger-fg)] underline"
+                          >
+                            削除
+                          </button>
+                        ) : null}
+                      </div>
                     </div>
-                    <p className="mt-0.5 whitespace-pre-wrap break-words text-sm">
-                      {message.body}
-                    </p>
-                  </div>
-                ))
+                  );
+                })
               )}
             </div>
 
