@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 
 import { ErrorMessage, buttonClass, secondaryButtonClass } from "@/components/ui";
 import { useRoomById, useRooms } from "@/lib/rooms";
-import { GENRES, PRACTICE_WEEKDAYS } from "@/lib/constants";
+import { GENRES, GENRE_BY_ID, PRACTICE_WEEKDAYS } from "@/lib/constants";
 import { findSplitReservations } from "@/lib/reservations";
 import {
   cellKey,
@@ -414,6 +414,46 @@ export function SlotStep() {
     }
   }
 
+  /**
+   * 区切りの合わない古いコマを片付ける (v1.29.2)。
+   *
+   * コマの時間を後から変えると必ず出る。**黙って消さない** —
+   * 中身は折衝係が置いた公式練で、空き申請がぶら下がっていることもある。
+   */
+  async function clearLeftovers(
+    leftovers: SlotInfo[],
+    key: string,
+  ): Promise<boolean> {
+    if (leftovers.length === 0) return true;
+
+    const claims = leftovers.flatMap((slot) => slot.claims);
+    const lines = leftovers.map((slot) => `・${describeSlot(slot)}`).join("\n");
+    const message =
+      claims.length > 0
+        ? `この時間には区切りの合わない古いコマが${leftovers.length}件あります。\n\n${lines}\n\n置き換えると次の空き申請も取り消されます。本人に連絡してください:\n${formatClaimList(claims)}`
+        : `この時間には区切りの合わない古いコマが${leftovers.length}件あります。\n\n${lines}\n\n消して置き換えますか?`;
+    if (!window.confirm(message)) return false;
+
+    painting.current.add(key);
+    const { error: deleteError } = await supabase
+      .from("slots")
+      .delete()
+      .in(
+        "id",
+        leftovers.map((slot) => slot.id),
+      );
+    painting.current.delete(key);
+
+    if (deleteError) {
+      setError(`古いコマを消せませんでした: ${deleteError.message}`);
+      reload();
+      return false;
+    }
+    setError(null);
+    for (const slot of leftovers) dropSlot(slot.id);
+    return true;
+  }
+
   async function paintOne(target: PaintTarget, brush: Brush) {
     const { date, room, period, cell } = target;
     const key = cellKey(date, room.id, period.position);
@@ -421,7 +461,11 @@ export function SlotStep() {
 
     // 消す
     if (brush.kind === "clear") {
-      if (!cell.slot) return;
+      // ぴったりのコマが無くても、重なっている古いコマがあれば片付ける
+      if (!cell.slot) {
+        await clearLeftovers(cell.overlapping, key);
+        return;
+      }
       const doomed = invalidatedClaims(cell.slot, null);
       if (doomed.length > 0 && !confirmClaimLoss(doomed)) return;
 
@@ -505,6 +549,11 @@ export function SlotStep() {
     }
 
     if (!cell.reservationId) return; // 予約が無いセルは押せない
+
+    // **重なっている古いコマを先に片付ける。** 残したまま insert すると
+    // 排他制約に当たって「重なっています」とだけ言われ、何が邪魔なのか
+    // 分からない (コマの時間を変えた月では必ず起きる)
+    if (!(await clearLeftovers(cell.overlapping, key))) return;
 
     painting.current.add(key);
     const { data, error: writeError } = await supabase
@@ -913,6 +962,12 @@ function MonthGenerationPicker({
       ) : null}
     </section>
   );
+}
+
+/** 確認ダイアログに出すコマの説明。「18:50〜19:30 LOCK」 */
+function describeSlot(slot: SlotInfo): string {
+  const genre = slot.genreId != null ? GENRE_BY_ID.get(slot.genreId)?.code : null;
+  return `${formatTimeRange(slot.startTime, slot.endTime)} ${genre ?? SLOT_STATUS_LABELS[slot.status]}`;
 }
 
 function formatClaimList(claims: SlotClaimInfo[]): string {

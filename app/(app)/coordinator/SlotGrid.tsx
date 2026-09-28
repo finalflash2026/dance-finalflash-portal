@@ -128,6 +128,21 @@ function cellFace(cell: GridCell): {
         fg: "var(--foreground)",
         title: "練習できます (未割当。公開すると「空き」になります)",
       };
+    case "conflict": {
+      const labels = cell.overlapping
+        .map((slot) => {
+          const genre =
+            slot.genreId != null ? GENRE_BY_ID.get(slot.genreId)?.code : null;
+          return `${formatTimeRange(slot.startTime, slot.endTime)} ${genre ?? (slot.status === "open" ? "空き" : "使用不可")}`;
+        })
+        .join(" / ");
+      return {
+        text: "⚠",
+        bg: "transparent",
+        fg: "var(--danger-fg)",
+        title: `この時間には区切りの合わない古いコマが残っています (${labels})。押すと置き換えられます`,
+      };
+    }
     case "partial":
       return {
         text: "△",
@@ -482,7 +497,11 @@ function renderRow({
 
     const face = cellFace(cell);
     const clickable = run.some(
-      (entry) => entry.cell.kind !== "none" && entry.cell.kind !== "partial",
+      (entry) =>
+        entry.cell.kind !== "none" &&
+        entry.cell.kind !== "partial" &&
+        // 古いコマが残っていても、覆っている予約枠があれば置き換えられる
+        (entry.cell.kind !== "conflict" || entry.cell.reservationId !== null),
     );
     const targets: PaintTarget[] = run.map((entry) => ({
       date,
@@ -883,6 +902,7 @@ function Totals({ totals }: { totals: ReturnType<typeof summarize> }) {
         未割当 {totals.unassigned} ・ 空き {totals.open} ・ 公式練{" "}
         {totals.genre} ・ 使用不可 {totals.unavailable}
         {totals.partial > 0 ? ` ・ 時間ズレ ${totals.partial}` : ""}
+        {totals.conflict > 0 ? ` ・ 古いコマ残り ${totals.conflict}` : ""}
       </p>
 
       {totals.byGenre.size > 0 ? (
@@ -914,7 +934,7 @@ function Legend() {
     <div className="space-y-1 text-xs text-[var(--muted)]">
       <p>
         薄い ○=練習できる(未割当) ／ 地の付いた ○=空き ／ −=使用不可 ／
-        △=予約はあるがコマの時間を覆えていない ／ 空欄=予約なし。
+        △=予約はあるがコマの時間を覆えていない ／ ⚠=区切りの合わない古いコマが残っている ／ 空欄=予約なし。
         色付きのセルは公式練です。
         <strong>セルの裏の薄い帯</strong>は①で取り込んだ予約で、
         コマの時間を変えると伸び縮みします。
