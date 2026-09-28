@@ -5,6 +5,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { ErrorMessage, buttonClass, secondaryButtonClass } from "@/components/ui";
 import { useRoomById, useRooms } from "@/lib/rooms";
 import { GENRES, PRACTICE_WEEKDAYS } from "@/lib/constants";
+import { findSplitReservations } from "@/lib/reservations";
 import {
   cellKey,
   nextPeriod,
@@ -31,6 +32,7 @@ import {
   getWeekday,
   normalizeTimeInput,
   startOfMonth,
+  toMinutes,
   todayInTokyo,
 } from "@/lib/time";
 import type { DateString, SlotStatus } from "@/lib/types";
@@ -120,6 +122,18 @@ export function SlotStep() {
     const withReservations = reservations.map((r) => r.date);
     return [...new Set([...practice, ...withReservations])].sort();
   }, [month, practiceDaysOnly, reservations]);
+
+  /**
+   * 時間がつながっているのに分かれている予約枠 (v1.29.1)。
+   *
+   * 施設の予約ページが続きの枠を別行で出すことがあり、そのまま取り込むと
+   * **境目をまたぐコマを置けなくなる** (どちらの枠にも収まらないため)。
+   * 取込時にはまとめるようにしたが、既に入っているものはここから直す。
+   */
+  const splitGroups = useMemo(
+    () => findSplitReservations(reservations),
+    [reservations],
+  );
 
   const derived = deriveMonthGenerations(
     reservations.flatMap((r) => r.slots),
@@ -304,6 +318,86 @@ export function SlotStep() {
   }
 
   /**
+   * 分かれている予約枠を1本につなげる (v1.29.1)。
+   *
+   * **コマを先に移してから枠を消す。** `slots.reservation_id` は
+   * `on delete cascade` なので、先に枠を消すとぶら下がっているコマと
+   * 空き申請まで消える。
+   */
+  async function mergeSplitReservations() {
+    const lines = splitGroups.map((group) => {
+      const last = group.reduce(
+        (latest, r) =>
+          toMinutes(r.endTime) > toMinutes(latest) ? r.endTime : latest,
+        group[0].endTime,
+      );
+      return `・${formatDateLabel(group[0].date)} ${roomById.get(group[0].roomId)?.name ?? ""} ${formatTimeRange(group[0].startTime, last)}`;
+    });
+    if (
+      !window.confirm(
+        `次の予約枠を1本につなげます。\n\n${lines.join("\n")}\n\n入っているコマと空き申請はそのまま残ります。`,
+      )
+    ) {
+      return;
+    }
+
+    setPending(true);
+    setError(null);
+
+    for (const group of splitGroups) {
+      const sorted = [...group].sort(
+        (a, b) => toMinutes(a.startTime) - toMinutes(b.startTime),
+      );
+      const survivor = sorted[0];
+      const others = sorted.slice(1);
+      const endTime = sorted.reduce(
+        (latest, r) =>
+          toMinutes(r.endTime) > toMinutes(latest) ? r.endTime : latest,
+        survivor.endTime,
+      );
+      const otherIds = others.map((r) => r.id);
+
+      const { error: moveError } = await supabase
+        .from("slots")
+        .update({ reservation_id: survivor.id })
+        .in("reservation_id", otherIds);
+      if (moveError) {
+        setPending(false);
+        setError(`コマを移せませんでした: ${moveError.message}`);
+        reload();
+        return;
+      }
+
+      const { error: growError } = await supabase
+        .from("reservations")
+        .update({ end_time: endTime })
+        .eq("id", survivor.id);
+      if (growError) {
+        setPending(false);
+        setError(`予約枠を伸ばせませんでした: ${growError.message}`);
+        reload();
+        return;
+      }
+
+      const { error: dropError } = await supabase
+        .from("reservations")
+        .delete()
+        .in("id", otherIds);
+      if (dropError) {
+        setPending(false);
+        setError(
+          `分かれていた枠を消せませんでした (つなぎ自体は済んでいます): ${dropError.message}`,
+        );
+        reload();
+        return;
+      }
+    }
+
+    setPending(false);
+    reload();
+  }
+
+  /**
    * 表のセルを1つ書き換える (SPEC §6.2 Step2 / v1.28)。
    *
    * コマの時間は表の行が決めているので、時刻の入力は要らない。
@@ -463,6 +557,13 @@ export function SlotStep() {
 
       <ErrorMessage>{error ?? periods.error}</ErrorMessage>
 
+      <SplitReservationNotice
+        groups={splitGroups}
+        roomName={(roomId) => roomById.get(roomId)?.name ?? "?"}
+        disabled={pending}
+        onMerge={mergeSplitReservations}
+      />
+
       <WeekdayFilter
         practiceDaysOnly={practiceDaysOnly}
         hiddenCount={hiddenCount}
@@ -581,6 +682,59 @@ export function SlotStep() {
         />
       ) : null}
     </div>
+  );
+}
+
+/**
+ * 分かれている予約枠の知らせ (SPEC §6.2 Step2 / v1.29.1)
+ *
+ * **黙ってつながない。** 予約枠は「施設から借りた事実」で、勝手に形を
+ * 変えてよいものではない。ただ、分かれたままだと境目をまたぐコマを
+ * 置けないので、理由と直し方をその場に出す。
+ */
+function SplitReservationNotice({
+  groups,
+  roomName,
+  disabled,
+  onMerge,
+}: {
+  groups: ReservationInfo[][];
+  roomName: (roomId: number) => string;
+  disabled: boolean;
+  onMerge: () => void;
+}) {
+  if (groups.length === 0) return null;
+
+  return (
+    <section className="space-y-2 rounded-xl border border-[var(--danger-border)] bg-[var(--danger-bg)] p-3 text-xs text-[var(--danger-fg)]">
+      <p className="font-bold">
+        時間がつながっているのに分かれている予約枠が {groups.length}件あります
+      </p>
+      <p>
+        施設の予約ページが続きの枠を別の行で出すことがあります。
+        このままだと<strong>境目をまたぐコマ (例 18:50〜20:00) を置けません</strong>
+        (△ になります)。
+      </p>
+      <ul className="space-y-0.5">
+        {groups.slice(0, 8).map((group, index) => (
+          <li key={index}>
+            {formatDateLabel(group[0].date)} {roomName(group[0].roomId)}{" "}
+            {group
+              .map((r) => formatTimeRange(r.startTime, r.endTime))
+              .join(" + ")}
+          </li>
+        ))}
+        {groups.length > 8 ? <li>…ほか {groups.length - 8}件</li> : null}
+      </ul>
+      <button
+        type="button"
+        disabled={disabled}
+        onClick={onMerge}
+        className="rounded-lg border border-[var(--danger-border)] bg-[var(--background)] px-3 py-1.5 font-bold disabled:opacity-50"
+      >
+        1本につなげる
+      </button>
+    </section>
   );
 }
 
