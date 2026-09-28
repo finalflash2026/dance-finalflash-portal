@@ -1,5 +1,5 @@
 /**
- * コマ割り表の組み立て (SPEC.md §6.2 Step2 / v1.28)
+ * コマ割り表の組み立て (SPEC.md §6.2 Step2 / v1.28, v1.29)
  *
  * 折衝係が Excel で作っている表をそのまま画面に持ってくるための計算。
  * **列=練習場所 / 行=日にち×コマ**で、セルの中身は次の5種類:
@@ -12,6 +12,10 @@
  *
  * ○ を**自動で出す**のがこの表の要点。予約枠 (第1層) とコマの時間を
  * 突き合わせれば機械的に決まるので、折衝係が1つずつ確認する必要がない。
+ *
+ * **コマの時間は「日にち×所在」で決まる** (v1.29)。月の基準を1つ置き、
+ * 違う日・違う建物だけ上書きする。折衝の実態がそうなっている
+ * (施設の都合で、特定の日や特定の建物だけ区切りがずれる)。
  *
  * ここは React に依存しない純関数だけ置く。画面 (SlotGrid.tsx) と
  * 集計の両方が同じ判定を使うため。
@@ -37,18 +41,9 @@ export interface SlotPeriod {
 }
 
 /**
- * 「全体の基準」を表す section の値。
+ * 初期値として置くコマ (SPEC §6.2 Step2-2)。
  *
- * `slot_periods.section` は NOT NULL にしてある。null を「基準」に使うと、
- * Postgres の一意制約では null 同士が別物として扱われ、基準の行を
- * 何本でも作れてしまう。
- */
-export const BASE_SECTION = "";
-
-/**
- * 初期値として置くコマ (SPEC §6.2 Step2-2 / v1.28)。
- *
- * 折衝係が毎月ゼロから打つのは手間なので、いつもの4コマを入れておく。
+ * 折衝係が毎月ゼロから打つのは手間なので、よくある4コマを入れておく。
  * **確定はしない** — 保存するまでは下書きで、月ごとに違ってよい。
  */
 export const DEFAULT_PERIODS: readonly SlotPeriod[] = [
@@ -58,22 +53,59 @@ export const DEFAULT_PERIODS: readonly SlotPeriod[] = [
   { position: 4, startTime: "19:10", endTime: "21:10" },
 ];
 
-/** 1つの月のコマ時間。所在ごとの上書きを持てる (まれに1か所だけズレるため) */
+/**
+ * 1つの月のコマ時間。
+ *
+ * `overrides` の鍵は `日付|所在`。**部屋ではなく所在(建物)単位**で持つ —
+ * 施設の都合でずれるのは建物ごとで、同じ建物の中の部屋だけ違うことはない。
+ */
 export interface PeriodTable {
   base: SlotPeriod[];
-  /** section名 → その所在だけのコマ。無ければ base を使う */
   overrides: Map<string, SlotPeriod[]>;
+}
+
+export function overrideKey(date: DateString, section: string): string {
+  return `${date}|${section}`;
 }
 
 export function emptyPeriodTable(): PeriodTable {
   return { base: [...DEFAULT_PERIODS], overrides: new Map() };
 }
 
-export function periodsForSection(
+/** その日・その所在で使うコマ。上書きが無ければ月の基準 */
+export function periodsFor(
   table: PeriodTable,
+  date: DateString,
   section: string,
 ): SlotPeriod[] {
-  return table.overrides.get(section) ?? table.base;
+  return table.overrides.get(overrideKey(date, section)) ?? table.base;
+}
+
+export function hasOverride(
+  table: PeriodTable,
+  date: DateString,
+  section: string,
+): boolean {
+  return table.overrides.has(overrideKey(date, section));
+}
+
+/**
+ * その日に必要な行数。
+ *
+ * 上書きした所在だけコマ数が多いことがあるので、**一番多い所に合わせる**。
+ * 足りない所在はその行が空欄になる。
+ */
+export function rowCountForDate(
+  table: PeriodTable,
+  date: DateString,
+  sections: readonly string[],
+): number {
+  let count = table.base.length;
+  for (const section of sections) {
+    const override = table.overrides.get(overrideKey(date, section));
+    if (override) count = Math.max(count, override.length);
+  }
+  return count;
 }
 
 /** コマの時間が妥当か。空欄・逆転・重なりを弾く */
@@ -98,21 +130,42 @@ export function validatePeriods(periods: SlotPeriod[]): string | null {
   return null;
 }
 
-/**
- * 保存済みの内容と見比べるための文字列。
- * 「打ったまま保存し忘れた」を画面から言えるようにするために要る
- * (他の折衝係には保存するまで見えないため)。
- */
-export function serializePeriodTable(table: PeriodTable): string {
-  const parts = [`${BASE_SECTION}:${describe(table.base)}`];
-  for (const section of [...table.overrides.keys()].sort()) {
-    parts.push(`${section}:${describe(table.overrides.get(section) ?? [])}`);
-  }
-  return parts.join("|");
+/** position を 1 から振り直す。消したり足したりしても番号が飛ばないように */
+export function renumber(periods: SlotPeriod[]): SlotPeriod[] {
+  return periods.map((period, index) => ({ ...period, position: index + 1 }));
 }
 
-function describe(periods: SlotPeriod[]): string {
-  return periods.map((p) => `${p.startTime}-${p.endTime}`).join(",");
+/**
+ * 末尾にコマを1つ足すときの既定値。
+ *
+ * 直前のコマと同じ長さで、同じだけ間を空けて続ける。
+ * 空欄で足すより、たいていの場合そのまま使えるほうが早い。
+ */
+export function nextPeriod(periods: SlotPeriod[]): SlotPeriod {
+  const last = periods[periods.length - 1];
+  if (!last) return { ...DEFAULT_PERIODS[0] };
+
+  const length = toMinutes(last.endTime) - toMinutes(last.startTime);
+  const previous = periods[periods.length - 2];
+  const gap = previous
+    ? toMinutes(last.startTime) - toMinutes(previous.endTime)
+    : 10;
+  const start = toMinutes(last.endTime) + Math.max(gap, 0);
+  const end = start + length;
+  // 24時を越えるなら足さない側に倒す (日跨ぎはコマ割りでは扱わない)
+  if (end > 24 * 60) return { ...last, position: periods.length + 1 };
+
+  return {
+    position: periods.length + 1,
+    startTime: fromMinutes(start),
+    endTime: fromMinutes(end),
+  };
+}
+
+function fromMinutes(minutes: number): TimeString {
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}` as TimeString;
 }
 
 // ---------- 日にち ----------
@@ -147,12 +200,20 @@ export type GridCellKind =
   | "unavailable"
   | "genre";
 
+/** セルの裏に薄く敷く予約の帯。セルの幅に対する％ */
+export interface CoverageBar {
+  left: number;
+  width: number;
+}
+
 export interface GridCell {
   kind: GridCellKind;
   /** 既にコマがあるなら、その行 */
   slot: SlotInfo | null;
   /** コマを作るときの親。覆っている予約枠が無ければ null */
   reservationId: string | null;
+  /** ①で取り込んだ予約が、このコマのどこを覆っているか */
+  coverage: CoverageBar[];
 }
 
 /** 基準のコマに合わないコマ。表では表せないので別に並べて知らせる */
@@ -165,7 +226,8 @@ export interface OffGridSlot {
 export interface GridInput {
   dates: readonly DateString[];
   rooms: readonly { id: number; section: string }[];
-  periodsFor: (section: string) => SlotPeriod[];
+  periodsFor: (date: DateString, section: string) => SlotPeriod[];
+  rowCount: (date: DateString) => number;
   reservations: readonly {
     id: string;
     date: DateString;
@@ -190,8 +252,9 @@ export function cellKey(
  * **覆っているか**の判定は「予約枠がコマを丸ごと含む」こと。
  * 一部しか重なっていない枠では、そのコマの練習はできない
  * (13:00〜14:50 のコマに対して 13:00〜14:00 の予約、など)。
- * ただし黙って空欄にすると気付けないので `partial` として残す —
- * これが「その場所だけ基準の時間とズレている」ことに気付く唯一の手掛かりになる。
+ * ただし黙って空欄にすると気付けないので `partial` として残し、
+ * **予約の帯をセルの裏に薄く敷く** (v1.29)。どれだけ足りないのかが
+ * 目で分かり、コマの時間をどう直せばよいか決められる。
  */
 export function buildGrid(input: GridInput): {
   cells: Map<string, GridCell>;
@@ -210,23 +273,40 @@ export function buildGrid(input: GridInput): {
   const matchedSlotIds = new Set<string>();
 
   for (const date of input.dates) {
+    const rows = input.rowCount(date);
     for (const room of input.rooms) {
       const reservations = byDateRoom.get(`${date}|${room.id}`) ?? [];
+      const periods = input.periodsFor(date, room.section);
 
-      for (const period of input.periodsFor(room.section)) {
+      for (let index = 0; index < rows; index += 1) {
+        const period = periods[index];
+        if (!period) continue; // その所在にはこの行のコマが無い
+
         const periodStart = toMinutes(period.startTime);
         const periodEnd = toMinutes(period.endTime);
+        const span = periodEnd - periodStart;
 
         const covering = reservations.find(
           (r) =>
             toMinutes(r.startTime) <= periodStart &&
             periodEnd <= toMinutes(r.endTime),
         );
-        const touching = reservations.find(
+        const touching = reservations.some(
           (r) =>
             toMinutes(r.startTime) < periodEnd &&
             periodStart < toMinutes(r.endTime),
         );
+
+        const coverage: CoverageBar[] = [];
+        for (const reservation of reservations) {
+          const from = Math.max(toMinutes(reservation.startTime), periodStart);
+          const to = Math.min(toMinutes(reservation.endTime), periodEnd);
+          if (to <= from || span <= 0) continue;
+          coverage.push({
+            left: ((from - periodStart) / span) * 100,
+            width: ((to - from) / span) * 100,
+          });
+        }
 
         const slot = reservations
           .flatMap((r) => r.slots)
@@ -248,18 +328,21 @@ export function buildGrid(input: GridInput): {
                   : "unavailable",
             slot,
             reservationId: covering?.id ?? null,
+            coverage,
           });
         } else if (covering) {
           cells.set(key, {
             kind: "unassigned",
             slot: null,
             reservationId: covering.id,
+            coverage,
           });
         } else {
           cells.set(key, {
             kind: touching ? "partial" : "none",
             slot: null,
             reservationId: null,
+            coverage,
           });
         }
       }
@@ -304,7 +387,7 @@ export interface GridTotals {
 }
 
 /**
- * 表の下に出す集計 (SPEC §6.2 Step2-2 / v1.28)。
+ * 表の下に出す集計 (SPEC §6.2 Step2-2)。
  *
  * 「この月に何コマ練習できるのか」は、各ジャンルへ配る前に必ず要る数字。
  * ○ の数を折衝係が数えていたので、表から機械的に出す。
@@ -325,8 +408,13 @@ export function summarize(
   };
 
   for (const date of input.dates) {
+    const rows = input.rowCount(date);
     for (const room of input.rooms) {
-      for (const period of input.periodsFor(room.section)) {
+      const periods = input.periodsFor(date, room.section);
+      for (let index = 0; index < rows; index += 1) {
+        const period = periods[index];
+        if (!period) continue;
+
         const cell = cells.get(cellKey(date, room.id, period.position));
         if (!cell || cell.kind === "none") continue;
 
