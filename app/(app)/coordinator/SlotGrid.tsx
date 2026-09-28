@@ -426,6 +426,7 @@ function BrushPalette({
         onClick={() =>
           onChange(brush?.kind === "open" ? null : { kind: "open" })
         }
+        title="この時間だけを個人練に開放したいときに使います。未割当 (薄い○) のままでも、公開すれば通しで空きになります"
         className={chip(brush?.kind === "open")}
       >
         空き ○
@@ -593,11 +594,24 @@ function Totals({ totals }: { totals: ReturnType<typeof summarize> }) {
 
 function Legend() {
   return (
-    <p className="text-xs text-[var(--muted)]">
-      ○=練習できる(未割当。公開すると「空き」になります) ／ −=使用不可 ／
-      △=予約はあるがコマの時間を覆えていない ／ 空欄=予約なし。
-      色付きのセルは公式練です。
-    </p>
+    <div className="space-y-1 text-xs text-[var(--muted)]">
+      <p>
+        薄い ○=練習できる(未割当) ／ 地の付いた ○=空き ／ −=使用不可 ／
+        △=予約はあるがコマの時間を覆えていない ／ 空欄=予約なし。
+        色付きのセルは公式練です。
+      </p>
+      {/*
+        「空き」を1コマずつ置くと、空きコマがコマ単位に切れる。
+        通しで置きたいのが普通なので、未割当のままにしておくよう促す
+        (公開時に unassignedRanges() が予約枠の余りを1本にまとめる)。
+      */}
+      <p>
+        <strong>未割当 (薄い ○) はそのままで構いません。</strong>
+        公開すると、その日の余った時間が<strong>通しで1本の「空き」</strong>になります。
+        「空き」を1コマずつ置くと、空きがコマ単位に切れて、
+        コマをまたぐ個人練の申請ができなくなります。
+      </p>
+    </div>
   );
 }
 
