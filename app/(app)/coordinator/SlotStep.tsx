@@ -5,7 +5,12 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { ErrorMessage, buttonClass, secondaryButtonClass } from "@/components/ui";
 import { useRoomById, useRooms } from "@/lib/rooms";
 import { GENRES, PRACTICE_WEEKDAYS } from "@/lib/constants";
-import { cellKey, practiceDatesOfMonth } from "@/lib/slot-grid";
+import {
+  cellKey,
+  nextPeriod,
+  practiceDatesOfMonth,
+  renumber,
+} from "@/lib/slot-grid";
 import {
   SLOT_PRESET_MINUTES,
   SLOT_STATUS_LABELS,
@@ -32,7 +37,12 @@ import type { DateString, SlotStatus } from "@/lib/types";
 
 import { MonthNav } from "./MonthNav";
 import { PeriodPanel } from "./PeriodPanel";
-import { SlotGrid, type Brush, type PaintTarget } from "./SlotGrid";
+import {
+  SlotGrid,
+  type Brush,
+  type PaintTarget,
+  type PeriodEdit,
+} from "./SlotGrid";
 import { SlotTimeline } from "./SlotTimeline";
 import {
   useMonthReservations,
@@ -72,6 +82,10 @@ export function SlotStep() {
   } = useMonthReservations(month);
   const rooms = useRooms();
   const periods = useSlotPeriods(month);
+  const sectionNames = useMemo(
+    () => [...new Set(rooms.map((room) => room.section))],
+    [rooms],
+  );
   const [view, setView] = useState<"grid" | "timeline">("grid");
   /** 同じセルへの二重書き込みを止める。連打すると重なり制約に当たるため */
   const painting = useRef(new Set<string>());
@@ -298,7 +312,15 @@ export function SlotStep() {
    *
    * 失敗したときだけ月ぶんを読み直す。成功時は手元の1コマだけ差し替える。
    */
-  async function paint(target: PaintTarget, brush: Brush) {
+  async function paint(targets: PaintTarget[], brush: Brush) {
+    // 横に結合したセルは複数の部屋を指す。**順に片付ける** —
+    // 同時に投げると、失敗したときにどこまで進んだのか分からなくなる
+    for (const target of targets) {
+      await paintOne(target, brush);
+    }
+  }
+
+  async function paintOne(target: PaintTarget, brush: Brush) {
     const { date, room, period, cell } = target;
     const key = cellKey(date, room.id, period.position);
     if (painting.current.has(key)) return;
@@ -452,14 +474,13 @@ export function SlotStep() {
         <>
           <PeriodPanel
             month={month}
-            table={periods.table}
+            base={periods.table.base}
             snapshot={periods.snapshot}
-            onChange={periods.setTable}
-            onSave={(section, list) => {
-              void periods.save(section, list);
-            }}
-            onClearOverride={(section) => {
-              void periods.clearOverride(section);
+            onChange={(base) =>
+              periods.setTable((current) => ({ ...current, base }))
+            }
+            onSave={(base) => {
+              void periods.saveBase(base);
             }}
             disabled={pending}
           />
@@ -479,6 +500,16 @@ export function SlotStep() {
             reservations={reservations}
             disabled={pending}
             onPaint={paint}
+            onSavePeriods={(edits: PeriodEdit[]) => {
+              void periods.saveOverrides(edits, periods.table.base);
+            }}
+            onChangeRowCount={(date, delta) => {
+              void periods.changeRowCount(date, sectionNames, (list) =>
+                delta > 0
+                  ? [...list, nextPeriod(list)]
+                  : renumber(list.slice(0, Math.max(list.length - 1, 1))),
+              );
+            }}
           />
         </>
       ) : /* 保存のたびに一覧が消えるとスクロール位置が飛ぶので、
