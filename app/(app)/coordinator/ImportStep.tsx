@@ -132,8 +132,13 @@ export function ImportStep() {
       const learned = body.learnedAliases
         ? ` / 部屋の対応付けを${body.learnedAliases}件おぼえました`
         : "";
+      // つながっている行は1本にまとめて登録される (v1.29.1)。
+      // 黙ってまとめると「入れたはずの行が無い」と見えるので必ず出す
+      const merged = body.merged
+        ? ` / 時間がつながっている${body.merged}行を前の行にまとめました`
+        : "";
       setResult(
-        `登録 ${body.inserted}件 / 重複スキップ ${body.skipped}件${learned}`,
+        `登録 ${body.inserted}件 / 重複スキップ ${body.skipped}件${merged}${learned}`,
       );
       setRows([]);
       setFileNotes([]);
