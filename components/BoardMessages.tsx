@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import {
   MESSAGE_MAX_LENGTH,
@@ -29,6 +29,18 @@ import { useLiveRefresh } from "@/lib/use-live-refresh";
 /** ボードと同じ間隔で見直す (§6.1.1) */
 const POLL_INTERVAL_MS = 15_000;
 
+/**
+ * 打った内容に合わせて入力欄を伸ばす。
+ *
+ * **一度 auto に戻してから測る。** 前の高さが残っていると scrollHeight が
+ * それ以上に縮まず、文字を消しても細くならない。
+ * 上限は CSS (`max-h-32`) 側で止めて、その先は中でスクロールさせる。
+ */
+function autosize(element: HTMLTextAreaElement) {
+  element.style.height = "auto";
+  element.style.height = `${element.scrollHeight}px`;
+}
+
 export function BoardMessages({
   scope,
   date,
@@ -46,6 +58,7 @@ export function BoardMessages({
   const [draft, setDraft] = useState("");
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
 
   const refresh = useCallback(async () => {
     const supabase = createClient();
@@ -100,6 +113,11 @@ export function BoardMessages({
       return;
     }
     setDraft("");
+    // 伸ばした高さも戻す。戻さないと空欄のまま数行ぶん空く
+    if (inputRef.current) {
+      inputRef.current.style.height = "auto";
+      inputRef.current.focus();
+    }
     await refresh();
   }
 
@@ -164,7 +182,12 @@ export function BoardMessages({
             role="dialog"
             aria-modal="true"
             aria-label="連絡"
-            className="sheet-in relative z-10 flex max-h-[85dvh] w-full max-w-md flex-col rounded-t-2xl bg-[var(--background)] sm:rounded-2xl"
+            /*
+              **高さを先に決める** (v1.29.3)。中身なりに伸ばすと、連絡が
+              0〜2件のときに窓が指1本ぶんの高さしかなく、開いたことすら
+              分かりにくかった。読む場所を先に確保しておく
+            */
+            className="sheet-in relative z-10 flex h-[78dvh] max-h-[85dvh] w-full max-w-md flex-col rounded-t-2xl bg-[var(--background)] sm:h-[70vh] sm:rounded-2xl"
           >
             <header className="flex items-baseline justify-between gap-2 border-b border-[var(--border)] px-4 py-3">
               <h3 className="text-base font-bold">
@@ -186,7 +209,7 @@ export function BoardMessages({
 
             <div className="min-h-0 flex-1 space-y-2 overflow-y-auto px-4 py-3">
               {messages.length === 0 ? (
-                <p className="py-6 text-center text-sm text-[var(--muted)]">
+                <p className="flex h-full items-center justify-center text-sm text-[var(--muted)]">
                   連絡はまだありません
                 </p>
               ) : (
@@ -248,41 +271,102 @@ export function BoardMessages({
               この窓は下のボタンを固定していて**スクロールでも逃げられない**ので、
               入れ忘れると「書き込む」が押しにくいままになる
             */}
-            <div className="safe-bottom space-y-2 border-t border-[var(--border)] px-4 py-3">
-              <textarea
-                aria-label="連絡の内容"
-                value={draft}
-                rows={2}
-                maxLength={MESSAGE_MAX_LENGTH}
-                disabled={pending}
-                placeholder="メッセージを入力"
-                onChange={(e) => setDraft(e.target.value)}
-                className="w-full resize-none rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2 text-base outline-none focus:border-[var(--foreground)]"
-              />
-              <p className="text-[11px] text-[var(--muted)]">
-                書き込むと現役全員に通知が届きます ({draft.length}/{MESSAGE_MAX_LENGTH})
-              </p>
-              <div className="flex gap-2">
-                <button
-                  type="button"
-                  onClick={send}
-                  disabled={pending || draft.trim().length === 0}
-                  className="flex-1 rounded-lg bg-[var(--primary)] px-4 py-2.5 text-sm font-bold text-[var(--primary-fg)] disabled:opacity-50"
-                >
-                  {pending ? "送信中…" : "書き込む"}
-                </button>
+            <div className="safe-bottom space-y-1.5 border-t border-[var(--border)] px-3 py-2">
+              <div className="flex items-end gap-2">
+                {/*
+                  **1行で始めて、打つぶんだけ伸ばす** (v1.29.3)。
+                  連絡はたいてい一言なので、最初から数行ぶんの箱を空けて
+                  おくと読む場所が削られる。伸びる上限は5行ぶんで、
+                  それ以上は中でスクロールさせる
+                */}
+                <div className="flex min-w-0 flex-1 items-end gap-1 rounded-2xl border border-[var(--border)] bg-[var(--background)] px-3 py-1.5 focus-within:border-[var(--foreground)]">
+                  <textarea
+                    ref={inputRef}
+                    aria-label="連絡の内容"
+                    value={draft}
+                    rows={1}
+                    maxLength={MESSAGE_MAX_LENGTH}
+                    disabled={pending}
+                    placeholder="メッセージを入力"
+                    onChange={(e) => {
+                      setDraft(e.target.value);
+                      autosize(e.target);
+                    }}
+                    onKeyDown={(e) => {
+                      // パソコンから打つ人向け。改行は素の Enter のまま
+                      if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+                        e.preventDefault();
+                        void send();
+                      }
+                    }}
+                    className="max-h-32 min-w-0 flex-1 resize-none bg-transparent py-1 text-base leading-6 outline-none"
+                  />
+                  <button
+                    type="button"
+                    onClick={send}
+                    disabled={pending || draft.trim().length === 0}
+                    aria-label={pending ? "送信中" : "送信"}
+                    title="送信"
+                    className="mb-0.5 shrink-0 rounded-full p-1 text-[var(--foreground)] disabled:text-[var(--muted)] disabled:opacity-40"
+                  >
+                    <SendIcon />
+                  </button>
+                </div>
+
+                {/* 閉じるは入力欄の外。送信と並べても取り違えないよう形を変える */}
                 <button
                   type="button"
                   onClick={() => setOpen(false)}
-                  className="rounded-lg border border-[var(--border)] px-4 py-2.5 text-sm"
+                  aria-label="閉じる"
+                  title="閉じる"
+                  className="mb-0.5 shrink-0 rounded-full border border-[var(--border)] p-2 text-[var(--muted)]"
                 >
-                  閉じる
+                  <CloseIcon />
                 </button>
               </div>
+
+              <p className="px-1 text-[11px] text-[var(--muted)]">
+                書き込むと現役全員に通知が届きます
+                {draft.length > 0 ? ` (${draft.length}/${MESSAGE_MAX_LENGTH})` : ""}
+              </p>
             </div>
           </div>
         </div>
       ) : null}
     </>
+  );
+}
+
+/** 送信。紙飛行機は「送る」の意味がいちばん通じる形 */
+function SendIcon() {
+  return (
+    <svg
+      width="20"
+      height="20"
+      viewBox="0 0 20 20"
+      fill="currentColor"
+      aria-hidden
+    >
+      <path d="M2.2 17.3 18.5 10 2.2 2.7l.01 5.68L13.5 10 2.21 11.62z" />
+    </svg>
+  );
+}
+
+/** 閉じる。設定の × と同じ絵にして、意味を揃える */
+function CloseIcon() {
+  return (
+    <svg
+      width="14"
+      height="14"
+      viewBox="0 0 14 14"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      aria-hidden
+    >
+      <line x1="1" y1="1" x2="13" y2="13" />
+      <line x1="13" y1="1" x2="1" y2="13" />
+    </svg>
   );
 }
