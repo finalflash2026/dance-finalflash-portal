@@ -198,7 +198,9 @@ export type GridCellKind =
   | "unassigned"
   | "open"
   | "unavailable"
-  | "genre";
+  | "genre"
+  /** この時間に、区切りの合わない古いコマが残っている (v1.29.2) */
+  | "conflict";
 
 /** セルの裏に薄く敷く予約の帯。セルの幅に対する％ */
 export interface CoverageBar {
@@ -214,6 +216,13 @@ export interface GridCell {
   reservationId: string | null;
   /** ①で取り込んだ予約が、このコマのどこを覆っているか */
   coverage: CoverageBar[];
+  /**
+   * この時間に重なっているが、区切りが一致しないコマ (v1.29.2)。
+   *
+   * コマの時間を後から変えると必ず出る。**空きに見せてはいけない** —
+   * 見た目は ○ なのに、置こうとすると重なりで弾かれることになる。
+   */
+  overlapping: SlotInfo[];
 }
 
 /** 基準のコマに合わないコマ。表では表せないので別に並べて知らせる */
@@ -308,14 +317,23 @@ export function buildGrid(input: GridInput): {
           });
         }
 
-        const slot = reservations
-          .flatMap((r) => r.slots)
-          .find(
-            (s) =>
-              toMinutes(s.startTime) === periodStart &&
-              toMinutes(s.endTime) === periodEnd,
-          );
+        const roomSlots = reservations.flatMap((r) => r.slots);
+        const slot = roomSlots.find(
+          (s) =>
+            toMinutes(s.startTime) === periodStart &&
+            toMinutes(s.endTime) === periodEnd,
+        );
         if (slot) matchedSlotIds.add(slot.id);
+
+        // ぴったり一致はしないが、この時間に重なっているコマ。
+        // コマの時間を後から変えると出る (前の区切りで作ったコマが残る)
+        const overlapping = slot
+          ? []
+          : roomSlots.filter(
+              (s) =>
+                toMinutes(s.startTime) < periodEnd &&
+                periodStart < toMinutes(s.endTime),
+            );
 
         const key = cellKey(date, room.id, period.position);
         if (slot) {
@@ -329,6 +347,16 @@ export function buildGrid(input: GridInput): {
             slot,
             reservationId: covering?.id ?? null,
             coverage,
+            overlapping: [],
+          });
+        } else if (overlapping.length > 0) {
+          // **○ にしない。** 空きに見えるのに置こうとすると重なりで弾かれる
+          cells.set(key, {
+            kind: "conflict",
+            slot: null,
+            reservationId: covering?.id ?? null,
+            coverage,
+            overlapping,
           });
         } else if (covering) {
           cells.set(key, {
@@ -336,6 +364,7 @@ export function buildGrid(input: GridInput): {
             slot: null,
             reservationId: covering.id,
             coverage,
+            overlapping: [],
           });
         } else {
           cells.set(key, {
@@ -343,6 +372,7 @@ export function buildGrid(input: GridInput): {
             slot: null,
             reservationId: null,
             coverage,
+            overlapping: [],
           });
         }
       }
@@ -382,6 +412,8 @@ export interface GridTotals {
   genre: number;
   unavailable: number;
   partial: number;
+  /** 区切りの合わない古いコマが残っているセル (v1.29.2) */
+  conflict: number;
   /** ジャンルid → コマ数。均等に配れているかを見る */
   byGenre: Map<number, number>;
 }
@@ -404,6 +436,7 @@ export function summarize(
     genre: 0,
     unavailable: 0,
     partial: 0,
+    conflict: 0,
     byGenre: new Map(),
   };
 
@@ -424,6 +457,15 @@ export function summarize(
         }
         if (cell.kind === "unavailable") {
           totals.unavailable += 1;
+          continue;
+        }
+        // 練習はできる時間なので数には入れるが、古いコマが残っていて
+        // そのままでは置けない。別に数えて画面で片付けさせる
+        if (cell.kind === "conflict") {
+          totals.practicable += 1;
+          totals.minutes +=
+            toMinutes(period.endTime) - toMinutes(period.startTime);
+          totals.conflict += 1;
           continue;
         }
 
