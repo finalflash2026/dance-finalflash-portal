@@ -1,5 +1,6 @@
 import { writeAuditLog } from "@/lib/admin";
 import { requireRole } from "@/lib/auth/guard";
+import { dbError } from "@/lib/error";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { Profile } from "@/lib/types";
 
@@ -38,6 +39,13 @@ export async function POST(
 
   const { id } = await params;
 
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) {
+    return Response.json(
+      { error: "ユーザーIDの形式が不正です" },
+      { status: 400 },
+    );
+  }
+
   // 自己削除は禁止 (最後のadminが消えるのを防ぐ。SPEC §6.5)
   if (id === actor.user_id) {
     return Response.json(
@@ -56,7 +64,7 @@ export async function POST(
 
   if (targetError) {
     return Response.json(
-      { error: `DBに接続できませんでした: ${targetError.message}` },
+      { error: dbError(targetError.message, "ユーザー取得") },
       { status: 503 },
     );
   }

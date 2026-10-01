@@ -3,6 +3,7 @@ import { z } from "zod";
 
 import { getCurrentProfile } from "@/lib/auth/session";
 import { hasSupabaseEnv } from "@/lib/env";
+import { operationError } from "@/lib/error";
 import { activeMemberIds, sendPush } from "@/lib/push";
 import { createClient } from "@/lib/supabase/server";
 import { todayInTokyo } from "@/lib/time";
@@ -66,7 +67,7 @@ export async function POST(request: Request) {
 
   if (error) {
     return Response.json(
-      { error: `書き込めませんでした: ${error.message}` },
+      { error: operationError("書き込み", error.message, "掲示板") },
       { status: 403 },
     );
   }

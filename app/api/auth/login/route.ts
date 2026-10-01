@@ -24,7 +24,7 @@ const schema = z.object({
 });
 
 export async function POST(request: Request) {
-  if (!checkRateLimit(`login:${clientIp(request)}`, 10)) {
+  if (!checkRateLimit(`login:${clientIp(request)}`)) {
     return Response.json(
       { error: "試行回数が多すぎます。1分ほど待ってからやり直してください" },
       { status: 429 },

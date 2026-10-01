@@ -1,6 +1,7 @@
 import { generateTempPassword, writeAuditLog } from "@/lib/admin";
 import { requireRole } from "@/lib/auth/guard";
 import { MIN_PASSWORD_LENGTH } from "@/lib/constants";
+import { dbError } from "@/lib/error";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { Profile } from "@/lib/types";
 
@@ -24,6 +25,14 @@ export async function POST(
   const actor = guard;
 
   const { id } = await params;
+
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) {
+    return Response.json(
+      { error: "ユーザーIDの形式が不正です" },
+      { status: 400 },
+    );
+  }
+
   const admin = createAdminClient();
 
   const { data: target, error: targetError } = await admin
@@ -34,7 +43,7 @@ export async function POST(
 
   if (targetError) {
     return Response.json(
-      { error: `DBに接続できませんでした: ${targetError.message}` },
+      { error: dbError(targetError.message, "ユーザー取得") },
       { status: 503 },
     );
   }

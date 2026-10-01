@@ -7,6 +7,7 @@ import { buildUsernameFromGenreId } from "@/lib/auth/username";
 import { GENRES, MIN_PASSWORD_LENGTH } from "@/lib/constants";
 import { hasSupabaseEnv } from "@/lib/env";
 import { checkRateLimit, clientIp } from "@/lib/rate-limit";
+import { dbError, operationError } from "@/lib/error";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 /**
@@ -128,7 +129,7 @@ export async function POST(request: Request) {
   // 混同すると設定ミス(URLの誤りなど)が「合言葉が未設定」に見えて原因を追えなくなる
   if (settingError) {
     return Response.json(
-      { error: `DBに接続できませんでした: ${settingError.message}` },
+      { error: dbError(settingError.message, "合言葉の照合") },
       { status: 503 },
     );
   }
@@ -158,7 +159,7 @@ export async function POST(request: Request) {
   // ここでエラーを握り潰すと「重複なし」と誤判定して auth ユーザーを作ってしまう
   if (existingError) {
     return Response.json(
-      { error: `DBに接続できませんでした: ${existingError.message}` },
+      { error: dbError(existingError.message, "ユーザー重複チェック") },
       { status: 503 },
     );
   }
@@ -182,7 +183,7 @@ export async function POST(request: Request) {
 
   if (createError || !created.user) {
     return Response.json(
-      { error: `登録に失敗しました: ${createError?.message ?? "unknown"}` },
+      { error: operationError("登録", createError?.message ?? "unknown", "auth user作成") },
       { status: 500 },
     );
   }
@@ -201,7 +202,7 @@ export async function POST(request: Request) {
   if (profileError) {
     await admin.auth.admin.deleteUser(userId);
     return Response.json(
-      { error: `登録に失敗しました: ${profileError.message}` },
+      { error: operationError("登録", profileError.message, "profile作成") },
       { status: 500 },
     );
   }
@@ -230,7 +231,7 @@ export async function POST(request: Request) {
     if (subgenreError) {
       await admin.auth.admin.deleteUser(userId);
       return Response.json(
-        { error: `登録に失敗しました: ${subgenreError.message}` },
+        { error: operationError("登録", subgenreError.message, "サブジャンル作成") },
         { status: 500 },
       );
     }
@@ -245,7 +246,7 @@ export async function POST(request: Request) {
     // profiles は user_id に on delete cascade が付いているので一緒に消える
     await admin.auth.admin.deleteUser(userId);
     return Response.json(
-      { error: `登録に失敗しました: ${tokenError.message}` },
+      { error: operationError("登録", tokenError.message, "トークン作成") },
       { status: 500 },
     );
   }

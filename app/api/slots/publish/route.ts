@@ -5,6 +5,7 @@ import { requireRole } from "@/lib/auth/guard";
 import { sendPush } from "@/lib/push";
 import { unassignedRanges } from "@/lib/slots";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { dbError } from "@/lib/error";
 import { createClient } from "@/lib/supabase/server";
 import {
   endOfMonth,
@@ -61,7 +62,7 @@ export async function POST(request: Request) {
 
   if (countError) {
     return Response.json(
-      { error: `コマを確認できませんでした: ${countError.message}` },
+      { error: dbError(countError.message, "コマ確認") },
       { status: 503 },
     );
   }
@@ -84,7 +85,7 @@ export async function POST(request: Request) {
 
   if (reservationError) {
     return Response.json(
-      { error: `予約枠を確認できませんでした: ${reservationError.message}` },
+      { error: dbError(reservationError.message, "予約枠確認") },
       { status: 503 },
     );
   }

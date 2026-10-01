@@ -1,6 +1,7 @@
 import { getCurrentProfile } from "@/lib/auth/session";
 import { generateCalendarToken } from "@/lib/auth/token";
 import { hasSupabaseEnv } from "@/lib/env";
+import { operationError } from "@/lib/error";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 /**
@@ -36,7 +37,7 @@ export async function POST() {
 
   if (error) {
     return Response.json(
-      { error: `再発行に失敗しました: ${error.message}` },
+      { error: operationError("再発行", error.message, "カレンダートークン") },
       { status: 500 },
     );
   }

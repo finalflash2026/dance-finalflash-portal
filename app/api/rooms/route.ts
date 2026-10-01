@@ -2,6 +2,7 @@ import { z } from "zod";
 
 import { requireRole } from "@/lib/auth/guard";
 import { hasSupabaseEnv } from "@/lib/env";
+import { dbError } from "@/lib/error";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 /**
@@ -70,7 +71,7 @@ export async function POST(request: Request) {
 
   if (existingError) {
     return Response.json(
-      { error: `確認できませんでした: ${existingError.message}` },
+      { error: dbError(existingError.message, "部屋の重複チェック") },
       { status: 503 },
     );
   }
@@ -99,7 +100,7 @@ export async function POST(request: Request) {
 
     if (lastError) {
       return Response.json(
-        { error: `並び順を決められませんでした: ${lastError.message}` },
+        { error: dbError(lastError.message, "並び順の取得") },
         { status: 503 },
       );
     }
@@ -116,7 +117,7 @@ export async function POST(request: Request) {
 
     if (createError || !created) {
       return Response.json(
-        { error: `登録できませんでした: ${createError?.message ?? "unknown"}` },
+        { error: dbError(createError?.message ?? "unknown", "部屋の作成") },
         { status: 500 },
       );
     }

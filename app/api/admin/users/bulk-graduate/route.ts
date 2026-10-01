@@ -2,6 +2,7 @@ import { z } from "zod";
 
 import { graduateToOb, writeAuditLogs } from "@/lib/admin";
 import { requireRole } from "@/lib/auth/guard";
+import { dbError } from "@/lib/error";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { Profile } from "@/lib/types";
 
@@ -58,7 +59,7 @@ export async function POST(request: Request) {
 
   if (targetsError) {
     return Response.json(
-      { error: `DBに接続できませんでした: ${targetsError.message}` },
+      { error: dbError(targetsError.message, "一括OB移行") },
       { status: 503 },
     );
   }

@@ -5,6 +5,7 @@ import { dummyEmail } from "@/lib/auth/email";
 import { requireRole } from "@/lib/auth/guard";
 import { buildUsernameFromGenreId } from "@/lib/auth/username";
 import { GENRES } from "@/lib/constants";
+import { dbError } from "@/lib/error";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { Profile, Role } from "@/lib/types";
 
@@ -71,6 +72,14 @@ export async function PATCH(
   const patch = parsed.data;
 
   const { id } = await params;
+
+  if (!z.string().uuid().safeParse(id).success) {
+    return Response.json(
+      { error: "ユーザーIDの形式が不正です" },
+      { status: 400 },
+    );
+  }
+
   const admin = createAdminClient();
 
   const { data: target, error: targetError } = await admin
@@ -81,7 +90,7 @@ export async function PATCH(
 
   if (targetError) {
     return Response.json(
-      { error: `DBに接続できませんでした: ${targetError.message}` },
+      { error: dbError(targetError.message, "ユーザー取得") },
       { status: 503 },
     );
   }
@@ -124,7 +133,7 @@ export async function PATCH(
 
     if (existingError) {
       return Response.json(
-        { error: `DBに接続できませんでした: ${existingError.message}` },
+        { error: dbError(existingError.message, "ユーザー重複チェック") },
         { status: 503 },
       );
     }

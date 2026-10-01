@@ -2,6 +2,7 @@ import { z } from "zod";
 
 import { getCurrentProfile } from "@/lib/auth/session";
 import { hasSupabaseEnv } from "@/lib/env";
+import { operationError } from "@/lib/error";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 /**
@@ -43,7 +44,7 @@ export async function POST(request: Request) {
 
   if (error) {
     return Response.json(
-      { error: `通知を解除できませんでした: ${error.message}` },
+      { error: operationError("通知の解除", error.message, "push unsubscribe") },
       { status: 500 },
     );
   }

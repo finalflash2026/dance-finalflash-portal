@@ -8,6 +8,7 @@ import {
   buildRoomResolver,
   resolveRoom,
 } from "@/lib/import";
+import { dbError } from "@/lib/error";
 import { createClient } from "@/lib/supabase/server";
 
 /**
@@ -105,7 +106,7 @@ export async function POST(request: Request) {
   if (roomsResult.error || aliasesResult.error) {
     const message = roomsResult.error?.message ?? aliasesResult.error?.message;
     return Response.json(
-      { error: `部屋マスタを取得できませんでした: ${message}` },
+      { error: dbError(message ?? "unknown", "部屋マスタ取得") },
       { status: 503 },
     );
   }
