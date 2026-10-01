@@ -5,6 +5,7 @@ import { getCurrentProfile } from "@/lib/auth/session";
 import { ROLE_LABELS } from "@/lib/constants";
 import { hasSupabaseEnv } from "@/lib/env";
 import { checkRateLimit, clientIp } from "@/lib/rate-limit";
+import { dbError, operationError } from "@/lib/error";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { Role } from "@/lib/types";
 
@@ -85,7 +86,7 @@ export async function POST(request: Request) {
   // 接続エラーを「合言葉が違います」に見せないこと (原因が追えなくなる)
   if (settingsError) {
     return Response.json(
-      { error: `DBに接続できませんでした: ${settingsError.message}` },
+      { error: dbError(settingsError.message, "合言葉の照合") },
       { status: 503 },
     );
   }
@@ -126,7 +127,7 @@ export async function POST(request: Request) {
 
   if (error) {
     return Response.json(
-      { error: `更新に失敗しました: ${error.message}` },
+      { error: operationError("更新", error.message, "ロール昇格") },
       { status: 500 },
     );
   }

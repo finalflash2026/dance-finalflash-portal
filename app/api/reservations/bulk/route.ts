@@ -10,6 +10,7 @@ import {
 } from "@/lib/import";
 import { groupTouchingSpans } from "@/lib/reservations";
 import { fetchRoomMap } from "@/lib/rooms-server";
+import { dbError } from "@/lib/error";
 import { createClient } from "@/lib/supabase/server";
 import { normalizeTime, toMinutes } from "@/lib/time";
 
@@ -108,7 +109,7 @@ export async function POST(request: Request) {
       .in("id", fileIds);
     if (error) {
       return Response.json(
-        { error: `取込履歴を確認できませんでした: ${error.message}` },
+        { error: dbError(error.message, "取込履歴確認") },
         { status: 503 },
       );
     }
@@ -129,7 +130,7 @@ export async function POST(request: Request) {
   if (roomsResult.error || aliasesResult.error) {
     const message = roomsResult.error?.message ?? aliasesResult.error?.message;
     return Response.json(
-      { error: `部屋マスタを取得できませんでした: ${message}` },
+      { error: dbError(message ?? "unknown", "部屋マスタ取得") },
       { status: 503 },
     );
   }
@@ -212,7 +213,7 @@ export async function POST(request: Request) {
 
   if (existingError) {
     return Response.json(
-      { error: `既存の予約枠を確認できませんでした: ${existingError.message}` },
+      { error: dbError(existingError.message, "既存予約確認") },
       { status: 503 },
     );
   }

@@ -2,6 +2,7 @@ import { after } from "next/server";
 
 import { getCurrentProfile } from "@/lib/auth/session";
 import { hasSupabaseEnv } from "@/lib/env";
+import { operationError } from "@/lib/error";
 import { activeMemberIds, sendPush } from "@/lib/push";
 import { createClient } from "@/lib/supabase/server";
 
@@ -40,7 +41,7 @@ export async function POST() {
 
   if (error) {
     return Response.json(
-      { error: `登録できませんでした: ${error.message}` },
+      { error: operationError("鍵の登録", error.message, "club-key claim") },
       { status: 403 },
     );
   }

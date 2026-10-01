@@ -3,6 +3,7 @@ import { z } from "zod";
 
 import { getCurrentProfile } from "@/lib/auth/session";
 import { hasSupabaseEnv } from "@/lib/env";
+import { operationError } from "@/lib/error";
 import { activeMemberIds, sendPush } from "@/lib/push";
 import { fetchRoomMap } from "@/lib/rooms-server";
 import { createClient } from "@/lib/supabase/server";
@@ -67,7 +68,7 @@ export async function POST(request: Request) {
 
   if (error) {
     return Response.json(
-      { error: `切り替えに失敗しました: ${error.message}` },
+      { error: operationError("施錠の切り替え", error.message, "room-status") },
       { status: 403 },
     );
   }

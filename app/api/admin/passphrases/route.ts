@@ -3,6 +3,7 @@ import { z } from "zod";
 
 import { writeAuditLog } from "@/lib/admin";
 import { requireRole } from "@/lib/auth/guard";
+import { operationError } from "@/lib/error";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 /**
@@ -17,8 +18,8 @@ import { createAdminClient } from "@/lib/supabase/admin";
 export const runtime = "nodejs";
 
 const BCRYPT_ROUNDS = 10;
-/** 150人で共有するものなので長さより「変え忘れないこと」が要点。下限だけ置く */
-const MIN_LENGTH = 6;
+/** 150人で共有するものなので長さより「変え忘れないこと」が要点。最低8文字を要求する */
+const MIN_LENGTH = 8;
 
 const passphrase = z
   .string()
@@ -77,7 +78,7 @@ export async function POST(request: Request) {
 
   if (error) {
     return Response.json(
-      { error: `合言葉を更新できませんでした: ${error.message}` },
+      { error: operationError("合言葉の更新", error.message, "合言葉変更") },
       { status: 500 },
     );
   }

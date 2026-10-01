@@ -2,6 +2,7 @@ import { z } from "zod";
 
 import { getCurrentProfile } from "@/lib/auth/session";
 import { hasSupabaseEnv } from "@/lib/env";
+import { operationError } from "@/lib/error";
 import { isPushConfigured } from "@/lib/push";
 import { createAdminClient } from "@/lib/supabase/admin";
 
@@ -76,7 +77,7 @@ export async function POST(request: Request) {
 
   if (error) {
     return Response.json(
-      { error: `通知を登録できませんでした: ${error.message}` },
+      { error: operationError("通知の登録", error.message, "push subscribe") },
       { status: 500 },
     );
   }
