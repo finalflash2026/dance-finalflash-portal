@@ -30,6 +30,10 @@ const schema = z.object({
       room: z.boolean(),
       key: z.boolean(),
       message: z.boolean(),
+      // v1.30。古い画面から来たときに欠けていても通す (既定はオン)
+      reminder: z.boolean().optional(),
+      deadline: z.boolean().optional(),
+      announcement: z.boolean().optional(),
     })
     .optional(),
 });
@@ -70,6 +74,9 @@ export async function POST(request: Request) {
       notify_room: prefs?.room ?? true,
       notify_key: prefs?.key ?? true,
       notify_message: prefs?.message ?? true,
+      notify_reminder: prefs?.reminder ?? true,
+      notify_deadline: prefs?.deadline ?? true,
+      notify_announcement: prefs?.announcement ?? true,
     },
     { onConflict: "endpoint" },
   );

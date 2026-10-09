@@ -54,3 +54,137 @@ export function ErrorMessage({ children }: { children?: React.ReactNode }) {
     </p>
   );
 }
+
+// ---------- v1.30: iOS 標準に寄せた部品 (§6.7.8) ----------
+
+/**
+ * グループ化されたリスト (iOS の「設定」アプリと同じ形)。
+ * **枠線で囲まず、面の色と細い区切り線でまとめる。** 枠で囲んだカードを
+ * 積み重ねる形は、どこが押せてどこが説明なのかが読み取りにくかった。
+ */
+export const groupClass =
+  "overflow-hidden rounded-xl bg-[var(--cell)] divide-y divide-[var(--separator)]";
+
+/** まとまりの上に置く小さな見出し */
+export function GroupHeader({ children }: { children: React.ReactNode }) {
+  return (
+    <h2 className="px-4 pb-1.5 text-[13px] font-normal uppercase tracking-wide text-[var(--muted)]">
+      {children}
+    </h2>
+  );
+}
+
+/** まとまりの下に置く補足 (説明はここに寄せて、行の中には書かない) */
+export function GroupFooter({ children }: { children: React.ReactNode }) {
+  return (
+    <p className="px-4 pt-1.5 text-[13px] leading-snug text-[var(--muted)]">
+      {children}
+    </p>
+  );
+}
+
+/** 押せる文字 (iOS のリンク色)。「追加」「編集」など */
+export const tintTextClass = "text-[var(--tint)] font-medium";
+
+/** 塗りの主ボタン。窓の一番下などに1つだけ置く */
+export const primaryButtonClass =
+  "flex h-[50px] w-full items-center justify-center rounded-[14px] bg-[var(--tint)] px-4 text-[17px] font-semibold text-white disabled:opacity-40";
+
+/** 薄い地の副ボタン */
+export const fillButtonClass =
+  "flex h-[50px] w-full items-center justify-center rounded-[14px] bg-[var(--fill)] px-4 text-[17px] font-semibold text-[var(--tint)] disabled:opacity-40";
+
+/** 消す操作。赤い文字だけで、塗りは使わない (iOS の destructive) */
+export const destructiveButtonClass =
+  "flex h-[50px] w-full items-center justify-center rounded-[14px] bg-[var(--fill)] px-4 text-[17px] font-semibold text-[var(--danger-solid)] disabled:opacity-40";
+
+/**
+ * 切り替えボタン (iOS の Segmented Control)。
+ * 2〜4個の中から1つを選ぶ場所はこれに揃える。
+ */
+export function Segmented<T extends string>({
+  value,
+  options,
+  onChange,
+  label,
+}: {
+  value: T;
+  options: readonly { value: T; label: string }[];
+  onChange: (value: T) => void;
+  label: string;
+}) {
+  return (
+    <div
+      role="radiogroup"
+      aria-label={label}
+      className="flex rounded-[9px] bg-[var(--fill)] p-0.5"
+    >
+      {options.map((option) => {
+        const selected = option.value === value;
+        return (
+          <button
+            key={option.value}
+            type="button"
+            role="radio"
+            aria-checked={selected}
+            onClick={() => onChange(option.value)}
+            className={`flex-1 rounded-[7px] px-2 py-1.5 text-[13px] font-medium transition-colors ${
+              selected
+                ? "bg-[var(--background)] font-semibold shadow-[0_1px_3px_rgba(0,0,0,0.12)]"
+                : "text-[var(--foreground)]"
+            }`}
+          >
+            {option.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+/** オン/オフのスイッチ (iOS の Toggle)。チェックボックスの代わりに使う */
+export function Switch({
+  checked,
+  onChange,
+  label,
+  disabled,
+}: {
+  checked: boolean;
+  onChange: (checked: boolean) => void;
+  label: string;
+  disabled?: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      aria-label={label}
+      disabled={disabled}
+      onClick={() => onChange(!checked)}
+      className={`relative h-[31px] w-[51px] shrink-0 rounded-full transition-colors disabled:opacity-40 ${
+        checked ? "bg-[#34c759]" : "bg-[var(--fill)]"
+      }`}
+    >
+      <span
+        aria-hidden
+        className={`absolute top-[2px] h-[27px] w-[27px] rounded-full bg-white shadow-[0_2px_6px_rgba(0,0,0,0.2)] transition-transform ${
+          checked ? "translate-x-[22px]" : "translate-x-[2px]"
+        }`}
+      />
+    </button>
+  );
+}
+
+/** グループの中の入力欄 (枠線を持たず、行の中に溶け込む) */
+export const cellInputClass =
+  "w-full bg-transparent px-4 py-3 text-[17px] outline-none placeholder:text-[var(--muted)]";
+
+/** 大事な締切の印 (§6.7.2) */
+export function ImportantBadge() {
+  return (
+    <span className="shrink-0 rounded-[5px] bg-[var(--danger-solid)] px-1.5 py-px text-[11px] font-bold text-white">
+      大事
+    </span>
+  );
+}

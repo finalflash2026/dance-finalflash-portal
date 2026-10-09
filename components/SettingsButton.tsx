@@ -31,7 +31,7 @@ const SETTINGS_PATH = "/settings";
  * 管理者画面と折衝画面は設定の中からしか入口が無く、
  * 「設定を閉じた先」として妥当なのはタブ側の画面だけ。
  */
-const ABOVE_TABS = [SETTINGS_PATH, "/admin", "/coordinator"];
+const ABOVE_TABS = [SETTINGS_PATH, "/admin", "/coordinator", "/manage"];
 
 function isAboveTabs(pathname: string): boolean {
   return ABOVE_TABS.some(

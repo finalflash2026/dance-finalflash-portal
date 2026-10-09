@@ -30,6 +30,7 @@ const TYPE_LABELS: Record<NotificationType, string> = {
   number_added: "ナンバー",
   schedule_updated: "練習日程",
   attendance_updated: "出欠",
+  announcement: "3役からの告知",
 };
 
 export function NotificationList({
@@ -102,7 +103,8 @@ export function NotificationList({
               <span className="min-w-0 flex-1">
                 <span className="block text-sm font-medium">{row.title}</span>
                 {row.body ? (
-                  <span className="block text-xs text-[var(--muted)]">
+                  // 告知は改行を含む本文なので、改行をそのまま見せる (§6.7.4)
+                  <span className="block whitespace-pre-wrap text-xs text-[var(--muted)]">
                     {row.body}
                   </span>
                 ) : null}

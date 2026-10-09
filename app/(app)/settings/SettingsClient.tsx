@@ -384,6 +384,13 @@ function RoleSection({
           >
             折衝ワークフローを開く
           </Link>
+          {/* イベント・締切・告知 (§6.7.11 / v1.30)。告知の欄は 3役にだけ出る */}
+          <Link
+            href="/manage"
+            className={`${secondaryButtonClass} block text-center`}
+          >
+            イベント・締切{role === "admin" ? "・告知" : ""}を管理する
+          </Link>
           {role === "admin" ? (
             <Link
               href="/admin"

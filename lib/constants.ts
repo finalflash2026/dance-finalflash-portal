@@ -92,6 +92,18 @@ export const SLOT_CLAIMED_COLOR = {
   fg: "var(--slot-claimed-fg)",
 };
 
+/**
+ * サークルイベントの色 (§6.7.1 / v1.30)。ジャンル色・ナンバー色のどれとも
+ * 取り違えない金色。テーマでは変えない (意味を持つ色のため)。
+ */
+export const CIRCLE_EVENT_COLOR = { bg: "#B8860B", fg: "#FFFFFF" };
+
+/**
+ * 締切の色 (§6.7.2)。予定ではなく「やること」なので、塗りではなく
+ * 地の色に強い赤の印を置く。値は CSS 変数 (テーマで変わる)。
+ */
+export const DEADLINE_COLOR = { bg: "var(--accent)", fg: "#FFFFFF" };
+
 // ---------- 部屋 (SPEC §4.2) ----------
 
 /**

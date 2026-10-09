@@ -23,6 +23,12 @@ export interface PushPrefs {
   key: boolean;
   /** 掲示板の連絡 (§6.1.3 / v1.27) */
   message: boolean;
+  /** 朝の「今日の予定」(§6.7.3 / v1.30) */
+  reminder: boolean;
+  /** 締切のリマインド (§6.7.3) */
+  deadline: boolean;
+  /** 3役からの告知 (§6.7.4) */
+  announcement: boolean;
 }
 
 const CATEGORIES: {
@@ -30,6 +36,21 @@ const CATEGORIES: {
   label: string;
   hint: string;
 }[] = [
+  {
+    key: "announcement",
+    label: "3役からの告知",
+    hint: "サークル全体への大事な連絡",
+  },
+  {
+    key: "reminder",
+    label: "今日の予定",
+    hint: "練習やイベントがある日の朝7時",
+  },
+  {
+    key: "deadline",
+    label: "締切",
+    hint: "締切の日の朝。大事な締切は1週間前にも",
+  },
   {
     key: "schedule",
     label: "練習日程の公開",
@@ -57,6 +78,9 @@ const DEFAULT_PREFS: PushPrefs = {
   room: true,
   key: true,
   message: true,
+  reminder: true,
+  deadline: true,
+  announcement: true,
 };
 
 /**
@@ -113,7 +137,9 @@ export function PushSection({ vapidPublicKey }: { vapidPublicKey: string }) {
     const supabase = createClient();
     const { data } = await supabase
       .from("push_subscriptions")
-      .select("notify_schedule, notify_room, notify_key, notify_message")
+      .select(
+        "notify_schedule, notify_room, notify_key, notify_message, notify_reminder, notify_deadline, notify_announcement",
+      )
       .eq("endpoint", subscription.endpoint)
       .maybeSingle();
 
@@ -123,6 +149,9 @@ export function PushSection({ vapidPublicKey }: { vapidPublicKey: string }) {
         notify_room: boolean;
         notify_key: boolean;
         notify_message: boolean | null;
+        notify_reminder: boolean | null;
+        notify_deadline: boolean | null;
+        notify_announcement: boolean | null;
       };
       setPrefs({
         schedule: row.notify_schedule,
@@ -130,6 +159,9 @@ export function PushSection({ vapidPublicKey }: { vapidPublicKey: string }) {
         key: row.notify_key,
         // 列を足す前に登録した端末は null で返る。既定はオン
         message: row.notify_message ?? true,
+        reminder: row.notify_reminder ?? true,
+        deadline: row.notify_deadline ?? true,
+        announcement: row.notify_announcement ?? true,
       });
     }
   }, []);

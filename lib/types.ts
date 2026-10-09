@@ -19,7 +19,9 @@ export type AttendanceStatus = "absent" | "late" | "leave_early";
 export type NotificationType =
   | "number_added"
   | "schedule_updated"
-  | "attendance_updated";
+  | "attendance_updated"
+  /** 3役からの全体告知 (§6.7.4 / v1.30) */
+  | "announcement";
 
 // ---------- マスタ ----------
 
@@ -207,7 +209,7 @@ export interface MyEvent {
    * **表示のうえでは公式練 (`genre`) と同じ扱い**にする — 同じ色、同じ絞り込みキー。
    * 利用者から見れば「BREAKの練習」で、主催が公式かどうかは探すときの関心事ではない。
    */
-  kind: "genre" | "claim" | "number" | "studio";
+  kind: "genre" | "claim" | "number" | "studio" | "event" | "deadline";
   /** ics の UID に使う恒久 ID (元テーブルの主キー) */
   sourceId: string;
   /**
@@ -233,4 +235,59 @@ export interface MyEvent {
    * 表示 (§6.4-4) と色の割り当てに使う。それ以外は null。
    */
   genreCode: string | null;
+  /**
+   * 終日の予定 (v1.30)。時刻の無いサークルイベントと締切。
+   * startTime/endTime は 00:00/24:00 が入っているが、表示と ics では使わない。
+   */
+  allDay?: boolean;
+  /**
+   * 複数日にわたる予定の最終日 (v1.30。合宿など)。1日で終わる予定では持たない。
+   * 日をまたぐ深夜練 (§6.3 / v1.21) は従来どおり終了 <= 開始で表し、ここは使わない。
+   */
+  lastDate?: DateString;
+  /** 締切のリンク (Google フォーム等) */
+  url?: string | null;
+  /** 大事な締切 (§6.7.2) */
+  important?: boolean;
+  /** 締切の時刻。null は「その日中」 */
+  dueTime?: TimeString | null;
+}
+
+// ---------- v1.30: イベント・締切・告知 (§6.7) ----------
+
+export interface CircleEvent {
+  id: string;
+  title: string;
+  date: DateString;
+  end_date: DateString;
+  start_time: TimeString | null;
+  end_time: TimeString | null;
+  place: string;
+  note: string | null;
+  show_to_ob: boolean;
+  created_by: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface Deadline {
+  id: string;
+  title: string;
+  due_date: DateString;
+  due_time: TimeString | null;
+  url: string | null;
+  note: string | null;
+  important: boolean;
+  created_by: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface Announcement {
+  id: string;
+  title: string;
+  body: string;
+  include_ob: boolean;
+  created_by: string;
+  created_at: string;
 }

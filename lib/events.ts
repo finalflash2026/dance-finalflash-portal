@@ -18,6 +18,8 @@ import type { DateString, MyEvent, Profile } from "@/lib/types";
  *              (target_generations is null or 自分の期 = any)
  *   2. 自分の空き申請: claims where user_id=自分 join slots(published)  … Phase 2
  *   3. ナンバー練: number_events where 自分がメンバー                    … Phase 4
+ *   5. サークルイベント (v1.30。OB は show_to_ob のみ)
+ *   6. 締切 (v1.30。現役のみ。終日の予定として)
  *
  * 引数の supabase は2通りの使われ方をする:
  *   - 画面から: ログインユーザーの RLS クライアント
@@ -30,6 +32,7 @@ export async function getMyEvents(
   profile: Profile,
   from: DateString,
   to: DateString,
+  options: { includeDeadlines?: boolean } = {},
 ): Promise<MyEvent[]> {
   const events: MyEvent[] = [];
 
@@ -51,7 +54,117 @@ export async function getMyEvents(
   // ---- 4. ナンバー練 (OB も対象。縦イベに参加し続けられるようにするため) ----
   events.push(...(await getNumberEvents(supabase, profile, from, to)));
 
+  // ---- 5. サークルイベント (§6.7.1 / v1.30。OB は show_to_ob のものだけ) ----
+  events.push(...(await getCircleEventEvents(supabase, profile, from, to)));
+
+  // ---- 6. 締切 (§6.7.2 / v1.30。現役のみ) ----
+  // 朝のリマインドの「今日の予定」は締切を含めない (締切は別の通知で届く)
+  if (profile.role !== "ob" && options.includeDeadlines !== false) {
+    events.push(...(await getDeadlineEvents(supabase, from, to)));
+  }
+
   return sortEvents(events);
+}
+
+/**
+ * サークルイベント (SPEC §6.7.1 / v1.30)
+ *
+ * 期間が [from, to] に**少しでも掛かる**ものを引く。合宿のように月をまたぐ
+ * イベントは開始日が範囲の外にあっても、その月のマスに出す必要がある。
+ *
+ * **OB の絞り込みをクエリに明示する。** 購読 ics は service role で呼ぶので、
+ * RLS (`sel_cevents`) に頼ると OB に現役向けのイベントが混ざる。
+ */
+async function getCircleEventEvents(
+  supabase: SupabaseClient,
+  profile: Profile,
+  from: DateString,
+  to: DateString,
+): Promise<MyEvent[]> {
+  let query = supabase
+    .from("circle_events")
+    .select("id, title, date, end_date, start_time, end_time, place")
+    .lte("date", to)
+    .gte("end_date", from);
+  if (profile.role === "ob") {
+    query = query.eq("show_to_ob", true);
+  }
+
+  const { data, error } = await query;
+  if (error) {
+    throw new Error(`イベントの取得に失敗しました: ${error.message}`);
+  }
+
+  return ((data ?? []) as unknown as {
+    id: string;
+    title: string;
+    date: DateString;
+    end_date: DateString;
+    start_time: string | null;
+    end_time: string | null;
+    place: string;
+  }[]).map((row) => {
+    const allDay = row.start_time === null || row.end_time === null;
+    return {
+      kind: "event" as const,
+      sourceId: row.id,
+      sourceIds: [row.id],
+      date: row.date,
+      startTime: allDay ? "00:00" : normalizeTime(row.start_time!),
+      endTime: allDay ? "24:00" : normalizeTime(row.end_time!),
+      title: row.title,
+      location: row.place,
+      numberId: null,
+      genreCode: null,
+      allDay,
+      ...(row.end_date > row.date ? { lastDate: row.end_date } : {}),
+    };
+  });
+}
+
+/**
+ * 締切 (SPEC §6.7.2 / v1.30)。カレンダーでは期限日の終日の予定として出す。
+ * 時刻があっても終日として置き、時刻は「23:59まで」のように添えるだけにする
+ * (締切は「その時間に何かをする予定」ではないため)。
+ */
+async function getDeadlineEvents(
+  supabase: SupabaseClient,
+  from: DateString,
+  to: DateString,
+): Promise<MyEvent[]> {
+  const { data, error } = await supabase
+    .from("deadlines")
+    .select("id, title, due_date, due_time, url, important")
+    .gte("due_date", from)
+    .lte("due_date", to);
+
+  if (error) {
+    throw new Error(`締切の取得に失敗しました: ${error.message}`);
+  }
+
+  return ((data ?? []) as unknown as {
+    id: string;
+    title: string;
+    due_date: DateString;
+    due_time: string | null;
+    url: string | null;
+    important: boolean;
+  }[]).map((row) => ({
+    kind: "deadline" as const,
+    sourceId: row.id,
+    sourceIds: [row.id],
+    date: row.due_date,
+    startTime: "00:00",
+    endTime: "24:00",
+    title: `締切: ${row.title}`,
+    location: "",
+    numberId: null,
+    genreCode: null,
+    allDay: true,
+    url: row.url,
+    important: row.important,
+    dueTime: row.due_time ? normalizeTime(row.due_time) : null,
+  }));
 }
 
 /** SPEC §6.4-1: 自分のジャンル・期に該当する公開済みの公式練 */
@@ -377,11 +490,11 @@ export async function getMyGenreIds(
   return [...ids];
 }
 
-/** 日付 → 開始時刻の順に並べる */
+/** 日付 → 終日の予定 → 開始時刻の順に並べる */
 function sortEvents(events: MyEvent[]): MyEvent[] {
-  return events.sort((a, b) =>
-    a.date === b.date
-      ? a.startTime.localeCompare(b.startTime)
-      : a.date.localeCompare(b.date),
-  );
+  return events.sort((a, b) => {
+    if (a.date !== b.date) return a.date.localeCompare(b.date);
+    if (Boolean(a.allDay) !== Boolean(b.allDay)) return a.allDay ? -1 : 1;
+    return a.startTime.localeCompare(b.startTime);
+  });
 }

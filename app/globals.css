@@ -75,6 +75,18 @@
   --reservation-fg: #ffffff;
 
   --scrollbar: #94a3b8;
+
+  /*
+   * iOS 標準に寄せた部品の色 (§6.7.8 / v1.30)。
+   *   --cell      … まとまり (グループ化されたリスト) の面
+   *   --separator … まとまりの中の区切り線。枠線ではなく細い線で区切る
+   *   --fill      … 押せる丸い部品 (× ボタン・切り替えボタンの地)
+   *   --tint      … 押せる文字 (リンク・「追加」など)。iOS のシステムブルー
+   */
+  --cell: #f2f2f7;
+  --separator: rgba(60, 60, 67, 0.16);
+  --fill: rgba(118, 118, 128, 0.12);
+  --tint: #007aff;
 }
 
 /*
@@ -130,6 +142,11 @@
   --reservation-fg: #ffffff;
 
   --scrollbar: #6b7684;
+
+  --cell: #2d333b;
+  --separator: rgba(255, 255, 255, 0.1);
+  --fill: rgba(255, 255, 255, 0.08);
+  --tint: #4ea1ff;
 
   /* フォーム部品・既定のスクロールバーもダーク側の見た目にする */
   color-scheme: dark;

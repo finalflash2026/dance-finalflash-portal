@@ -24,7 +24,15 @@ import { createAdminClient } from "@/lib/supabase/admin";
  */
 
 /** 通知の種類。購読側 (push_subscriptions) の列と1対1で対応する */
-export type PushCategory = "schedule" | "room" | "key" | "message";
+export type PushCategory =
+  | "schedule"
+  | "room"
+  | "key"
+  | "message"
+  // v1.30 (§6.7.3 / §6.7.4)
+  | "reminder"
+  | "deadline"
+  | "announcement";
 
 const CATEGORY_COLUMN: Record<PushCategory, string> = {
   schedule: "notify_schedule",
@@ -33,6 +41,11 @@ const CATEGORY_COLUMN: Record<PushCategory, string> = {
   // 掲示板の連絡 (§6.1.3 / v1.27)。**鍵の開閉とは別に切れるようにする** —
   // 連絡は数が多くなりうるので、まとめると「うるさいから鍵ごと切る」が起きる
   message: "notify_message",
+  // 朝のリマインド。今日の予定と締切は別に切れるようにする —
+  // 練習の通知は要らないが集金は落としたくない、という人がいるため
+  reminder: "notify_reminder",
+  deadline: "notify_deadline",
+  announcement: "notify_announcement",
 };
 
 interface SubscriptionRow {
