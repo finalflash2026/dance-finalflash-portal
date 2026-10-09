@@ -5,8 +5,10 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 
 import { ErrorMessage, buttonClass, inputClass } from "@/components/ui";
+import { formatSpanRange } from "@/lib/day-span";
 import { numberColor } from "@/lib/numbers";
 import { createClient } from "@/lib/supabase/client";
+import { formatDateLabel } from "@/lib/time";
 
 /**
  * 所属ナンバーの一覧と新規作成 (SPEC.md §6.3)
@@ -24,6 +26,13 @@ export interface NumberSummary {
   name: string;
   isOwner: boolean;
   memberCount: number;
+  /** 今日以降で一番近い日程 (§6.7.12 / v1.30)。無ければ null */
+  nextEvent: {
+    date: string;
+    startTime: string;
+    endTime: string;
+    place: string;
+  } | null;
 }
 
 export function NumberList({
@@ -72,49 +81,32 @@ export function NumberList({
     <>
       <ErrorMessage>{error}</ErrorMessage>
 
-      <section className="space-y-2">
-        <h2 className="text-sm font-bold">現在進行中のナンバー</h2>
-
-        {numbers.length === 0 ? (
+      {/*
+        **主催しているものと参加しているものを分ける** (§6.7.12 / v1.30)。
+        1つのリストに「/ 主催」と小さく付くだけだと、自分が動かす側なのか
+        待つ側なのかが読み取りにくかった。
+      */}
+      {numbers.length === 0 ? (
+        <section className="space-y-2">
+          <h2 className="text-sm font-bold">所属しているナンバー</h2>
           <p className="rounded-xl bg-[var(--cell)] px-4 py-5 text-center text-sm text-[var(--muted)]">
             所属しているナンバーはありません。
             <br />
             自分で作るか、主催者に追加してもらってください
           </p>
-        ) : (
-          <ul className="space-y-2">
-            {numbers.map((number) => {
-              const color = numberColor(number.id);
-              return (
-                <li key={number.id}>
-                  <Link
-                    href={`/numbers/${number.id}`}
-                    className="flex items-center gap-3 rounded-xl bg-[var(--cell)] p-3"
-                  >
-                    <span
-                      aria-hidden
-                      className="h-8 w-1.5 shrink-0 rounded-full"
-                      style={{ backgroundColor: color.bg }}
-                    />
-                    <span className="min-w-0 flex-1">
-                      <span className="block truncate font-medium">
-                        {number.name}
-                      </span>
-                      <span className="block text-xs text-[var(--muted)]">
-                        メンバー{number.memberCount}人
-                        {number.isOwner ? " / 主催" : ""}
-                      </span>
-                    </span>
-                    <span aria-hidden className="text-[var(--muted)]">
-                      ›
-                    </span>
-                  </Link>
-                </li>
-              );
-            })}
-          </ul>
-        )}
-      </section>
+        </section>
+      ) : (
+        <>
+          <NumberGroup
+            title="主催しているナンバー"
+            numbers={numbers.filter((number) => number.isOwner)}
+          />
+          <NumberGroup
+            title="参加しているナンバー"
+            numbers={numbers.filter((number) => !number.isOwner)}
+          />
+        </>
+      )}
 
       <form
         onSubmit={create}
@@ -141,5 +133,74 @@ export function NumberList({
         </button>
       </form>
     </>
+  );
+}
+
+function NumberGroup({
+  title,
+  numbers,
+}: {
+  title: string;
+  numbers: NumberSummary[];
+}) {
+  if (numbers.length === 0) return null;
+  return (
+    <section className="space-y-2">
+      <h2 className="text-sm font-bold">{title}</h2>
+      <ul className="space-y-2">
+        {numbers.map((number) => {
+          const color = numberColor(number.id);
+          const next = number.nextEvent;
+          return (
+            <li key={number.id}>
+              <Link
+                href={`/numbers/${number.id}`}
+                className="flex items-center gap-3 rounded-xl bg-[var(--cell)] p-3"
+              >
+                <span
+                  aria-hidden
+                  className="h-10 w-1.5 shrink-0 rounded-full"
+                  style={{ backgroundColor: color.bg }}
+                />
+                <span className="min-w-0 flex-1">
+                  <span className="flex items-center gap-1.5">
+                    <span className="truncate font-medium">{number.name}</span>
+                    <span
+                      className={`shrink-0 rounded-[5px] px-1.5 py-px text-[11px] font-bold ${
+                        number.isOwner
+                          ? "bg-[var(--tint)] text-white"
+                          : "bg-[var(--fill)] text-[var(--muted)]"
+                      }`}
+                    >
+                      {number.isOwner ? "主催" : "メンバー"}
+                    </span>
+                  </span>
+                  {/*
+                    次の日程 (§6.7.12)。メンバーは開かなくても次の練習が分かり、
+                    主催者は日程を入れ忘れているナンバーに気付ける
+                  */}
+                  <span className="block truncate text-xs text-[var(--muted)]">
+                    {next
+                      ? `次 ${formatDateLabel(next.date)} ${formatSpanRange(
+                          next.startTime,
+                          next.endTime,
+                        )}${next.place ? ` ${next.place}` : ""}`
+                      : number.isOwner
+                        ? "日程はまだありません。開いて追加できます"
+                        : "日程はまだありません"}
+                  </span>
+                  <span className="block text-xs text-[var(--muted)]">
+                    メンバー{number.memberCount}人
+                  </span>
+                </span>
+                <span aria-hidden className="text-[var(--muted)]">
+                  ›
+                </span>
+              </Link>
+            </li>
+          );
+        })}
+      </ul>
+    </section>
   );
 }

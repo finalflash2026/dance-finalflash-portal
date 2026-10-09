@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 
+import type { NumberSummary } from "@/components/NumberList";
 import { SetupNotice } from "@/components/SetupNotice";
 import type { StudioPractice } from "@/components/StudioPracticeSection";
 import { getCurrentProfile } from "@/lib/auth/session";
@@ -35,7 +36,7 @@ export default async function NumberTabPage() {
   const isOb = profile.role === "ob";
   const supabase = await createClient();
 
-  const [numbersResult, practicesResult, generationsResult] = await Promise.all([
+  const [numbersResult, practicesResult, generationsResult, upcomingResult] = await Promise.all([
     supabase
       .from("numbers")
       .select("id, name, owner_id, number_members(user_id)")
@@ -57,7 +58,32 @@ export default async function NumberTabPage() {
     isOb
       ? Promise.resolve({ data: [], error: null })
       : supabase.from("profiles").select("generation").neq("role", "ob"),
+    // 各ナンバーの次の日程 (§6.7.12 / v1.30)。RLS (sel_nevents) で所属ぶんだけ返る。
+    // 今日以降を日付・開始順に引き、ナンバーごとに先頭を取る
+    supabase
+      .from("number_events")
+      .select("number_id, date, start_time, end_time, place")
+      .gte("date", today)
+      .order("date")
+      .order("start_time"),
   ]);
+
+  const nextEventByNumber = new Map<string, NumberSummary["nextEvent"]>();
+  for (const row of (upcomingResult.data ?? []) as {
+    number_id: string;
+    date: string;
+    start_time: string;
+    end_time: string;
+    place: string;
+  }[]) {
+    if (nextEventByNumber.has(row.number_id)) continue;
+    nextEventByNumber.set(row.number_id, {
+      date: row.date,
+      startTime: normalizeTime(row.start_time),
+      endTime: normalizeTime(row.end_time),
+      place: row.place,
+    });
+  }
 
   const generations = [
     ...new Set(
@@ -79,6 +105,7 @@ export default async function NumberTabPage() {
     name: row.name,
     isOwner: row.owner_id === profile.user_id,
     memberCount: (row.number_members ?? []).length,
+    nextEvent: nextEventByNumber.get(row.id) ?? null,
   }));
 
   const practices: StudioPractice[] = (
