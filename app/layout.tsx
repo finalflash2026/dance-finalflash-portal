@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 
+import { SPLASH_INIT_SCRIPT, Splash } from "@/components/Splash";
 import { THEME_INIT_SCRIPT } from "@/lib/theme";
 
 import "./globals.css";
@@ -51,8 +52,13 @@ export default function RootLayout({
     <html lang="ja" suppressHydrationWarning>
       <head>
         <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
+        {/* 起動アニメーションを、この起動で既に出したかどうか (§6.7.10) */}
+        <script dangerouslySetInnerHTML={{ __html: SPLASH_INIT_SCRIPT }} />
       </head>
-      <body className="antialiased">{children}</body>
+      <body className="antialiased">
+        <Splash />
+        {children}
+      </body>
     </html>
   );
 }

@@ -301,3 +301,37 @@ body {
   /* 下部固定タブバー分の余白 (iOS のホームインジケータも考慮) */
   -webkit-text-size-adjust: 100%;
 }
+
+/*
+ * 起動アニメーション (§6.7.10 / v1.30)
+ *
+ * この起動で既に出していたら、最初のペイント前に `<html data-splash="off">` が
+ * 立つ (components/Splash.tsx の SPLASH_INIT_SCRIPT)。幕は HTML に最初から
+ * 入っているので、ここで消さないと一瞬黒い画面が出てしまう。
+ */
+html[data-splash="off"] #app-splash {
+  display: none;
+}
+
+/* ロゴのきらめき (十字の光) */
+.splash-spark::before,
+.splash-spark::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  background: #fff;
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  box-shadow:
+    0 0 8px #fff,
+    0 0 16px rgba(255, 255, 255, 0.7);
+}
+.splash-spark::before {
+  width: 2px;
+  height: 100%;
+}
+.splash-spark::after {
+  width: 100%;
+  height: 2px;
+}
