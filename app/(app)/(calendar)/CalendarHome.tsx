@@ -9,6 +9,7 @@ import {
 import { ClaimSheet } from "@/components/ClaimSheet";
 import { ClubKeyBoard } from "@/components/ClubKeyBoard";
 import { DayGrid, type DayBlock } from "@/components/DayGrid";
+import { DayTimeline, type TimelineEvent } from "@/components/DayTimeline";
 import { LabelCalendar } from "@/components/LabelCalendar";
 import {
   NotificationList,
@@ -33,7 +34,7 @@ import {
   SLOT_OPEN_COLOR,
   type GenreCode,
 } from "@/lib/constants";
-import { formatSpanRange, spanNote } from "@/lib/day-span";
+import { spanNote } from "@/lib/day-span";
 import {
   eventColor,
   eventFilterKey,
@@ -57,10 +58,9 @@ import type { DateString, MyEvent } from "@/lib/types";
  * 上から: 鍵のボード (現役) → 近い締切 → いま空いている部屋 → お知らせ →
  *         絞り込みチップ → 予定ラベル付きの月カレンダー → 選んだ日の予定
  *
- * **選んだ日の予定は一覧 (アジェンダ) で出す。** 時間軸の縦タイムラインは、
- * 予定が2〜3件の日にほとんどが空白になって読みづらかった。
- * 自分に関係するものを先に濃く、他ジャンルの練習と空きコマはその下に薄く。
- * 「部屋ごと」に切り替えると、従来の部屋×時間の表 (§6.1) が出る。
+ * 選んだ日は縦タイムラインで出す。自分に関係するものを濃く、他ジャンルの練習と
+ * 空きコマは右の列に薄く。「部屋ごと」に切り替えると、従来の部屋×時間の表 (§6.1)。
+ * (一覧で出す案は docs/major-update.md の「提案中」。決まるまで入れない)
  */
 
 /** チップの選択を覚えておくキー (§6.4-3「選択状態はローカル保存」) */
@@ -303,7 +303,7 @@ export function CalendarHome({
                 value={dayView}
                 onChange={selectDayView}
                 options={[
-                  { value: "agenda", label: "予定" },
+                  { value: "agenda", label: "時間" },
                   { value: "rooms", label: "部屋ごと" },
                 ]}
               />
@@ -318,7 +318,7 @@ export function CalendarHome({
             currentUserId={currentUserId}
           />
         ) : (
-          <Agenda
+          <DayView
             date={selectedDate}
             mine={entries.filter((entry) => entry.date === selectedDate)}
             blocks={filter === "all" ? dayBlocks : []}
@@ -397,18 +397,14 @@ function attendanceTarget(event: MyEvent): AttendanceTarget {
 
 // ---------- 選んだ日の予定 ----------
 
-interface AgendaRow {
-  key: string;
-  when: string;
-  title: string;
-  subtitle: string;
-  color: string;
-  pale: boolean;
-  important?: boolean;
-  onClick?: () => void;
-}
-
-function Agenda({
+/**
+ * 選んだ日の縦タイムライン (§6.4 / §6.7.7)。
+ *
+ * 自分の予定を濃く、**他ジャンルの練習と空きコマは右の列に薄く**出す。
+ * 終日の予定 (イベント・締切) は時間軸の上に並べる。
+ * 押したときの動き: 自分の予定 → 出欠 (イベント・締切は詳細) / 空き → 申請。
+ */
+function DayView({
   date,
   mine,
   blocks,
@@ -425,32 +421,32 @@ function Agenda({
   onClaim: (slot: DayBlock, range: TimeRange) => void;
 }) {
   const roomById = useRoomById();
+  const actions = new Map<string, () => void>();
+  const allDay: TimelineEvent[] = [];
+  const timed: TimelineEvent[] = [];
 
-  const mineRows: AgendaRow[] = mine.map((entry) => {
+  for (const entry of mine) {
     const event = entry.event;
-    const wholeDay = isWholeDayEntry(entry);
+    const key = `${event.kind}-${event.sourceId}-${entry.date}`;
+    actions.set(key, () => onSelect(event));
     const note = event.lastDate
       ? multiDayNote(event, date)
       : spanNote(entry.part, event.startTime, event.endTime);
     const dueNote =
-      event.kind === "deadline"
-        ? event.dueTime
-          ? `${event.dueTime}まで`
-          : "この日中"
-        : null;
-    return {
-      key: `${event.kind}-${event.sourceId}-${entry.date}`,
-      when: wholeDay ? "終日" : formatSpanRange(entry.startTime, entry.endTime),
-      title: event.title,
+      event.kind === "deadline" ? (event.dueTime ? `${event.dueTime}まで` : null) : null;
+    const item: TimelineEvent = {
+      key,
+      startTime: entry.startTime,
+      endTime: entry.endTime,
+      title: `${event.important ? "【大事】" : ""}${event.title}`,
       subtitle: [event.location, note, dueNote].filter(Boolean).join(" · "),
-      color: eventColor(event).bg,
-      pale: false,
-      important: event.important,
-      onClick: () => onSelect(event),
+      color: eventColor(event),
     };
-  });
+    if (isWholeDayEntry(entry)) allDay.push(item);
+    else timed.push(item);
+  }
 
-  // ---- ほかのジャンルの練習 (同じ時間・同じジャンルは部屋をまとめて1行) ----
+  // ---- ほかのジャンルの練習 (同じ時間・同じジャンルは部屋をまとめて1つ) ----
   const otherGroups = new Map<string, { block: DayBlock; rooms: string[] }>();
   for (const block of blocks) {
     if (block.status !== "genre" || mySlotIds.has(block.id)) continue;
@@ -459,114 +455,50 @@ function Agenda({
     group.rooms.push(roomById.get(block.roomId)?.name ?? "");
     otherGroups.set(key, group);
   }
-  const otherRows: AgendaRow[] = [...otherGroups.values()].map(({ block, rooms }) => ({
-    key: `other-${block.id}`,
-    when: formatSpanRange(block.startTime, block.endTime),
-    title: `${block.genreCode ?? "?"} 公式練`,
-    subtitle: rooms.filter(Boolean).join("・"),
-    color: GENRE_COLORS[block.genreCode as GenreCode]?.bg ?? SLOT_OPEN_COLOR.bg,
-    pale: true,
-  }));
+  for (const { block, rooms } of otherGroups.values()) {
+    timed.push({
+      key: `other-${block.id}`,
+      startTime: block.startTime,
+      endTime: block.endTime,
+      title: `${block.genreCode ?? "?"} 公式練`,
+      subtitle: rooms.filter(Boolean).join("・"),
+      color: GENRE_COLORS[block.genreCode as GenreCode] ?? SLOT_OPEN_COLOR,
+      pale: true,
+    });
+  }
 
   // ---- 空き (申請が入っていない時間帯。押すと申請シート) ----
-  const freeRows: AgendaRow[] = blocks
-    .filter((block) => block.status === "open")
-    .flatMap((block) =>
-      freeRanges(block, block.claims).map((range) => ({
-        key: `free-${block.id}-${range.startTime}`,
-        when: formatSpanRange(range.startTime, range.endTime),
+  for (const block of blocks) {
+    if (block.status !== "open") continue;
+    for (const range of freeRanges(block, block.claims)) {
+      const key = `free-${block.id}-${range.startTime}`;
+      actions.set(key, () => onClaim(block, range));
+      timed.push({
+        key,
+        startTime: range.startTime,
+        endTime: range.endTime,
         title: "空き",
         subtitle: roomById.get(block.roomId)?.name ?? "",
-        // 空きの地の色は背景に近すぎて線が見えないので、薄い文字色で引く
-        color: "var(--muted)",
+        // 空きの地の色は背景に近すぎて見えないので、「使える」の緑を薄く敷く
+        color: { bg: "rgba(52, 199, 89, 0.35)", fg: "var(--foreground)" },
         pale: true,
-        onClick: () => onClaim(block, range),
-      })),
-    );
-
-  const others = [...otherRows, ...freeRows].sort((a, b) =>
-    a.when.localeCompare(b.when),
-  );
-
-  if (mineRows.length === 0 && others.length === 0) {
-    return (
-      <p className={`${groupClass} px-4 py-4 text-center text-[15px] text-[var(--muted)]`}>
-        予定はありません
-      </p>
-    );
+      });
+    }
   }
 
   return (
-    <div className="space-y-4">
-      {mineRows.length > 0 ? (
-        <ul className={groupClass}>
-          {mineRows.map((row) => (
-            <AgendaItem key={row.key} row={row} />
-          ))}
-        </ul>
-      ) : (
-        <p className={`${groupClass} px-4 py-3 text-[15px] text-[var(--muted)]`}>
-          自分の予定はありません
-        </p>
-      )}
-
-      {others.length > 0 ? (
-        <div>
-          <GroupHeader>ほかの練習・空き</GroupHeader>
-          <ul className={groupClass}>
-            {others.map((row) => (
-              <AgendaItem key={row.key} row={row} />
-            ))}
-          </ul>
-        </div>
-      ) : null}
-    </div>
+    <DayTimeline
+      date={date}
+      events={timed}
+      allDay={allDay}
+      onSelect={(item) => actions.get(item.key)?.()}
+    />
   );
 }
 
 function multiDayNote(event: MyEvent, date: DateString): string {
   const days = `${formatDateLabel(event.date)}〜${formatDateLabel(event.lastDate!)}`;
   return date === event.date ? days : `${days}の続き`;
-}
-
-function AgendaItem({ row }: { row: AgendaRow }) {
-  const content = (
-    <>
-      <span
-        aria-hidden
-        className="w-1 shrink-0 self-stretch rounded-full"
-        style={{ backgroundColor: row.color }}
-      />
-      <span className="w-[52px] shrink-0 whitespace-pre-line pt-px text-[13px] tabular-nums leading-tight text-[var(--muted)]">
-        {row.when.replace("〜", "〜\n")}
-      </span>
-      <span className="min-w-0 flex-1">
-        <span className="flex items-center gap-1.5 text-[16px] leading-snug">
-          {row.important ? <ImportantBadge /> : null}
-          <span className="truncate">{row.title}</span>
-        </span>
-        {row.subtitle ? (
-          <span className="block truncate text-[13px] text-[var(--muted)]">
-            {row.subtitle}
-          </span>
-        ) : null}
-      </span>
-    </>
-  );
-  const className = `flex w-full gap-3 px-4 py-2.5 text-left ${
-    row.pale ? "opacity-55" : ""
-  }`;
-  return (
-    <li>
-      {row.onClick ? (
-        <button type="button" onClick={row.onClick} className={className}>
-          {content}
-        </button>
-      ) : (
-        <div className={className}>{content}</div>
-      )}
-    </li>
-  );
 }
 
 // ---------- 近い締切 (§6.7.2) ----------
