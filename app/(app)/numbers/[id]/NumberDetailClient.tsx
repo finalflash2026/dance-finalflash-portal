@@ -75,8 +75,6 @@ export function NumberDetailClient({
   const [error, setError] = useState<string | null>(null);
   const isOwner = number.ownerId === currentUserId;
   const color = numberColor(number.id);
-  const ownerName =
-    members.find((member) => member.userId === number.ownerId)?.username ?? null;
 
   return (
     <main className="mx-auto max-w-2xl space-y-4 px-4 py-3">
@@ -94,26 +92,11 @@ export function NumberDetailClient({
         />
         <div className="min-w-0">
           <h1 className="truncate text-lg font-bold">{number.name}</h1>
-          <p className="text-xs text-[var(--muted)]">メンバー{members.length}人</p>
+          <p className="text-xs text-[var(--muted)]">
+            メンバー{members.length}人{isOwner ? " / あなたが主催" : ""}
+          </p>
         </div>
       </div>
-
-      {/*
-        **自分の立場とできることを1行で出す** (§6.7.12 / v1.30)。
-        編集のボタンが出ない理由を、ボタンが無いことから推測させない。
-      */}
-      <p className="rounded-xl bg-[var(--cell)] px-4 py-2.5 text-[13px] leading-relaxed">
-        {isOwner ? (
-          <>
-            <strong>あなたが主催です。</strong>日程とメンバーを編集できます。
-          </>
-        ) : (
-          <>
-            <strong>主催: {ownerName ?? "(不明)"}</strong>
-            。日程を押すと出欠を登録できます。日程の変更は主催者に頼んでください。
-          </>
-        )}
-      </p>
 
       <nav className="flex gap-1 rounded-xl bg-[var(--cell)] p-1">
         {(
