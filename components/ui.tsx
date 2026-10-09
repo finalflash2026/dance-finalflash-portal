@@ -34,14 +34,17 @@ export const secondaryButtonClass =
   "w-full rounded-lg border border-[var(--border)] px-4 py-3 text-base font-medium disabled:opacity-50";
 
 /**
- * 設定画面の各項目を囲む枠 (SPEC §6.4.1 / §12 / v1.18.1)
+ * 設定画面の各項目のまとまり (SPEC §6.4.1 / §12 / v1.18.1 / v1.30)
  *
  * 以前は見出しと余白だけで区切っていたが、**どこからどこまでが1項目なのか
- * ぱっと見で分からない**という指摘が出た。掲示板カード (§6.1.1) と同じ枠に
- * 揃えて、画面全体で「囲まれているもの = ひとまとまり」と読めるようにする。
+ * ぱっと見で分からない**という指摘が出た (v1.18.1)。
+ *
+ * v1.30 で**枠線から面の色**に変えた (§6.7.8)。枠で囲んだカードを積み重ねる形が
+ * 「AIが作った画面っぽい」と言われていた。iOS の設定アプリと同じく、
+ * 少しだけ色の違う面でまとまりを示す。他のボードやリストも同じ面に揃えている。
  */
 export const settingsSectionClass =
-  "space-y-3 rounded-xl border border-[var(--border)] p-4";
+  "space-y-3 rounded-xl bg-[var(--cell)] p-4";
 
 export function ErrorMessage({ children }: { children?: React.ReactNode }) {
   if (!children) return null;

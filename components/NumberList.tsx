@@ -76,7 +76,7 @@ export function NumberList({
         <h2 className="text-sm font-bold">現在進行中のナンバー</h2>
 
         {numbers.length === 0 ? (
-          <p className="rounded-xl border border-[var(--border)] px-4 py-5 text-center text-sm text-[var(--muted)]">
+          <p className="rounded-xl bg-[var(--cell)] px-4 py-5 text-center text-sm text-[var(--muted)]">
             所属しているナンバーはありません。
             <br />
             自分で作るか、主催者に追加してもらってください
@@ -89,7 +89,7 @@ export function NumberList({
                 <li key={number.id}>
                   <Link
                     href={`/numbers/${number.id}`}
-                    className="flex items-center gap-3 rounded-xl border border-[var(--border)] p-3"
+                    className="flex items-center gap-3 rounded-xl bg-[var(--cell)] p-3"
                   >
                     <span
                       aria-hidden
@@ -118,7 +118,7 @@ export function NumberList({
 
       <form
         onSubmit={create}
-        className="space-y-2 rounded-xl border border-[var(--border)] p-3"
+        className="space-y-2 rounded-xl bg-[var(--cell)] p-3"
       >
         <h2 className="text-sm font-bold">ナンバーを作る</h2>
         <p className="text-xs text-[var(--muted)]">

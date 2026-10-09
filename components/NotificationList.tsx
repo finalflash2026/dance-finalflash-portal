@@ -86,7 +86,7 @@ export function NotificationList({
        * お知らせが増えるとカードが伸びて、下のカレンダーまで延々と
        * スクロールする必要があった。件数に関わらずここの高さは変わらない。
        */}
-      <ul className="h-scroll max-h-40 divide-y divide-[var(--border)] overflow-y-auto rounded-xl border border-[var(--border)]">
+      <ul className="h-scroll max-h-40 divide-y divide-[var(--separator)] overflow-y-auto rounded-xl bg-[var(--cell)]">
         {/* ここに並ぶのは未読だけなので、既読/未読の描き分けは要らない */}
         {rows.map((row) => (
           <li key={row.id}>

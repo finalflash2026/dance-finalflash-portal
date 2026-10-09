@@ -127,7 +127,7 @@ export function RoomStatusBoard({
   if (rooms.length === 0) {
     return (
       <section
-        className="rounded-xl border border-[var(--border)] px-4 py-3"
+        className="rounded-xl bg-[var(--cell)] px-4 py-3"
         data-tour="room-board"
       >
         <p className="text-sm text-[var(--muted)]">
@@ -154,7 +154,7 @@ export function RoomStatusBoard({
      * ことがほとんどのため表示する価値が薄い)。
      */
     <section
-      className="rounded-xl border border-[var(--border)] p-2"
+      className="rounded-xl bg-[var(--cell)] p-2"
       data-tour="room-board"
     >
       <header className="flex items-baseline justify-between gap-2">

@@ -97,7 +97,7 @@ export function ClubKeyBoard({
   }
 
   return (
-    <section className="rounded-xl border border-[var(--border)] p-3">
+    <section className="rounded-xl bg-[var(--cell)] p-3">
       <h2 className="text-sm font-bold">部室の鍵</h2>
 
       {error ? (

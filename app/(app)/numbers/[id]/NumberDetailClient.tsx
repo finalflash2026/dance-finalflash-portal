@@ -98,7 +98,7 @@ export function NumberDetailClient({
         </div>
       </div>
 
-      <nav className="flex gap-1 rounded-xl border border-[var(--border)] p-1">
+      <nav className="flex gap-1 rounded-xl bg-[var(--cell)] p-1">
         {(
           [
             { id: "events", label: "日程" },
@@ -315,11 +315,11 @@ function EventsTab({
       )}
 
       {events.length === 0 ? (
-        <p className="rounded-xl border border-[var(--border)] px-4 py-6 text-center text-sm text-[var(--muted)]">
+        <p className="rounded-xl bg-[var(--cell)] px-4 py-6 text-center text-sm text-[var(--muted)]">
           登録されている日程はありません
         </p>
       ) : (
-        <ul className="divide-y divide-[var(--border)] rounded-xl border border-[var(--border)]">
+        <ul className="divide-y divide-[var(--separator)] rounded-xl bg-[var(--cell)]">
           {events.map((event) => (
             <li
               key={event.id}
@@ -733,7 +733,7 @@ function MembersTab({
     <div className="space-y-4">
       <section className="space-y-2">
         <h2 className="text-sm font-bold">メンバー ({members.length}人)</h2>
-        <ul className="divide-y divide-[var(--border)] rounded-xl border border-[var(--border)]">
+        <ul className="divide-y divide-[var(--separator)] rounded-xl bg-[var(--cell)]">
           {members.map((member) => (
             <li key={member.userId} className="flex items-center gap-2 px-3 py-2">
               <span className="min-w-0 flex-1 truncate text-sm">
@@ -826,11 +826,11 @@ function MembersTab({
           {candidates === null ? (
             <p className="text-sm text-[var(--muted)]">名簿を読み込み中…</p>
           ) : filtered.length === 0 ? (
-            <p className="rounded-xl border border-[var(--border)] px-4 py-4 text-center text-sm text-[var(--muted)]">
+            <p className="rounded-xl bg-[var(--cell)] px-4 py-4 text-center text-sm text-[var(--muted)]">
               該当する人がいません
             </p>
           ) : (
-            <ul className="max-h-72 divide-y divide-[var(--border)] overflow-y-auto rounded-xl border border-[var(--border)]">
+            <ul className="max-h-72 divide-y divide-[var(--separator)] overflow-y-auto rounded-xl bg-[var(--cell)]">
               {filtered.map((candidate) => (
                 <li
                   key={candidate.userId}

@@ -56,7 +56,7 @@ export function LabelCalendar({
   const todayInThisMonth = cells.includes(today);
 
   return (
-    <section className="rounded-xl border border-[var(--border)] px-1.5 py-1.5">
+    <section className="rounded-xl bg-[var(--cell)] px-1.5 py-1.5">
       <header className="flex items-center justify-between">
         <Link
           href={href(addMonths(monthAnchor, -1))}

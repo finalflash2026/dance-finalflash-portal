@@ -196,7 +196,7 @@ export function StudioPracticeSection({
       <ErrorMessage>{error}</ErrorMessage>
 
       {practices.length > 0 ? (
-        <ul className="divide-y divide-[var(--border)] rounded-xl border border-[var(--border)]">
+        <ul className="divide-y divide-[var(--separator)] rounded-xl bg-[var(--cell)]">
           {practices.map((practice) => (
             <li key={practice.id} className="flex items-center gap-2 px-3 py-2">
               {/*
@@ -258,7 +258,7 @@ export function StudioPracticeSection({
       ) : null}
 
       {open ? (
-        <div className="space-y-2 rounded-xl border border-[var(--border)] p-3">
+        <div className="space-y-2 rounded-xl bg-[var(--cell)] p-3">
           <label className="block">
             <span className="text-sm font-medium">日付</span>
             <input
