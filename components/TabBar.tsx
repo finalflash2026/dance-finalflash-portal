@@ -9,11 +9,12 @@ import type { Role } from "@/lib/types";
 /**
  * 下部タブバー (SPEC.md §6.0 / §7 / §12)
  *
- * 現役: マイカレンダー / 全体カレンダー / ナンバー の3タブ
- * OB  : 全体を表示せず 2タブ構成 (SPEC §6.0 / §3.6)
+ * **カレンダー / ナンバー の2タブ** (v1.30 §6.7.7)。マイカレンダーと全体
+ * カレンダーを1つにまとめたので、OB も現役も同じ2タブになった。
+ * OB に見せないもの (鍵のボード・他ジャンル・空き) は画面の中で出し分ける。
  *
- * **左端がマイカレンダーで、URL も `/`**(v1.14)。毎日開くのがここなので、
- * 起動して最初に出る画面にしてある。全体カレンダーは `/overview`。
+ * **左端がカレンダーで、URL も `/`**(v1.14)。毎日開くのがここなので、
+ * 起動して最初に出る画面にしてある。
  *
  * 見た目は**画面から浮いた島型**(v1.14)。下の内容が透けて動くことで、
  * 画面の一部ではなく上に乗っているものだと分かる。
@@ -22,14 +23,14 @@ import type { Role } from "@/lib/types";
  */
 
 export const TABS = [
-  { href: "/", label: "マイ", hiddenForOb: false },
-  { href: "/overview", label: "全体", hiddenForOb: true },
-  { href: "/number-cal", label: "ナンバー", hiddenForOb: false },
+  { href: "/", label: "カレンダー", icon: "calendar" },
+  { href: "/number-cal", label: "ナンバー", icon: "people" },
 ] as const;
 
-/** OB は全体カレンダーを持たない。スワイプ側 (SwipeTabs) とも共用する */
+/** 役割ごとのタブ。いまは全員同じだが、スワイプ側 (SwipeTabs) と共用するため残す */
 export function visibleTabs(role: Role) {
-  return TABS.filter((tab) => !(role === "ob" && tab.hiddenForOb));
+  void role;
+  return TABS;
 }
 
 export function TabBar({ role }: { role: Role }) {
@@ -48,7 +49,10 @@ export function TabBar({ role }: { role: Role }) {
        *   画面いっぱい (約358px) … 今度は長すぎる
        * その中間に置いてある。`w-full` は画面が 300px より狭いときの保険。
        */}
-      <ul className="glass flex w-full max-w-[300px] gap-1 rounded-full p-1">
+      <ul
+        className="glass flex w-full max-w-[260px] gap-1 rounded-full p-1"
+        data-tour="tabbar"
+      >
         {tabs.map((tab, index) => {
           const active = index === currentIndex;
           return (
@@ -67,12 +71,13 @@ export function TabBar({ role }: { role: Role }) {
                 onClick={() => rememberNavDirection(currentIndex, index)}
                 aria-current={active ? "page" : undefined}
                 // 高さ44pxは指で押せる最小 (SPEC §12: スマホ最優先)
-                className={`flex h-11 w-full items-center justify-center rounded-full px-3 text-sm transition-colors ${
+                className={`flex h-11 w-full items-center justify-center gap-1.5 rounded-full px-3 text-[13px] font-semibold transition-colors ${
                   active
-                    ? "bg-[var(--primary)] font-bold text-[var(--primary-fg)]"
+                    ? "bg-[var(--primary)] text-[var(--primary-fg)]"
                     : "text-[var(--muted)]"
                 }`}
               >
+                <TabIcon name={tab.icon} />
                 {tab.label}
               </Link>
             </li>
@@ -80,5 +85,36 @@ export function TabBar({ role }: { role: Role }) {
         })}
       </ul>
     </nav>
+  );
+}
+
+/** タブのアイコン (SF Symbols の calendar / person.2 に近い形を線で描く) */
+function TabIcon({ name }: { name: (typeof TABS)[number]["icon"] }) {
+  const common = {
+    width: 18,
+    height: 18,
+    viewBox: "0 0 24 24",
+    fill: "none",
+    stroke: "currentColor",
+    strokeWidth: 2,
+    strokeLinecap: "round" as const,
+    strokeLinejoin: "round" as const,
+    "aria-hidden": true,
+  };
+  if (name === "calendar") {
+    return (
+      <svg {...common}>
+        <rect x="3" y="4.5" width="18" height="16.5" rx="3" />
+        <path d="M3 9.5h18M8 2.5v4M16 2.5v4" />
+      </svg>
+    );
+  }
+  return (
+    <svg {...common}>
+      <circle cx="9" cy="8" r="3.5" />
+      <path d="M2.5 20c.6-3.6 3.3-5.5 6.5-5.5s5.9 1.9 6.5 5.5" />
+      <circle cx="17" cy="9" r="2.6" />
+      <path d="M17.5 14.6c2.3.3 3.7 2 4 4.4" />
+    </svg>
   );
 }

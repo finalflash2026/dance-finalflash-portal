@@ -81,7 +81,7 @@ export async function POST(request: Request) {
         // 1行目に誰が、2行目に中身 (v1.26 と同じ形)
         title: profile.username,
         body,
-        url: "/overview",
+        url: "/",
         // 同じボードの連絡はまとめる。連投で通知が積み上がらないように
         tag: `board-${scope}`,
       },

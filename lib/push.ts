@@ -77,7 +77,7 @@ export interface PushPayload {
   title: string;
   /** 添える説明。基本は付けない (title で完結させるため) */
   body?: string;
-  /** タップしたときに開くパス (例: `/overview`) */
+  /** タップしたときに開くパス (例: `/`) */
   url: string;
   /**
    * 同じ話題の通知をまとめるための札。同じ tag の通知は端末上で置き換わる。

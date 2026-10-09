@@ -92,7 +92,7 @@ export async function POST(request: Request) {
         body: `${room.name}を${
           parsed.data.isUnlocked ? "開けました" : "閉めました"
         }`,
-        url: "/overview",
+        url: "/",
         // 同じ部屋の開け閉めは置き換える。往復しても通知が積み上がらない
         tag: `room-${room.id}`,
       },
