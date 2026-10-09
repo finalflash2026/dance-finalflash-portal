@@ -1,0 +1,268 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>起動アニメーション試作</title>
+<style>
+  :root { --bg: #000; --fg: #f5f5f7; }
+  * { box-sizing: border-box; margin: 0; }
+  html, body { height: 100%; background: #1c1c1e; color: var(--fg);
+    font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", sans-serif; }
+  body { display: grid; place-items: center; gap: 16px; padding: 16px; }
+
+  /* 端末の枠 (iPhone 相当 390x844 を縮小表示) */
+  .device { position: relative; width: min(390px, 92vw); aspect-ratio: 390 / 844;
+    border-radius: 48px; overflow: hidden; background: #f2f2f7;
+    box-shadow: 0 0 0 10px #0a0a0a, 0 0 0 11px #3a3a3c, 0 30px 80px rgba(0,0,0,.6); }
+
+  /* ---- 裏にあるアプリ画面 (ダミー) ---- */
+  .app { position: absolute; inset: 0; padding: 58px 16px 0; color: #000; }
+  .app h1 { font-size: 34px; font-weight: 700; letter-spacing: -.02em; }
+  .app .sub { color: #8e8e93; font-size: 15px; margin-top: 2px; }
+  .app .row { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; margin-top: 18px; }
+  .app .row span { aspect-ratio: 1; border-radius: 10px; background: #fff; }
+  .app .row span.on { background: #ff375f; }
+  .app .list { margin-top: 18px; background: #fff; border-radius: 14px; }
+  .app .list div { height: 52px; border-bottom: .5px solid #e5e5ea; }
+  .app .list div:last-child { border: 0; }
+
+  /* ---- スプラッシュ ---- */
+  .splash { position: absolute; inset: 0; background: var(--bg); overflow: hidden;
+    will-change: opacity, transform; }
+  .splash canvas.rays { position: absolute; inset: 0; width: 100%; height: 100%; }
+  .grain { position: absolute; inset: -50%; opacity: .14; mix-blend-mode: screen; pointer-events: none;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+    animation: grain .4s steps(4) infinite; }
+  @keyframes grain { 0%{transform:translate(0,0)} 25%{transform:translate(-3%,2%)} 50%{transform:translate(2%,-3%)} 75%{transform:translate(-2%,-1%)} }
+
+  .flash { position: absolute; inset: 0; pointer-events: none; opacity: 0;
+    background: radial-gradient(circle at 50% 46%, #fff 0%, rgba(255,255,255,.85) 18%, rgba(255,255,255,0) 60%); }
+
+  /* 原画(光線とロゴが元から一体の絵)をそのまま使う。上下の端だけぼかして、
+     画面の余白で動き続ける光線になじませる */
+  .logo-wrap { position: absolute; left: 50%; top: 46%; width: 100%; aspect-ratio: 1;
+    transform: translate(-50%, -50%) scale(1.3); opacity: 0; filter: blur(14px); }
+  .logo-wrap img { width: 100%; height: 100%; display: block;
+    -webkit-mask-image: linear-gradient(to bottom, transparent 0%, #000 14%, #000 86%, transparent 100%);
+            mask-image: linear-gradient(to bottom, transparent 0%, #000 14%, #000 86%, transparent 100%); }
+  /* クロームの照り返し: ロゴの形で切り抜いた光の帯を横切らせる */
+  .shine { position: absolute; inset: 0; mix-blend-mode: overlay; opacity: .95;
+    -webkit-mask-size: 100% 100%; mask-size: 100% 100%;
+    background: linear-gradient(115deg, transparent 35%, rgba(255,255,255,.95) 48%, rgba(180,220,255,.8) 52%, transparent 65%);
+    background-size: 300% 100%; background-position: 150% 0; }
+
+  
+  .sparkle { position: absolute; width: 22px; height: 22px; opacity: 0; transform: scale(0) rotate(0deg); }
+  .sparkle::before, .sparkle::after { content: ""; position: absolute; left: 50%; top: 50%;
+    background: #fff; border-radius: 50%; transform: translate(-50%,-50%);
+    box-shadow: 0 0 8px #fff, 0 0 16px rgba(255,255,255,.7); }
+  .sparkle::before { width: 2px; height: 100%; }
+  .sparkle::after  { width: 100%; height: 2px; }
+
+  /* 動画書き出し用: 端末枠と操作を消して画面いっぱいに */
+  body.video { padding: 0; display: block; background: #000; }
+  body.video .device { width: 100vw; height: 100vh; aspect-ratio: auto; border-radius: 0; box-shadow: none; }
+  body.video .controls, body.video .note { display: none; }
+  body.video .grain { animation: none; }
+
+  /* ---- 操作 ---- */
+  .controls { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }
+  button, label.toggle { appearance: none; border: 0; border-radius: 999px; padding: 10px 18px;
+    background: #2c2c2e; color: #fff; font: 600 15px -apple-system, sans-serif; cursor: pointer; }
+  button.primary { background: #0a84ff; }
+  label.toggle { display: inline-flex; align-items: center; gap: 8px; }
+  .note { color: #8e8e93; font-size: 13px; max-width: 420px; text-align: center; line-height: 1.5; }
+</style>
+</head>
+<body class="">
+<script>if (new URLSearchParams(location.search).has("video")) document.body.className = "video";</script>
+  <div class="device" id="device">
+    <div class="app">
+      <h1>10月</h1>
+      <div class="sub">今日 · 公式練 2件</div>
+      <div class="row"><span></span><span></span><span class="on"></span><span></span><span></span><span class="on"></span><span></span></div>
+      <div class="row"><span></span><span class="on"></span><span></span><span></span><span class="on"></span><span></span><span></span></div>
+      <div class="list"><div></div><div></div><div></div></div>
+    </div>
+
+    <div class="splash" id="splash">
+      <canvas class="rays" id="rays"></canvas>
+      <div class="flash" id="flash"></div>
+      <div class="logo-wrap" id="logo">
+        <img id="logoImg" alt="FINAL FLASH">
+        <div class="shine" id="shine"></div>
+        <span class="sparkle" id="sp1" style="left:78%;top:32%"></span>
+        <span class="sparkle" id="sp2" style="left:12.5%;top:77%"></span>
+      </div>
+      <div class="grain"></div>
+    </div>
+  </div>
+
+  <div class="controls">
+    <button class="primary" id="replay">もう一度再生</button>
+    <button id="slow">スロー再生</button>
+    <label class="toggle"><input type="checkbox" id="reduce"> 視差効果を減らす</label>
+  </div>
+  <p class="note">起動時だけ約1.6秒。画面のどこかを触ればすぐ飛ばせる想定です。<br>
+  「視差効果を減らす」がオンの人には、ロゴを一瞬出してフェードするだけにします。</p>
+
+<script>
+(() => {
+  const SRC = "../../assets/icon-source.jpg";
+  const $ = (id) => document.getElementById(id);
+  const splash = $("splash"), canvas = $("rays"), ctx = canvas.getContext("2d");
+  const logo = $("logo"), logoImg = $("logoImg"), shine = $("shine"), flash = $("flash");
+  const sp1 = $("sp1"), sp2 = $("sp2");
+
+  // ---------- ロゴの切り抜き ----------
+  // 元画像は光線の上にロゴが焼き込まれている。ロゴを囲む銀の輪郭線を「壁」とみなし、
+  // 画像の外周から壁を越えずに塗れる範囲 = 背景、それ以外で中心につながる塊 = ロゴ、とする。
+  function extractLogo(img) {
+    // 元画像は光線の上にロゴが焼き込まれていて、きれいには切り抜けない。
+    // そこで「ロゴを囲む角丸の領域」×「明るさ」で透明度を決める(ルマキー)。
+    // 暗い隙間は透けて後ろで動く光線が見え、焼き込みの光線とも自然になじむ。
+    const N = 584;
+    const c = document.createElement("canvas"); c.width = c.height = N;
+    const g = c.getContext("2d", { willReadFrequently: true });
+    g.drawImage(img, 0, 0, N, N);
+    const data = g.getImageData(0, 0, N, N); const px = data.data;
+    const CX = 295, CY = 292, AX = 222, AY = 186, P = 4.5; // 輪郭線を少し外まで含む超楕円
+    for (let i = 0; i < N * N; i++) {
+      const x = (i % N - CX) / AX, y = (((i / N) | 0) - CY) / AY;
+      const d = Math.pow(Math.abs(x), P) + Math.pow(Math.abs(y), P); // 1 で境界
+      const region = Math.max(0, Math.min(1, (1.08 - d) / 0.16));     // 縁をぼかす
+      const r = px[i*4], gg = px[i*4+1], b = px[i*4+2];
+      const mx = Math.max(r, gg, b), mn = Math.min(r, gg, b);
+      const sat = mx === 0 ? 0 : (mx - mn) / mx;
+      const lum = (0.2126*r + 0.7152*gg + 0.0722*b) / 255;
+      // 銀(彩度が低く明るい)ほど不透明、色の付いた光線は弱める
+      const key = Math.max(0, Math.min(1, (lum - 0.08) * 2.2)) * (1 - Math.min(1, sat * 0.9));
+      px[i*4+3] = Math.round(255 * region * Math.max(key, region > .99 && d < .55 ? .92 : 0));
+    }
+    g.putImageData(data, 0, 0);
+    return c.toDataURL("image/png");
+  }
+
+  // ---------- 光線 ----------
+  const COLORS = ["#ff3b6b", "#ff6fa0", "#ffd23f", "#f7b733", "#3fe0ff", "#4cff8a", "#ffffff", "#a98bff"];
+  let rays = [];
+  // 動画書き出しで毎フレーム同じ光線になるよう、乱数は種から作る
+  function mulberry32(a) { return () => { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a);
+    t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+  function seedRays() {
+    const rnd = mulberry32(20261010); const Math_random = rnd;
+    rays = Array.from({ length: 120 }, () => ({
+      a: Math_random() * Math.PI * 2,
+      w: 1 + Math_random() * 5,
+      c: COLORS[(Math_random() * COLORS.length) | 0],
+      v: 0.6 + Math_random() * 0.9,      // 伸びる速さ
+      d: Math_random() * 0.18,           // 出だしの遅れ
+      o: 0.35 + Math_random() * 0.65,
+    }));
+  }
+  function resize() {
+    const r = canvas.getBoundingClientRect(), dpr = Math.min(devicePixelRatio || 1, 2);
+    canvas.width = r.width * dpr; canvas.height = r.height * dpr; ctx.setTransform(dpr,0,0,dpr,0,0);
+  }
+  function drawRays(p, W, H) {
+    ctx.clearRect(0, 0, W, H);
+    const cx = W / 2, cy = H * 0.46, R = Math.hypot(W, H) * 0.7;
+    ctx.globalCompositeOperation = "lighter";
+    for (const r of rays) {
+      const k = Math.max(0, Math.min(1, (p - r.d) * r.v * 2.2));
+      if (k <= 0) continue;
+      const e = 1 - Math.pow(1 - k, 3);                // easeOutCubic
+      const r1 = R * e, r0 = R * Math.max(0, e - 0.82) + 18;
+      const x0 = cx + Math.cos(r.a) * r0, y0 = cy + Math.sin(r.a) * r0;
+      const x1 = cx + Math.cos(r.a) * r1, y1 = cy + Math.sin(r.a) * r1;
+      const grd = ctx.createLinearGradient(x0, y0, x1, y1);
+      grd.addColorStop(0, "rgba(255,255,255,0)"); grd.addColorStop(.35, r.c); grd.addColorStop(1, "rgba(0,0,0,0)");
+      ctx.strokeStyle = grd; ctx.globalAlpha = r.o * (0.55 + 0.45 * e);
+      ctx.lineWidth = r.w * (0.4 + e); ctx.lineCap = "round";
+      ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke();
+    }
+    ctx.globalAlpha = 1; ctx.globalCompositeOperation = "source-over";
+  }
+
+  // ---------- タイムライン ----------
+  const clamp = (v) => Math.max(0, Math.min(1, v));
+  const seg = (t, a, b) => clamp((t - a) / (b - a));
+  const easeOut = (x) => 1 - Math.pow(1 - x, 3);
+  const backOut = (x) => { const c1 = 1.70158, c3 = c1 + 1; return 1 + c3 * Math.pow(x - 1, 3) + c1 * Math.pow(x - 1, 2); };
+
+  let raf = 0, speed = 1;
+  const FREEZE = parseFloat(new URLSearchParams(location.search).get("t"));
+  function play() {
+    cancelAnimationFrame(raf); resize(); seedRays();
+    const reduce = $("reduce").checked;
+    const W = canvas.clientWidth, H = canvas.clientHeight;
+    const DUR = reduce ? 900 : 1700;
+    const t0 = performance.now();
+    splash.style.display = "block";
+    const frame = (now) => {
+      const ms = (now - t0) / speed;
+      const t = window.__t ?? (Number.isFinite(FREEZE) ? FREEZE : ms / DUR);
+      if (reduce) {
+        ctx.clearRect(0, 0, W, H);
+        logo.style.opacity = seg(t, 0, .25); logo.style.filter = "none";
+        logo.style.transform = "translate(-50%,-50%) scale(1)";
+        splash.style.opacity = 1 - seg(t, .7, 1);
+      } else {
+        // 0.00-0.45 光線が中心から走る
+        drawRays(seg(t, 0.02, 0.6), W, H);
+        // 0.28-0.45 白い閃光
+        const f = seg(t, .28, .36), fo = seg(t, .36, .6);
+        flash.style.opacity = (f * (1 - fo)).toFixed(3);
+        // 0.30-0.62 ロゴが弾むように現れる
+        const l = seg(t, .3, .62);
+        logo.style.opacity = easeOut(l);
+        logo.style.filter = `blur(${(14 * (1 - easeOut(l))).toFixed(2)}px)`;
+        logo.style.transform = `translate(-50%,-50%) scale(${(1.3 - 0.3 * backOut(l)).toFixed(4)})`;
+        canvas.style.opacity = (1 - 0.35 * easeOut(l)).toFixed(3);
+        // 0.50-0.80 クロームの照り返しが横切る
+        shine.style.backgroundPosition = `${150 - 200 * easeOut(seg(t, .5, .8))}% 0`;
+        // きらめき
+        for (const [el, a] of [[sp1, .55], [sp2, .62]]) {
+          const s = seg(t, a, a + .18), v = Math.sin(s * Math.PI);
+          el.style.opacity = v; el.style.transform = `scale(${v * 1.3}) rotate(${s * 90}deg)`;
+        }
+        // 0.82-1.00 少し寄りながら溶けてアプリへ
+        const x = easeOut(seg(t, .82, 1));
+        splash.style.opacity = 1 - x;
+        splash.style.transform = `scale(${1 + x * .08})`;
+      }
+      if (window.__t !== undefined || Number.isFinite(FREEZE)) return; // 確認用: ?t=0.7 で止める
+      if (t < 1) raf = requestAnimationFrame(frame);
+      else splash.style.display = "none";
+    };
+    // 動画書き出し用: 任意の瞬間を同期的に描く
+    window.__seek = (tt) => { cancelAnimationFrame(raf); window.__t = tt; splash.style.display = "block"; frame(0); };
+    window.__ready = true;
+    raf = requestAnimationFrame(frame);
+  }
+
+  function reset() {
+    splash.style.opacity = 1; splash.style.transform = "none"; flash.style.opacity = 0;
+    logo.style.opacity = 0;
+  }
+
+  const img = new Image();
+  img.onload = () => {
+    const url = extractLogo(img);
+    logoImg.src = SRC;
+    shine.style.webkitMaskImage = shine.style.maskImage = `url(${url})`;
+    setTimeout(() => { reset(); play(); }, 300);
+  };
+  img.src = SRC;
+
+  $("replay").onclick = () => { speed = 1; reset(); play(); };
+  $("slow").onclick = () => { speed = 3; reset(); play(); };
+  $("device").onclick = () => { // タップで飛ばす
+    if (splash.style.display !== "none") { cancelAnimationFrame(raf); splash.style.display = "none"; }
+  };
+  addEventListener("resize", resize);
+})();
+</script>
+</body>
+</html>
