@@ -3,6 +3,8 @@
 import { useCallback, useState } from "react";
 
 import { BoardMessages } from "@/components/BoardMessages";
+import { Sheet } from "@/components/Sheet";
+import { fillButtonClass, primaryButtonClass } from "@/components/ui";
 import type { BoardMessage } from "@/lib/board-messages";
 import { useRooms } from "@/lib/rooms";
 import { createClient } from "@/lib/supabase/client";
@@ -20,7 +22,9 @@ import type { DateString } from "@/lib/types";
  *   ○ = 開錠済。誰かが既に開けているのでそのまま入れる
  *
  * - 行が無い部屋は既定で ×(施錠中)
- * - **誰でも**タップで切替可(権限制限なし)。確認ダイアログなし、即 upsert、後勝ち
+ * - **誰でも**切替可(権限制限なし)。後勝ち
+ * - **押すと確認の窓が出て、「報告する」で初めて切り替わる** (v1.30 §6.7.6)。
+ *   1タップで現役全員に通知が飛んでいたため、誤タップの影響が大きすぎた
  * - お知らせ通知は発生させない(切替が頻繁で通知過多になるため)
  * - 日付をキーに含むので、日付が変われば自動的に全部屋が × に戻る
  */
@@ -61,6 +65,12 @@ export function RoomStatusBoard({
   const [fetchedAt, setFetchedAt] = useState<Date | null>(null);
   const [pendingRoomId, setPendingRoomId] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
+  /** 確認の窓を開いている部屋と、切り替えた後の状態 (v1.30) */
+  const [confirming, setConfirming] = useState<{
+    roomId: number;
+    name: string;
+    unlock: boolean;
+  } | null>(null);
 
   const refresh = useCallback(async () => {
     const supabase = createClient();
@@ -177,7 +187,9 @@ export function RoomStatusBoard({
             <li key={room.id}>
               <button
                 type="button"
-                onClick={() => toggle(room.id, unlocked)}
+                onClick={() =>
+                  setConfirming({ roomId: room.id, name: room.name, unlock: !unlocked })
+                }
                 disabled={pendingRoomId === room.id}
                 aria-label={`${room.name} を${unlocked ? "施錠中" : "開錠済"}に切り替える`}
                 aria-pressed={unlocked}
@@ -211,6 +223,46 @@ export function RoomStatusBoard({
           );
         })}
       </ul>
+
+      {confirming ? (
+        <Sheet
+          title={confirming.unlock ? "開けたことを報告" : "閉めたことを報告"}
+          onClose={() => setConfirming(null)}
+          footer={
+            <div className="space-y-2">
+              <button
+                type="button"
+                className={primaryButtonClass}
+                onClick={() => {
+                  const { roomId, unlock } = confirming;
+                  setConfirming(null);
+                  void toggle(roomId, !unlock);
+                }}
+              >
+                {confirming.unlock ? "開けました" : "閉めました"}と報告する
+              </button>
+              <button
+                type="button"
+                className={fillButtonClass}
+                onClick={() => setConfirming(null)}
+              >
+                やめる
+              </button>
+            </div>
+          }
+        >
+          <p className="text-[17px] leading-relaxed">
+            <strong>{confirming.name}</strong>を
+            {confirming.unlock ? "「開錠済 ○」" : "「施錠中 ×」"}にして、
+            現役全員に通知します。
+          </p>
+          <p className="mt-2 text-[15px] text-[var(--muted)]">
+            {confirming.unlock
+              ? "実際に鍵を開けたときだけ押してください。"
+              : "実際に鍵を閉めたときだけ押してください。"}
+          </p>
+        </Sheet>
+      ) : null}
 
       {/* ○×では表せない状況を書き残す欄 (§6.1.3)。中身は窓の中 */}
       <BoardMessages
