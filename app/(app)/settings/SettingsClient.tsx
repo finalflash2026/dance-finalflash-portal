@@ -8,7 +8,9 @@ import {
   ErrorMessage,
   Field,
   buttonClass,
+  fillButtonClass,
   inputClass,
+  primaryButtonClass,
   secondaryButtonClass,
   settingsSectionClass,
 } from "@/components/ui";
@@ -138,49 +140,80 @@ export function SettingsClient({
         />
       ) : null}
 
-      <section className={settingsSectionClass}>
-        <h2 className="text-base font-bold">カレンダー購読URL</h2>
+      {/*
+        自分のカレンダーアプリへの登録 (§6.4.1 / v1.30 §6.7.9)。
+        **URL を見せる前にボタンで登録できるようにした。** URL をコピーして
+        貼る手順は、Google カレンダーのアプリからは行えず (ブラウザが要る)、
+        やり方が分からないまま止まっている人が多かった。
+      */}
+      <section className={settingsSectionClass} data-tour="subscribe">
+        <h2 className="text-base font-bold">カレンダーに追加</h2>
         <p className="text-sm text-[var(--muted)]">
-          Google / Apple カレンダーに登録すると、自分の予定が自動で反映されます。
-          <strong>URLは他人に教えないでください</strong>(知っている人は予定を見られます)。
+          自分の練習・ナンバー・イベント・締切が、普段使っているカレンダーに自動で入り続けます。
         </p>
 
         {httpsUrl && webcalUrl ? (
-          <div className="space-y-3">
-            <UrlRow label="https" url={httpsUrl} />
-            <UrlRow label="webcal" url={webcalUrl} />
+          <div className="space-y-2">
+            <a href={webcalUrl} className={`${primaryButtonClass} gap-2`}>
+              iPhone / Mac のカレンダーに追加
+            </a>
+            <a
+              href={`https://calendar.google.com/calendar/r?cid=${encodeURIComponent(webcalUrl)}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className={fillButtonClass}
+            >
+              Google カレンダーに追加
+            </a>
+            <ul className="space-y-1 pt-1 text-[13px] leading-snug text-[var(--muted)]">
+              <li>
+                ・iPhone は押すと「照会カレンダーを追加」と出るので「照会」を押すだけです。
+              </li>
+              <li>
+                ・Google カレンダーは<strong>アプリからは追加できません</strong>。
+                ボタンを押すとブラウザで開くので、ログインして「追加」を押してください。
+                追加したあとはスマホのアプリにも出ます。
+              </li>
+              <li>
+                ・Google カレンダーは反映が<strong>半日〜1日遅れる</strong>ことがあります。
+                直前の変更はこのアプリで確かめてください。
+              </li>
+            </ul>
           </div>
         ) : (
           <p className="text-sm text-[var(--muted)]">
-            購読トークンがまだありません。再発行を押すと作成されます。
+            購読URLがまだありません。下の「購読URLを再発行する」を押すと作られます。
           </p>
         )}
 
-        <details className="rounded-lg border border-[var(--border)] p-3 text-sm">
-          <summary className="cursor-pointer font-medium">登録手順</summary>
-          <div className="mt-2 space-y-2 text-[var(--muted)]">
-            <p>
-              <strong>Google カレンダー (PC)</strong>: 左側「他のカレンダー」→
-              「+」→「URLで追加」→ https の URL を貼る
+        <details className="rounded-lg bg-[var(--cell)] p-3 text-sm">
+          <summary className="cursor-pointer font-medium">
+            URL を直接使う・再発行する
+          </summary>
+          <div className="mt-3 space-y-3">
+            <p className="text-[var(--muted)]">
+              <strong>URLは他人に教えないでください</strong>(知っている人は予定を見られます)。
+              他のアプリで使うときは、ここからコピーしてください。
             </p>
-            <p>
-              <strong>iPhone / Mac</strong>: webcal の URL
-              をタップ(またはカレンダーApp →「ファイル」→「新規照会カレンダー」)
-            </p>
-            <p>
-              反映の間隔はカレンダーアプリ側の都合で数時間〜1日ほどかかります。
+            {httpsUrl && webcalUrl ? (
+              <>
+                <UrlRow label="https" url={httpsUrl} />
+                <UrlRow label="webcal" url={webcalUrl} />
+              </>
+            ) : null}
+            <button
+              type="button"
+              onClick={regenerate}
+              disabled={pending}
+              className={secondaryButtonClass}
+            >
+              購読URLを再発行する
+            </button>
+            <p className="text-xs text-[var(--muted)]">
+              再発行すると古いURLは使えなくなり、カレンダーアプリに登録し直す必要があります。
             </p>
           </div>
         </details>
-
-        <button
-          type="button"
-          onClick={regenerate}
-          disabled={pending}
-          className={secondaryButtonClass}
-        >
-          購読URLを再発行する
-        </button>
       </section>
 
       {/*
@@ -554,7 +587,7 @@ function SubgenreSection({
     <section className={settingsSectionClass}>
       <h2 className="text-base font-bold">サブジャンル</h2>
       <p className="text-sm text-[var(--muted)]">
-        ここで選んだジャンルの公式練が、マイカレンダーと購読URLに含まれます。
+        ここで選んだジャンルの公式練が、カレンダーと購読カレンダーに含まれます。
       </p>
       {([2, 3] as const).map((slot) => (
         <Field key={slot} label={`${slot}ジャン`}>
