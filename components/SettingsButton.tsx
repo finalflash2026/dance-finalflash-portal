@@ -40,7 +40,7 @@ function isAboveTabs(pathname: string): boolean {
 }
 
 /** 浮いた丸ボタン。タブバーと同じすりガラス */
-const BUTTON_CLASS =
+export const BUTTON_CLASS =
   "glass flex h-10 w-10 shrink-0 items-center justify-center rounded-full";
 
 export function SettingsButton() {
@@ -64,8 +64,13 @@ export function SettingsButton() {
 
   if (pathname !== SETTINGS_PATH) {
     return (
-      <Link href={SETTINGS_PATH} aria-label="設定" className={BUTTON_CLASS}>
-        <MenuIcon />
+      <Link
+        href={SETTINGS_PATH}
+        aria-label="設定"
+        className={BUTTON_CLASS}
+        data-tour="settings"
+      >
+        <GearIcon />
       </Link>
     );
   }
@@ -95,27 +100,27 @@ export function SettingsButton() {
 }
 
 /**
- * 設定の入口 (SPEC §12 / v1.14)
+ * 設定の入口。**歯車** (v1.30 §6.7.8)。
  *
- * 上から順に短くなる3本線。文字の「設定」から替えたのは、
- * 画面の幅を文字に取られていたのと、浮いた丸ボタンに文字が収まらないため。
+ * v1.14 では短くなる3本線を使っていたが、3本線は「メニュー」に読まれ、
+ * 設定がそこにあると気付かれにくかった。iOS の「設定」と同じ歯車にする。
  * 意味は `aria-label` が持つので、読み上げでは今までどおり「設定」と読まれる。
  */
-function MenuIcon() {
+function GearIcon() {
   return (
     <svg
-      width="18"
-      height="14"
-      viewBox="0 0 18 14"
+      width="20"
+      height="20"
+      viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"
-      strokeWidth="2"
+      strokeWidth="1.9"
       strokeLinecap="round"
+      strokeLinejoin="round"
       aria-hidden
     >
-      <line x1="1" y1="1" x2="17" y2="1" />
-      <line x1="1" y1="7" x2="12" y2="7" />
-      <line x1="1" y1="13" x2="7" y2="13" />
+      <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z" />
+      <circle cx="12" cy="12" r="3" />
     </svg>
   );
 }

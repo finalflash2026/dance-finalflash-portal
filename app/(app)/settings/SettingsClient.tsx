@@ -246,44 +246,99 @@ function ThemeSection() {
     setTheme(next);
   }
 
+  /*
+   * **押す前にどうなるか分かるように、小さな見本を並べる** (v1.30 §6.7.8)。
+   * 「ライトモード」「ダークモード」と文字だけ並べていたときは、
+   * どこで切り替えるのか自体に気付かれていなかった。iOS の「画面表示と明るさ」と同じ形。
+   */
   return (
-    <section className={settingsSectionClass}>
-      <h2 className="text-base font-bold">表示テーマ</h2>
-      <p className="text-sm text-[var(--muted)]">
-        この端末だけの設定です。別の端末では別に選べます。
-      </p>
-
-      <div className="flex gap-2">
-        {(["light", "dark"] as const).map((value) => {
+    <section className={settingsSectionClass} data-tour="theme">
+      <h2 className="text-base font-bold">画面の明るさ</h2>
+      <div role="radiogroup" aria-label="表示テーマ" className="grid grid-cols-3 gap-3">
+        {(["system", "light", "dark"] as const).map((value) => {
           const selected = theme === value;
           return (
             <button
               key={value}
               type="button"
+              role="radio"
+              aria-checked={selected}
               onClick={() => select(value)}
-              aria-pressed={selected}
-              className={`flex-1 rounded-lg border px-3 py-3 text-left ${
-                selected
-                  ? "border-[var(--primary)] bg-[var(--surface)]"
-                  : "border-[var(--border)]"
-              }`}
+              className="flex flex-col items-center gap-2"
             >
-              <span className="block text-sm font-bold">
-                {THEME_LABELS[value]}
+              <ThemePreview kind={value} selected={selected} />
+              <span className="text-[15px] font-medium">{THEME_LABELS[value]}</span>
+              <span
+                aria-hidden
+                className={`grid h-[22px] w-[22px] place-items-center rounded-full border-2 ${
+                  selected
+                    ? "border-[var(--tint)] bg-[var(--tint)]"
+                    : "border-[var(--border)]"
+                }`}
+              >
                 {selected ? (
-                  <span className="ml-1 text-xs font-normal text-[var(--muted)]">
-                    選択中
-                  </span>
+                  <svg viewBox="0 0 12 12" width="11" height="11" aria-hidden>
+                    <path
+                      d="M2.5 6.2l2.3 2.3 4.7-5"
+                      fill="none"
+                      stroke="#fff"
+                      strokeWidth="1.9"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  </svg>
                 ) : null}
-              </span>
-              <span className="mt-0.5 block text-xs text-[var(--muted)]">
-                {THEME_HINTS[value]}
               </span>
             </button>
           );
         })}
       </div>
+      <p className="text-[13px] text-[var(--muted)]">
+        {theme ? THEME_HINTS[theme] : ""}
+        この端末だけの設定です。
+      </p>
     </section>
+  );
+}
+
+/** テーマの見本。小さな画面に、文字の行とカレンダーのマスを描く */
+function ThemePreview({ kind, selected }: { kind: Theme; selected: boolean }) {
+  const light = { bg: "#ffffff", fg: "#1f2933", sub: "#e2e8f0", accent: "#C0392B" };
+  const dark = { bg: "#22272e", fg: "#e6edf3", sub: "#444c56", accent: "#f08379" };
+  const screen = (c: typeof light) => (
+    <>
+      <rect width="60" height="96" fill={c.bg} />
+      <rect x="8" y="10" width="26" height="5" rx="2.5" fill={c.fg} />
+      <rect x="8" y="22" width="44" height="30" rx="4" fill={c.sub} />
+      <rect x="12" y="27" width="10" height="4" rx="1.5" fill={c.accent} />
+      <rect x="8" y="58" width="44" height="6" rx="3" fill={c.sub} />
+      <rect x="8" y="68" width="34" height="6" rx="3" fill={c.sub} />
+    </>
+  );
+  return (
+    <svg
+      viewBox="0 0 60 96"
+      className={`w-full max-w-[72px] overflow-hidden rounded-[10px] ${
+        selected
+          ? "ring-2 ring-[var(--tint)] ring-offset-2 ring-offset-[var(--background)]"
+          : "ring-1 ring-[var(--border)]"
+      }`}
+      aria-hidden
+    >
+      <defs>
+        <clipPath id="theme-half">
+          <polygon points="0,0 60,0 0,96" />
+        </clipPath>
+      </defs>
+      {kind === "light" ? screen(light) : null}
+      {kind === "dark" ? screen(dark) : null}
+      {kind === "system" ? (
+        <>
+          {screen(dark)}
+          <g clipPath="url(#theme-half)">{screen(light)}</g>
+        </>
+      ) : null}
+    </svg>
   );
 }
 

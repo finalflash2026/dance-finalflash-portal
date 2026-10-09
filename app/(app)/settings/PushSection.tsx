@@ -3,6 +3,12 @@
 import { useCallback, useEffect, useState } from "react";
 
 import { settingsSectionClass } from "@/components/ui";
+import {
+  isIos,
+  isStandalone,
+  savePushSubscription,
+  subscribePush,
+} from "@/lib/push-client";
 import { createClient } from "@/lib/supabase/client";
 
 /**
@@ -82,33 +88,6 @@ const DEFAULT_PREFS: PushPrefs = {
   deadline: true,
   announcement: true,
 };
-
-/**
- * VAPID の公開鍵は base64url の文字列で渡されるが、
- * `pushManager.subscribe` はバイト列しか受け取らない。
- */
-function toApplicationServerKey(base64Url: string): Uint8Array<ArrayBuffer> {
-  const padding = "=".repeat((4 - (base64Url.length % 4)) % 4);
-  const base64 = (base64Url + padding).replace(/-/g, "+").replace(/_/g, "/");
-  const raw = window.atob(base64);
-  // ArrayBuffer から作る。長さだけ渡すと SharedArrayBuffer も含む型になり、
-  // subscribe() が受け取る BufferSource に合わない
-  const output = new Uint8Array(new ArrayBuffer(raw.length));
-  for (let i = 0; i < raw.length; i++) output[i] = raw.charCodeAt(i);
-  return output;
-}
-
-/** ホーム画面に追加したアプリとして開いているか */
-function isStandalone(): boolean {
-  return (
-    window.matchMedia("(display-mode: standalone)").matches ||
-    (navigator as Navigator & { standalone?: boolean }).standalone === true
-  );
-}
-
-function isIos(): boolean {
-  return /iP(hone|ad|od)/.test(navigator.userAgent);
-}
 
 type Status = "checking" | "unsupported" | "ready";
 
@@ -195,7 +174,7 @@ export function PushSection({ vapidPublicKey }: { vapidPublicKey: string }) {
     setError(null);
     setNotice(null);
     try {
-      const permission = await Notification.requestPermission();
+      const permission = await subscribePush(vapidPublicKey, { ...DEFAULT_PREFS });
       if (permission !== "granted") {
         setDenied(permission === "denied");
         setError(
@@ -203,16 +182,6 @@ export function PushSection({ vapidPublicKey }: { vapidPublicKey: string }) {
         );
         return;
       }
-
-      const registration = await navigator.serviceWorker.register("/sw.js");
-      await navigator.serviceWorker.ready;
-      const subscription = await registration.pushManager.subscribe({
-        // false は許されない (バックグラウンドで黙って動く用途を塞ぐため)
-        userVisibleOnly: true,
-        applicationServerKey: toApplicationServerKey(vapidPublicKey),
-      });
-
-      await save(subscription, DEFAULT_PREFS);
       setPrefs(DEFAULT_PREFS);
       setSubscribed(true);
       setNotice("この端末で通知を受け取ります");
@@ -265,24 +234,7 @@ export function PushSection({ vapidPublicKey }: { vapidPublicKey: string }) {
   }
 
   async function save(subscription: PushSubscription, next: PushPrefs) {
-    const json = subscription.toJSON() as {
-      keys?: { p256dh?: string; auth?: string };
-    };
-    const res = await fetch("/api/push/subscribe", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        endpoint: subscription.endpoint,
-        keys: { p256dh: json.keys?.p256dh, auth: json.keys?.auth },
-        prefs: next,
-      }),
-    });
-    if (!res.ok) {
-      const body = (await res.json().catch(() => null)) as {
-        error?: string;
-      } | null;
-      throw new Error(body?.error ?? "保存できませんでした");
-    }
+    await savePushSubscription(subscription, { ...next });
   }
 
   async function toggle(category: keyof PushPrefs) {

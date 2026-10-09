@@ -1,12 +1,15 @@
+import { HelpButton } from "@/components/HelpButton";
+import { LaunchPrompts } from "@/components/LaunchPrompts";
 import { PageTransition } from "@/components/PageTransition";
 import { PullToRefresh } from "@/components/PullToRefresh";
 import { ServiceWorkerRegistrar } from "@/components/ServiceWorkerRegistrar";
 import { SettingsButton } from "@/components/SettingsButton";
 import { SwipeTabs } from "@/components/SwipeTabs";
 import { TabBar } from "@/components/TabBar";
+import { Tour } from "@/components/Tour";
 import { getCurrentProfile } from "@/lib/auth/session";
 import { ROLE_LABELS } from "@/lib/constants";
-import { hasSupabaseEnv } from "@/lib/env";
+import { VAPID_PUBLIC_KEY, hasSupabaseEnv } from "@/lib/env";
 import { RoomsProvider } from "@/lib/rooms";
 import { ROOMS } from "@/lib/constants";
 import { fetchRooms } from "@/lib/rooms-server";
@@ -55,7 +58,11 @@ export default async function AppLayout({
             </p>
           ) : null}
         </div>
-        <SettingsButton />
+        {/* ? と歯車 (v1.30 §6.7.8)。どちらも同じ丸い浮いたボタン */}
+        <div className="flex shrink-0 items-center gap-2">
+          <HelpButton />
+          <SettingsButton />
+        </div>
       </header>
 
       <RoomsProvider rooms={rooms}>
@@ -67,6 +74,15 @@ export default async function AppLayout({
       </RoomsProvider>
 
       <TabBar role={role} />
+
+      {/* 初回ツアーと、起動時の案内 (ホーム画面への追加・通知。§6.7.9) */}
+      <Tour />
+      {profile ? (
+        <LaunchPrompts
+          vapidPublicKey={VAPID_PUBLIC_KEY}
+          isActiveMember={profile.role !== "ob"}
+        />
+      ) : null}
 
       {/* 静的ファイルを端末に持たせて、次回の起動を速くする (§13.1) */}
       <ServiceWorkerRegistrar />

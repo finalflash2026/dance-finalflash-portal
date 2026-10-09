@@ -126,7 +126,10 @@ export function RoomStatusBoard({
 
   if (rooms.length === 0) {
     return (
-      <section className="rounded-xl border border-[var(--border)] px-4 py-3">
+      <section
+        className="rounded-xl border border-[var(--border)] px-4 py-3"
+        data-tour="room-board"
+      >
         <p className="text-sm text-[var(--muted)]">
           今日は練習場所の予約がありません
         </p>
@@ -150,7 +153,10 @@ export function RoomStatusBoard({
      * 「誰がいつ開けたか」は ○ のときだけ出す (× は既定値で、誰も触っていない
      * ことがほとんどのため表示する価値が薄い)。
      */
-    <section className="rounded-xl border border-[var(--border)] p-2">
+    <section
+      className="rounded-xl border border-[var(--border)] p-2"
+      data-tour="room-board"
+    >
       <header className="flex items-baseline justify-between gap-2">
         <h2 className="text-sm font-bold">今日の練習場所</h2>
         <div className="flex items-center gap-2 text-[10px] text-[var(--muted)]">
