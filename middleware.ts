@@ -19,7 +19,7 @@ import { SUPABASE_ANON_KEY, SUPABASE_URL, hasSupabaseEnv } from "@/lib/env";
 /** 未ログインでもアクセスできるパス */
 const PUBLIC_PATHS = ["/login", "/signup"];
 /** 認証を要求しない API (トークン自体が鍵 / cron 用) */
-const PUBLIC_API_PREFIXES = ["/api/auth", "/api/cal", "/api/health"];
+const PUBLIC_API_PREFIXES = ["/api/auth", "/api/cal", "/api/health", "/api/cron"];
 
 export async function middleware(request: NextRequest) {
   // Supabase 未設定 (セットアップ前) は素通しして dev を起動できるようにする
@@ -82,7 +82,7 @@ export const config = {
     /*
      * 以下を除く全パスに適用:
      *   _next/static, _next/image, favicon.ico, 画像ファイル
-     * /api/cal と /api/health は上の PUBLIC_API_PREFIXES で通しているが、
+     * /api/cal と /api/health と /api/cron (v1.30) は上の PUBLIC_API_PREFIXES で通しているが、
      * セッション更新のコストを避けるため matcher からも外しておく。
      *
      * **manifest.webmanifest も外す。** ここを通すと未ログインのとき
@@ -94,6 +94,6 @@ export const config = {
      * ことがあり、ログインHTMLが返るとスクリプトとして解釈できず
      * 登録そのものが失敗する (SPEC §6.6)。中身は固定のコードだけ。
      */
-    "/((?!_next/static|_next/image|favicon.ico|manifest.webmanifest|sw.js|api/cal|api/health|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)",
+    "/((?!_next/static|_next/image|favicon.ico|manifest.webmanifest|sw.js|api/cal|api/health|api/cron|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)",
   ],
 };
