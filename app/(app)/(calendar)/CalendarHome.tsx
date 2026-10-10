@@ -245,37 +245,19 @@ export function CalendarHome({
 
       <NotificationList initial={notifications} />
 
-      {chips.length > 1 ? (
-        <nav
-          aria-label="絞り込み"
-          className="h-scroll -mx-4 flex gap-2 overflow-x-auto px-4 pb-1"
-        >
-          {chips.map((chip) => (
-            <button
-              key={chip.key}
-              type="button"
-              onClick={() => selectFilter(chip.key)}
-              aria-pressed={filter === chip.key}
-              className={`flex shrink-0 items-center gap-1.5 rounded-full px-3 py-1.5 text-[13px] font-medium ${
-                filter === chip.key
-                  ? "bg-[var(--primary)] text-[var(--primary-fg)]"
-                  : "bg-[var(--fill)]"
-              }`}
-            >
-              {chip.color ? (
-                <span
-                  aria-hidden
-                  className="h-2 w-2 shrink-0 rounded-full"
-                  style={{ backgroundColor: chip.color }}
-                />
-              ) : null}
-              {chip.label}
-            </button>
-          ))}
-        </nav>
-      ) : null}
-
-      <div data-tour="calendar">
+      <div data-tour="calendar" className="space-y-1.5">
+        {/*
+          **絞り込みはチップの列をやめ、ここに格納する** (§6.7.7 / v1.30.1)。
+          使う人は多くないのに、横に流れる列が毎回カレンダーの上を1段占めていた。
+          絞り込み中は名前を出し、× で解除できる (予定が消えたように見えないように)
+        */}
+        {chips.length > 1 ? (
+          <FilterButton
+            chips={chips}
+            value={filter}
+            onChange={selectFilter}
+          />
+        ) : null}
         <LabelCalendar
           basePath="/"
           monthAnchor={monthAnchor}
@@ -393,6 +375,96 @@ function attendanceTarget(event: MyEvent): AttendanceTarget {
     }
   }
   return { kind: "info" };
+}
+
+// ---------- 絞り込み (§6.7.7 / v1.30.1) ----------
+
+function FilterButton({
+  chips,
+  value,
+  onChange,
+}: {
+  chips: { key: string; label: string; color?: string }[];
+  value: string;
+  onChange: (key: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const active = chips.find((chip) => chip.key === value && chip.key !== "all");
+
+  return (
+    <div className="flex justify-end">
+      {active ? (
+        <span className="flex items-center gap-1 rounded-full bg-[var(--fill)] py-1 pl-3 pr-1 text-[13px] font-medium">
+          <button
+            type="button"
+            onClick={() => setOpen(true)}
+            className="flex items-center gap-1.5"
+          >
+            {active.color ? (
+              <span
+                aria-hidden
+                className="h-2 w-2 rounded-full"
+                style={{ backgroundColor: active.color }}
+              />
+            ) : null}
+            {active.label}だけ表示中
+          </button>
+          <button
+            type="button"
+            aria-label="絞り込みを解除"
+            onClick={() => onChange("all")}
+            className="grid h-6 w-6 place-items-center rounded-full text-[var(--muted)]"
+          >
+            <svg viewBox="0 0 24 24" width="12" height="12" aria-hidden>
+              <path d="M6 6l12 12M18 6L6 18" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" />
+            </svg>
+          </button>
+        </span>
+      ) : (
+        <button
+          type="button"
+          onClick={() => setOpen(true)}
+          className="flex items-center gap-1 px-1 text-[13px] text-[var(--tint)]"
+        >
+          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden>
+            <path d="M4 6h16M7 12h10M10 18h4" />
+          </svg>
+          絞り込み
+        </button>
+      )}
+
+      {open ? (
+        <Sheet title="絞り込み" onClose={() => setOpen(false)}>
+          <ul className={groupClass}>
+            {chips.map((chip) => (
+              <li key={chip.key}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    onChange(chip.key);
+                    setOpen(false);
+                  }}
+                  className="flex w-full items-center gap-3 px-4 py-3 text-left text-[17px]"
+                >
+                  <span
+                    aria-hidden
+                    className="h-2.5 w-2.5 shrink-0 rounded-full"
+                    style={{ backgroundColor: chip.color ?? "transparent" }}
+                  />
+                  <span className="flex-1">{chip.label}</span>
+                  {chip.key === value ? (
+                    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="var(--tint)" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" aria-label="選択中">
+                      <path d="M5 12.5l4.5 4.5L19 7.5" />
+                    </svg>
+                  ) : null}
+                </button>
+              </li>
+            ))}
+          </ul>
+        </Sheet>
+      ) : null}
+    </div>
+  );
 }
 
 // ---------- 選んだ日の予定 ----------
