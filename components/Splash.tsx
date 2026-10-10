@@ -3,7 +3,6 @@
 import Image from "next/image";
 import { useEffect, useRef, useState } from "react";
 
-import logoMask from "@/assets/splash-logo-mask.png";
 import logoImage from "@/assets/splash-logo.png";
 
 /**
@@ -22,7 +21,7 @@ import logoImage from "@/assets/splash-logo.png";
  * - **ロゴは元のものに忠実に** (v1.31)。Adobe の背景削除で原画からロゴだけを切り出した
  *   `assets/logo/logo-cutout.png` を、**縮めも変換もせずに**そのまま出す。
  *   Blender で立体化した版も試したが、質感が元と変わるため採らなかった。
- *   登場の瞬間だけ光の帯が横切り、最後に残るのは元のロゴそのもの
+ *   ロゴの上を走る光の帯も外した (Mac の Safari で正方形の縁に紫の線が出たため)
  */
 
 export const SPLASH_SESSION_KEY = "splash-shown";
@@ -39,19 +38,23 @@ export const SPLASH_INIT_SCRIPT = `try{if(!/[?&]splash(=|&|$)/.test(location.sea
 
 const DURATION_MS = 1700;
 const REDUCED_DURATION_MS = 900;
-/** 原画の光線の色 (ピンク・黄・水色・緑・白・紫が多い) */
+/**
+ * 光線の色。**原画から測った割合に合わせて並べる** (v1.31.2)。
+ * 白 35% / ローズ 21% / 金茶 17% / 黄 9% / ピンク 8% / 青紫 4% / 水色 3% / 緑 2%。
+ * 色は原画の光線の色相ごとの平均を、芯の明るさと濃さまで持ち上げたもの
+ * (平均を取ると粒子と黒で濁り、そのままでは原画より淡く白っぽく見えた)。
+ * 配列からの抜き出しは等確率なので、要素の数で割合を表す (全20)
+ */
 const COLORS = [
-  "#ff3d7f",
-  "#ff6aa8",
-  "#ff4d4d",
-  "#ffd84a",
-  "#ffb547",
-  "#45d9ff",
-  "#6dff9a",
-  "#ffffff",
-  "#ffffff",
-  "#9a7bff",
-];
+  ...Array(7).fill("#ece8e8"), // 白
+  ...Array(4).fill("#ff5f7e"), // ローズ
+  ...Array(3).fill("#f5b25e"), // 金茶
+  ...Array(2).fill("#f0e070"), // 黄
+  ...Array(2).fill("#ff74ab"), // ピンク
+  "#6f76ff", // 青紫
+  "#5fe3ee", // 水色
+  "#72e58a", // 緑
+] as string[];
 
 interface Ray {
   angle: number;
@@ -81,7 +84,6 @@ export function Splash() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const flashRef = useRef<HTMLDivElement>(null);
   const logoRef = useRef<HTMLDivElement>(null);
-  const shineRef = useRef<HTMLDivElement>(null);
   const sparkRefs = useRef<(HTMLSpanElement | null)[]>([]);
 
   useEffect(() => {
@@ -157,7 +159,8 @@ export function Splash() {
         // 太い帯はにじませる (原画の光線は輪郭がぼけている)
         ctx.shadowColor = ray.color;
         ctx.shadowBlur = ray.width > 7 ? 18 : 6;
-        ctx.globalAlpha = ray.alpha * (ray.width > 7 ? 0.32 : 0.7);
+        // 重なりで白く飛ばないよう、原画のように光線の間の黒を残す濃さに
+        ctx.globalAlpha = ray.alpha * (ray.width > 7 ? 0.26 : 0.6);
         ctx.lineWidth = ray.width * (0.5 + 0.5 * e);
         ctx.beginPath();
         ctx.moveTo(cx, cy);
@@ -171,7 +174,6 @@ export function Splash() {
 
     const logo = logoRef.current!;
     const flash = flashRef.current!;
-    const shine = shineRef.current!;
     const sparks = sparkRefs.current;
 
     function frame(t: number) {
@@ -193,16 +195,14 @@ export function Splash() {
       // 落ち着いた後はぼかしも明るさも素のまま (= 元のロゴそのもの)
       const blur = 14 * (1 - easeOut(l));
       const bright = 1 + 1.4 * (1 - easeOut(seg(t, 0.06, 0.5)));
-      logo.style.filter =
-        blur < 0.05 && bright < 1.005
-          ? "none"
-          : `blur(${blur.toFixed(2)}px) brightness(${bright.toFixed(3)})`;
+      /*
+       * **途中で filter を "none" に切り替えない** (v1.31.2)。切り替えた瞬間に
+       * Safari がロゴの層を描き直し、ロゴの範囲が白い四角 (Mac では紫の線) で
+       * 一瞬覆われた。最後まで同じ形の指定のまま 0 と 1 に近づける
+       */
+      logo.style.filter = `blur(${blur.toFixed(2)}px) brightness(${bright.toFixed(3)})`;
       // 小さく弾むように前へ出る
       logo.style.transform = `translate(-50%,-50%) scale(${(0.82 + 0.18 * backOut(l)).toFixed(4)})`;
-      // ロゴの形に沿って、光の帯が左上から右下へ一度だけ横切る
-      const sweep = easeOut(seg(t, 0.4, 0.8));
-      // 帯 (背景の幅の中央) が左の外 → 右の外へ動くよう、位置を 90% → 10% へ
-      shine.style.backgroundPosition = `${(90 - 80 * sweep).toFixed(1)}% 0`;
       sparks.forEach((spark, i) => {
         if (!spark) return;
         const s = seg(t, 0.55 + i * 0.07, 0.73 + i * 0.07);
@@ -282,7 +282,12 @@ export function Splash() {
       <div
         ref={logoRef}
         className="absolute left-1/2 top-[46%] aspect-square w-full max-w-[520px] opacity-0"
-        style={{ transform: "translate(-50%,-50%) scale(0.82)", filter: "blur(14px)" }}
+        style={{
+          transform: "translate(-50%,-50%) scale(0.82)",
+          filter: "blur(14px) brightness(2.4)",
+          // 動いている間は同じ層のまま保たせる (描き直しの乱れを防ぐ)
+          willChange: "transform, filter, opacity",
+        }}
       >
         {/*
           **元のロゴをそのまま出す。** unoptimized で変換を挟まない (WebP/AVIF にすると
@@ -295,28 +300,6 @@ export function Splash() {
           priority
           unoptimized
           className="h-full w-full"
-        />
-        {/* 光の帯。ロゴの形で切り抜いて、ロゴの上だけを一度走らせる */}
-        <div
-          ref={shineRef}
-          className="pointer-events-none absolute inset-0"
-          style={{
-            mixBlendMode: "screen",
-            /*
-             * **純白にする** (v1.31.1)。青白くしていたときは、外側の雲形の線の上で
-             * 後ろのピンクの光線と重なり、紫の枠が一瞬見えていた。
-             * 繰り返さない (繰り返すと、走り出す前から帯の端がロゴに乗る)
-             */
-            backgroundImage:
-              "linear-gradient(115deg, transparent 40%, rgba(255,255,255,0.7) 50%, transparent 60%)",
-            backgroundRepeat: "no-repeat",
-            backgroundSize: "300% 100%",
-            backgroundPosition: "90% 0",
-            WebkitMaskImage: `url(${logoMask.src})`,
-            maskImage: `url(${logoMask.src})`,
-            WebkitMaskSize: "100% 100%",
-            maskSize: "100% 100%",
-          }}
         />
         {[
           { left: "78%", top: "32%" },
