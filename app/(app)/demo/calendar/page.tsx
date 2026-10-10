@@ -1,6 +1,6 @@
 import { CalendarHome } from "../../(calendar)/CalendarHome";
 import { DEMO_USER_ID, demoCalendar } from "../data";
-import { startOfMonth } from "@/lib/time";
+import { addMonths, endOfMonth, startOfMonth } from "@/lib/time";
 
 export default async function DemoCalendar({
   searchParams,
@@ -12,18 +12,20 @@ export default async function DemoCalendar({
   return (
     <main className="mx-auto max-w-2xl space-y-4 px-4 py-2">
       <CalendarHome
-        monthAnchor={startOfMonth(data.today)}
+        rangeStart={startOfMonth(addMonths(data.today, -1))}
+        rangeEnd={endOfMonth(addMonths(data.today, 1))}
         initialDate={data.today}
         today={data.today}
         events={data.events}
+        todayEvents={null}
         blocksByDate={data.blocksByDate}
-        notifications={data.notifications}
         numbers={data.numbers}
         genreCodes={data.genreCodes}
         isOb={isOb}
         currentUserId={DEMO_USER_ID}
         upcomingDeadlines={data.upcomingDeadlines}
-        boards={data.boards}
+        keysSummary={isOb ? null : { unlocked: 2, holder: "21HIPHOPじろう" }}
+        keysHref="/demo/keys"
       />
     </main>
   );

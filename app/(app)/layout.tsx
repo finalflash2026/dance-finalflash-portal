@@ -1,3 +1,4 @@
+import { BellButton } from "@/components/BellButton";
 import { HelpButton } from "@/components/HelpButton";
 import { LaunchPrompts } from "@/components/LaunchPrompts";
 import { PageTransition } from "@/components/PageTransition";
@@ -35,11 +36,21 @@ export default async function AppLayout({
 }: Readonly<{ children: React.ReactNode }>) {
   // **並列で取る。** 部屋は全画面で使うが、profile を待ってから引くと
   // 往復が1つ増えて起動が遅くなる (§13.1)
-  const [profile, rooms] = await Promise.all([
+  const [profile, rooms, unread] = await Promise.all([
     getCurrentProfile(),
     hasSupabaseEnv()
       ? createClient().then(fetchRooms)
       : Promise.resolve(ROOMS),
+    // ベルに出す未読の数 (§6.7.13)。件数だけ数える (中身は取らない)
+    hasSupabaseEnv()
+      ? createClient().then(async (supabase) => {
+          const { count } = await supabase
+            .from("notifications")
+            .select("id", { count: "exact", head: true })
+            .is("read_at", null);
+          return count ?? 0;
+        })
+      : Promise.resolve(1),
   ]);
   // Supabase 未設定 (セットアップ前) は member 相当で表示する
   const role: Role = profile?.role ?? "member";
@@ -60,6 +71,7 @@ export default async function AppLayout({
         </div>
         {/* ? と歯車 (v1.30 §6.7.8)。どちらも同じ丸い浮いたボタン */}
         <div className="flex shrink-0 items-center gap-2">
+          <BellButton unread={unread} />
           <HelpButton />
           <SettingsButton />
         </div>

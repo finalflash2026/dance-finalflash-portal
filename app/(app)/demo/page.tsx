@@ -4,8 +4,10 @@ import { groupClass } from "@/components/ui";
 
 /** デモ画面の目次。各画面を見本のデータで開く */
 const SCREENS = [
-  { href: "/demo/calendar", title: "カレンダー (現役)", note: "鍵のボード・近い締切・いま空いている部屋・月カレンダー・その日" },
-  { href: "/demo/calendar?ob=1", title: "カレンダー (OB/OG)", note: "鍵や他ジャンルが出ない2タブの見え方" },
+  { href: "/demo/calendar", title: "ホーム (現役)", note: "今日・自主練できる部屋・鍵の入口・週の帯・その日" },
+  { href: "/demo/keys", title: "鍵と連絡", note: "ホームの「練習場所の鍵・部室の鍵・連絡」から開く画面" },
+  { href: "/demo/notifications", title: "お知らせ", note: "右上のベルから開く画面" },
+  { href: "/demo/calendar?ob=1", title: "ホーム (OB/OG)", note: "鍵や他ジャンルが出ない2タブの見え方" },
   { href: "/demo/calendar?tour=1", title: "初回ツアー", note: "カレンダーの上で吹き出しの案内を始める" },
   { href: "/demo/numbers", title: "ナンバー", note: "所属ナンバー・作成・スタ練" },
   { href: "/demo/number", title: "ナンバー詳細 (主催)", note: "日程・メンバーの編集" },

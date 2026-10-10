@@ -18,6 +18,7 @@ import { useCallback, useEffect, useLayoutEffect, useState } from "react";
 
 export const START_TOUR_EVENT = "app:start-tour";
 export const TOUR_DONE_KEY = "tour-done-v1";
+// v1.31 で画面が変わったが、見終わった人にもう一度出すほどではないので印は変えない
 
 interface Step {
   target: string;
@@ -27,29 +28,34 @@ interface Step {
 
 const STEPS: Step[] = [
   {
+    target: "today",
+    title: "今日",
+    body: "今日の自分の予定と、近い締切がここにまとまっています。予定を押すと欠席・遅刻を伝えられます。",
+  },
+  {
+    target: "free-rooms",
+    title: "今日自主練できる部屋",
+    body: "今日空いている部屋と時間です。押すとそのまま使用の申請ができます。",
+  },
+  {
+    target: "room-board",
+    title: "鍵と連絡",
+    body: "練習場所の鍵を開けた・閉めたときの報告、部室の鍵、連絡はここから。",
+  },
+  {
     target: "calendar",
     title: "カレンダー",
-    body: "自分の練習・ナンバー・イベント・締切が1つのカレンダーにまとまっています。日付を押すと、その日の予定が下に出ます。",
+    body: "横に滑らせると前後の週へ。年月を押すと月の表示に広がります。右の「自分の予定」から、ほかのジャンルの練習や空きを足せます。",
   },
   {
     target: "day",
     title: "その日の予定",
-    body: "自分の予定は濃く、ほかのジャンルの練習や空いている部屋は薄く出ます。予定を押すと出欠、「空き」を押すと申請ができます。",
+    body: "選んだ日の予定です。「時間表」「部屋」に切り替えられます。",
   },
   {
-    target: "room-board",
-    title: "今日の練習場所",
-    body: "鍵を開けた・閉めたら、ここで部屋を押して報告します。確認が出るので、間違えて押しても大丈夫です。",
-  },
-  {
-    target: "deadlines",
-    title: "近い締切",
-    body: "集金やフォームの締切がここに出ます。締切の日の朝に通知も届きます。",
-  },
-  {
-    target: "tabbar",
-    title: "タブ",
-    body: "「カレンダー」と「ナンバー」を切り替えます。ナンバーの作成や日程の登録は「ナンバー」から。",
+    target: "bell",
+    title: "お知らせ",
+    body: "3役からの告知や練習日程の更新は、ベルに数が出ます。",
   },
   {
     target: "settings",

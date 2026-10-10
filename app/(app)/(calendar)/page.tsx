@@ -1,18 +1,15 @@
 import { redirect } from "next/navigation";
 
 import type { DayBlock } from "@/components/DayGrid";
-import type { NotificationRow } from "@/components/NotificationList";
-import type { RoomStatusRow } from "@/components/RoomStatusBoard";
 import { SetupNotice } from "@/components/SetupNotice";
 import { getCurrentProfile } from "@/lib/auth/session";
-import { toBoardMessages } from "@/lib/board-messages";
-import { KEY_HISTORY_LIMIT, toKeyHolderRows } from "@/lib/club-key";
 import { GENRE_BY_ID } from "@/lib/constants";
 import { hasSupabaseEnv } from "@/lib/env";
 import { getMyEvents, getMyGenreIds } from "@/lib/events";
 import { createClient } from "@/lib/supabase/server";
 import {
   addDays,
+  addMonths,
   endOfMonth,
   normalizeTime,
   startOfMonth,
@@ -20,27 +17,20 @@ import {
 } from "@/lib/time";
 import type { DateString, SlotStatus } from "@/lib/types";
 
-import { CalendarHome, type UpcomingDeadline } from "./CalendarHome";
+import { CalendarHome, type KeysSummary, type UpcomingDeadline } from "./CalendarHome";
 
 /**
- * カレンダー (SPEC.md §6.7.7 / v1.30)
+ * ホーム (SPEC.md §6.7.13 / v1.31)
  *
- * **マイカレンダー (§6.4) と全体カレンダー (§6.1) を1つにまとめた画面。**
- * 予定を見るために2つのタブを行き来する理由が無かった。
+ * **開いてすぐ見たいものだけ**を置く: 今日 (予定 + 近い締切) / 今日自主練できる部屋 /
+ * 鍵まわりの入口 / 1週間の帯 + 選んだ日の予定。鍵のボードは /keys、お知らせはベルへ移した。
  *
- * サーバーで取るもの (すべて並列):
- *   - 自分の予定 (getMyEvents。購読 ics と同じ抽出。§6.4)
- *   - その月の公開済みコマと申請 … 他ジャンルの練習・空きを薄く出すのと、
- *     「部屋ごと」の表・いま空いている部屋に使う (現役のみ)
- *   - 鍵のボード・部室の鍵・連絡 (現役のみ。常に今日)
- *   - 近い締切 (今日から14日。表示中の月に関係なく)
- *   - 未読のお知らせ・所属ナンバー・自分のジャンル (絞り込みチップ)
- *
- * 日付の選択はクライアントで完結する (月ぶんをまとめて取っているため)。
+ * 週の帯は横に滑らせて前後の週へ行けるので、**表示中の月の前後1か月ぶん**をまとめて取る。
+ * その外へ滑らせたら、その日付でページごと読み直す (CalendarHome)。
+ * 日付の選択はクライアントで完結する (§13.1)。
  */
 
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
-const NOTIFICATION_LIMIT = 20;
 /** 「近い締切」に並べる範囲 (§6.7.2) */
 const UPCOMING_DEADLINE_DAYS = 14;
 
@@ -70,7 +60,7 @@ const SLOT_COLUMNS =
   "id, date, start_time, end_time, room_id, status, genre_id, target_generations, note," +
   " claims(id, user_id, start_time, end_time, purpose, profiles(username))";
 
-export default async function CalendarPage({
+export default async function HomePage({
   searchParams,
 }: {
   searchParams: Promise<{ date?: string }>;
@@ -88,37 +78,27 @@ export default async function CalendarPage({
   const today = todayInTokyo();
   const selectedDate: DateString =
     date && DATE_PATTERN.test(date) ? date : today;
-  const monthStart = startOfMonth(selectedDate);
-  const monthEnd = endOfMonth(selectedDate);
-  const todayInMonth = today >= monthStart && today <= monthEnd;
+  const rangeStart = startOfMonth(addMonths(selectedDate, -1));
+  const rangeEnd = endOfMonth(addMonths(selectedDate, 1));
+  const todayInRange = today >= rangeStart && today <= rangeEnd;
 
   const isOb = profile.role === "ob";
   const supabase = await createClient();
-
   // OB は全体の練習・鍵・締切を持たない (§3.6)。空の結果で埋めて形だけ揃える
   const none = Promise.resolve({ data: [] as unknown[], error: null });
 
   const [
     events,
-    notificationResult,
     numberResult,
     genreIds,
-    monthSlotsResult,
+    rangeSlotsResult,
     todaySlotsResult,
     roomStatusResult,
     keyHolderResult,
-    messagesResult,
     deadlineResult,
   ] = await Promise.all([
-    getMyEvents(supabase, profile, monthStart, monthEnd),
-    // 未読だけ (§6.4-2 / v1.10)
-    supabase
-      .from("notifications")
-      .select("id, type, title, body, created_at")
-      .is("read_at", null)
-      .order("created_at", { ascending: false })
-      .limit(NOTIFICATION_LIMIT),
-    // 絞り込みチップの所属ナンバー。**user_id で必ず絞る** (§6.4 / v1.12)
+    getMyEvents(supabase, profile, rangeStart, rangeEnd),
+    // 所属ナンバー (絞り込みと色の割り当て)。**user_id で必ず絞る** (§6.4 / v1.12)
     supabase
       .from("number_members")
       .select("numbers(id, name)")
@@ -130,33 +110,23 @@ export default async function CalendarPage({
           .from("slots")
           .select(SLOT_COLUMNS)
           .eq("published", true)
-          .gte("date", monthStart)
-          .lte("date", monthEnd),
-    // いま空いている部屋と鍵のボードは**常に今日**を見る。
-    // 表示中の月に今日が入っていれば月ぶんの中にあるので取らない
-    isOb || todayInMonth
+          .gte("date", rangeStart)
+          .lte("date", rangeEnd),
+    // 「今日自主練できる部屋」は常に今日。範囲に今日が入っていれば取らない
+    isOb || todayInRange
       ? none
       : supabase.from("slots").select(SLOT_COLUMNS).eq("published", true).eq("date", today),
+    // 鍵の入口に出す要約だけ (開いている部屋の数)。ボード本体は /keys
     isOb
       ? none
-      : supabase
-          .from("room_status")
-          .select("room_id, is_unlocked, updated_at, profiles(username)")
-          .eq("date", today),
+      : supabase.from("room_status").select("room_id, is_unlocked").eq("date", today),
     isOb
       ? none
       : supabase
           .from("club_key_holders")
-          .select("id, user_id, taken_at, profiles(username)")
+          .select("profiles(username)")
           .order("taken_at", { ascending: false })
-          .limit(KEY_HISTORY_LIMIT),
-    isOb
-      ? none
-      : supabase
-          .from("board_messages")
-          .select("id, scope, date, body, user_id, created_at, profiles(username)")
-          .or(`and(scope.eq.room,date.eq.${today}),scope.eq.club_key`)
-          .order("created_at", { ascending: true }),
+          .limit(1),
     isOb
       ? none
       : supabase
@@ -167,8 +137,13 @@ export default async function CalendarPage({
           .order("due_date", { ascending: true }),
   ]);
 
+  // 「今日」の欄は表示中の範囲に関係なく今日を見る。範囲に入っていれば取得済み
+  const todayEvents = todayInRange
+    ? null
+    : await getMyEvents(supabase, profile, today, today);
+
   const blocksByDate = toBlocksByDate([
-    ...((monthSlotsResult.data ?? []) as SlotRow[]),
+    ...((rangeSlotsResult.data ?? []) as SlotRow[]),
     ...((todaySlotsResult.data ?? []) as SlotRow[]),
   ]);
 
@@ -179,26 +154,6 @@ export default async function CalendarPage({
   )
     .map((row) => row.numbers)
     .filter((number): number is { id: string; name: string } => number !== null);
-
-  const notifications: NotificationRow[] = (
-    (notificationResult.data ?? []) as unknown as {
-      id: string;
-      type: NotificationRow["type"];
-      title: string;
-      body: string | null;
-      created_at: string;
-    }[]
-  ).map((row) => ({
-    id: row.id,
-    type: row.type,
-    title: row.title,
-    body: row.body,
-    createdAt: row.created_at,
-  }));
-
-  const messageRows = (messagesResult.data ?? []) as unknown as {
-    scope: "room" | "club_key";
-  }[];
 
   const upcomingDeadlines: UpcomingDeadline[] = (
     (deadlineResult.data ?? []) as {
@@ -218,12 +173,25 @@ export default async function CalendarPage({
     important: row.important,
   }));
 
-  const error =
-    monthSlotsResult.error ?? todaySlotsResult.error ?? deadlineResult.error;
+  const keysSummary: KeysSummary | null = isOb
+    ? null
+    : {
+        unlocked: ((roomStatusResult.data ?? []) as { is_unlocked: boolean }[]).filter(
+          (row) => row.is_unlocked,
+        ).length,
+        holder:
+          (
+            (keyHolderResult.data ?? []) as unknown as {
+              profiles: { username: string } | null;
+            }[]
+          )[0]?.profiles?.username ?? null,
+      };
+
+  const error = rangeSlotsResult.error ?? todaySlotsResult.error ?? deadlineResult.error;
 
   return (
     <main className="mx-auto max-w-2xl space-y-4 px-4 py-2">
-      <h1 className="sr-only">カレンダー</h1>
+      <h1 className="sr-only">ホーム</h1>
 
       {error ? (
         <p
@@ -236,17 +204,17 @@ export default async function CalendarPage({
 
       {/*
         key を渡して、サーバーが別の日付を返したときに作り直す。
-        月送りやブラウザの戻りでクライアント state が取り残されるのを防ぐ
-        (useState の初期値は再レンダーでは効かない)。
+        読み込み範囲の外へ滑らせて読み直したときに、古い state が残らないように
       */}
       <CalendarHome
         key={selectedDate}
-        monthAnchor={monthStart}
+        rangeStart={rangeStart}
+        rangeEnd={rangeEnd}
         initialDate={selectedDate}
         today={today}
         events={events}
+        todayEvents={todayEvents}
         blocksByDate={blocksByDate}
-        notifications={notifications}
         numbers={numbers}
         genreCodes={genreIds.flatMap((id) => {
           const code = GENRE_BY_ID.get(id)?.code;
@@ -255,20 +223,7 @@ export default async function CalendarPage({
         isOb={isOb}
         currentUserId={profile.user_id}
         upcomingDeadlines={upcomingDeadlines}
-        boards={
-          isOb
-            ? null
-            : {
-                roomStatusRows: (roomStatusResult.data ?? []) as unknown as RoomStatusRow[],
-                roomMessages: toBoardMessages(
-                  messageRows.filter((row) => row.scope === "room"),
-                ),
-                keyHolderRows: toKeyHolderRows(keyHolderResult.data),
-                keyMessages: toBoardMessages(
-                  messageRows.filter((row) => row.scope === "club_key"),
-                ),
-              }
-        }
+        keysSummary={keysSummary}
       />
     </main>
   );

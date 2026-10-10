@@ -335,3 +335,14 @@ html[data-splash="off"] #app-splash {
   width: 100%;
   height: 2px;
 }
+
+/*
+ * 横に滑らせる帯 (週の帯 §6.7.13) のスクロールバーを隠す。
+ * スナップで1週ずつ止まるので、位置はバーではなく中身で分かる
+ */
+.no-scrollbar {
+  scrollbar-width: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}

@@ -35,8 +35,11 @@ const TYPE_LABELS: Record<NotificationType, string> = {
 
 export function NotificationList({
   initial,
+  fullHeight = false,
 }: {
   initial: NotificationRow[];
+  /** お知らせの画面 (v1.31) では高さを固定せず、全部をそのまま並べる */
+  fullHeight?: boolean;
 }) {
   const [rows, setRows] = useState(initial);
   const [error, setError] = useState<string | null>(null);
@@ -86,7 +89,11 @@ export function NotificationList({
        * お知らせが増えるとカードが伸びて、下のカレンダーまで延々と
        * スクロールする必要があった。件数に関わらずここの高さは変わらない。
        */}
-      <ul className="h-scroll max-h-40 divide-y divide-[var(--separator)] overflow-y-auto rounded-xl bg-[var(--cell)]">
+      <ul
+        className={`h-scroll divide-y divide-[var(--separator)] overflow-y-auto rounded-xl bg-[var(--cell)] ${
+          fullHeight ? "" : "max-h-40"
+        }`}
+      >
         {/* ここに並ぶのは未読だけなので、既読/未読の描き分けは要らない */}
         {rows.map((row) => (
           <li key={row.id}>
