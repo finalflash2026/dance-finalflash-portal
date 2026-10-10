@@ -56,7 +56,8 @@ const DURATION_MS = 1700;
 /** 映像 (1.4秒) を最後まで見せるため、映像のときだけ少し長くする */
 const VIDEO_DURATION_MS = 2300;
 const REDUCED_DURATION_MS = 900;
-const COLORS = ["#ff3b6b", "#ff6fa0", "#ffd23f", "#f7b733", "#3fe0ff", "#4cff8a", "#ffffff", "#a98bff"];
+/** 原画の光線の色 (ピンク・黄・水色・緑・白・紫が多い) */
+const COLORS = ["#ff3d7f", "#ff6aa8", "#ff4d4d", "#ffd84a", "#ffb547", "#45d9ff", "#6dff9a", "#ffffff", "#ffffff", "#9a7bff"];
 
 interface Ray {
   angle: number;
@@ -112,13 +113,15 @@ export function Splash() {
     const video = videoRef.current!;
     video.style.display = variant === "video" ? "block" : "none";
     if (variant === "video") {
-      video.src = "/splash/logo-3d.mp4";
+      // 透過付きの映像。iPhone/Mac の Safari は HEVC、それ以外は VP9 (WebM) で持っている
+      video.src = video.canPlayType('video/mp4; codecs="hvc1"')
+        ? "/splash/logo-3d-alpha.mov"
+        : "/splash/logo-3d-alpha.webm";
       video.load();
     }
     let videoStarted = false;
-    // 黒地の映像は、ロゴの枠ごとスクリーンで重ねて黒を透かす。枠にぼかし (filter) が
-    // あるので、中の video だけに掛けても枠の中で閉じてしまい、黒が残る
-    logoRef.current!.style.mixBlendMode = variant === "video" ? "screen" : "normal";
+    // 映像は透過付きなので普通に重ねる (v1.31)。黒地の映像をスクリーンで重ねていた
+    // ときは、明るい光線の上で文字まで透けてしまった
     const ctx = canvas.getContext("2d");
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
     const width = window.innerWidth;
@@ -127,13 +130,14 @@ export function Splash() {
     canvas.height = height * dpr;
     ctx?.setTransform(dpr, 0, 0, dpr, 0, 0);
 
-    const rays: Ray[] = Array.from({ length: 120 }, () => ({
+    // 原画のような太さの揃わない帯。細い線と、にじんだ太い帯が混ざる
+    const rays: Ray[] = Array.from({ length: 96 }, () => ({
       angle: Math.random() * Math.PI * 2,
-      width: 1 + Math.random() * 5,
+      width: Math.random() < 0.3 ? 8 + Math.random() * 14 : 1.5 + Math.random() * 5,
       color: COLORS[Math.floor(Math.random() * COLORS.length)],
-      speed: 0.6 + Math.random() * 0.9,
-      delay: Math.random() * 0.18,
-      alpha: 0.35 + Math.random() * 0.65,
+      speed: 0.7 + Math.random() * 0.8,
+      delay: Math.random() * 0.22,
+      alpha: 0.35 + Math.random() * 0.6,
     }));
 
     let raf = 0;
@@ -153,29 +157,39 @@ export function Splash() {
       const cy = height * 0.46;
       const reach = Math.hypot(width, height) * 0.7;
       ctx.globalCompositeOperation = "lighter";
+      /*
+       * **光線はロゴの裏 (中心) から伸ばし、中心を空けない** (v1.31)。
+       * 以前は中心の周りを空けていたので、ロゴの裏が真っ暗で、原画のように
+       * 文字のすき間から色の線が見えなかった。ロゴはこの上に乗るので、
+       * 中心から出る根元はロゴに隠れ、「裏から光が噴き出す」見え方になる
+       */
       for (const ray of rays) {
-        const k = clamp((p - ray.delay) * ray.speed * 2.2);
+        const k = clamp((p - ray.delay) * ray.speed * 2.0);
         if (k <= 0) continue;
         const e = easeOut(k);
         const r1 = reach * e;
-        const r0 = reach * Math.max(0, e - 0.82) + 18;
-        const x0 = cx + Math.cos(ray.angle) * r0;
-        const y0 = cy + Math.sin(ray.angle) * r0;
         const x1 = cx + Math.cos(ray.angle) * r1;
         const y1 = cy + Math.sin(ray.angle) * r1;
-        const gradient = ctx.createLinearGradient(x0, y0, x1, y1);
-        gradient.addColorStop(0, "rgba(255,255,255,0)");
-        gradient.addColorStop(0.35, ray.color);
+        // 根元 (ロゴの裏) は控えめに。全部の線が中心に集まるので、
+        // 根元まで濃くすると中心が白く飛ぶ
+        const gradient = ctx.createLinearGradient(cx, cy, x1, y1);
+        gradient.addColorStop(0, "rgba(0,0,0,0)");
+        gradient.addColorStop(0.12, ray.color);
+        gradient.addColorStop(0.6, ray.color);
         gradient.addColorStop(1, "rgba(0,0,0,0)");
         ctx.strokeStyle = gradient;
-        ctx.globalAlpha = ray.alpha * (0.55 + 0.45 * e);
-        ctx.lineWidth = ray.width * (0.4 + e);
         ctx.lineCap = "round";
+        // 太い帯はにじませる (原画の光線は輪郭がぼけている)
+        ctx.shadowColor = ray.color;
+        ctx.shadowBlur = ray.width > 7 ? 18 : 6;
+        ctx.globalAlpha = ray.alpha * (ray.width > 7 ? 0.32 : 0.7);
+        ctx.lineWidth = ray.width * (0.5 + 0.5 * e);
         ctx.beginPath();
-        ctx.moveTo(x0, y0);
+        ctx.moveTo(cx, cy);
         ctx.lineTo(x1, y1);
         ctx.stroke();
       }
+      ctx.shadowBlur = 0;
       ctx.globalAlpha = 1;
       ctx.globalCompositeOperation = "source-over";
     }
@@ -192,11 +206,12 @@ export function Splash() {
         root!.style.opacity = String(1 - seg(t, 0.7, 1));
         return;
       }
-      drawRays(seg(t, 0.02, 0.6));
-      const f = seg(t, 0.28, 0.36);
-      const fo = seg(t, 0.36, 0.6);
+      // 先にロゴが閃光とともに現れ、その裏から光線が噴き出す
+      drawRays(seg(t, 0.12, 0.66));
+      const f = seg(t, 0.02, 0.1);
+      const fo = seg(t, 0.1, 0.36);
       flash.style.opacity = (f * (1 - fo)).toFixed(3);
-      const l = seg(t, 0.3, 0.62);
+      const l = seg(t, 0.04, 0.34);
       logo.style.opacity = easeOut(l).toFixed(3);
       // 閃光の中で白く飛んだ状態から、銀の質感へ落ち着く。
       // 映像は自分で光が走るので、明るさはいじらずぼかしだけ
@@ -204,18 +219,19 @@ export function Splash() {
         variant === "video"
           ? `blur(${(10 * (1 - easeOut(l))).toFixed(2)}px)`
           : `blur(${(14 * (1 - easeOut(l))).toFixed(2)}px) brightness(${(
-              1 + 1.4 * (1 - easeOut(seg(t, 0.32, 0.7)))
+              1 + 1.4 * (1 - easeOut(seg(t, 0.06, 0.5)))
             ).toFixed(3)})`;
-      if (variant === "video" && !videoStarted && t >= 0.2) {
+      if (variant === "video" && !videoStarted && t >= 0.04) {
         videoStarted = true;
         void video.play().catch(() => {});
       }
       // 静止画の立体ロゴの上を、光の帯が左上から右下へ横切る
       if (variant === "still" && shineRef.current) {
-        const sweep = easeOut(seg(t, 0.5, 0.86));
+        const sweep = easeOut(seg(t, 0.4, 0.8));
         shineRef.current.style.backgroundPosition = `${(160 - 220 * sweep).toFixed(1)}% 0`;
       }
-      logo.style.transform = `translate(-50%,-50%) scale(${(1.3 - 0.3 * backOut(l)).toFixed(4)})`;
+      // 小さく弾むように前へ出る
+      logo.style.transform = `translate(-50%,-50%) scale(${(0.82 + 0.18 * backOut(l)).toFixed(4)})`;
       sparks.forEach((spark, i) => {
         if (!spark) return;
         const s = seg(t, 0.55 + i * 0.07, 0.73 + i * 0.07);
@@ -284,6 +300,15 @@ export function Splash() {
       className="fixed inset-0 z-[100] overflow-hidden bg-black"
     >
       <canvas ref={canvasRef} className="absolute inset-0 h-full w-full" />
+      {/* 原画のざらっとした粒子感。光線の上にだけ薄く重ねる */}
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-0 opacity-40 mix-blend-overlay"
+        style={{
+          backgroundImage:
+            "url(\"data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='180' height='180'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>\")",
+        }}
+      />
       <div
         ref={flashRef}
         className="pointer-events-none absolute inset-0 opacity-0"
@@ -295,11 +320,11 @@ export function Splash() {
       <div
         ref={logoRef}
         className="absolute left-1/2 top-[46%] aspect-square w-full max-w-[520px] opacity-0"
-        style={{ transform: "translate(-50%,-50%) scale(1.3)", filter: "blur(14px)" }}
+        style={{ transform: "translate(-50%,-50%) scale(0.82)", filter: "blur(14px)" }}
       >
         {/*
-          ロゴのまわりに暗い光をにじませ、後ろの光線と文字が混ざって読みにくくなるのを防ぐ。
-          next/image を通すので、端末に合わせて WebP / AVIF の小さな画像が届く
+          ロゴのまわりの影はごく薄くする。濃くすると文字のすき間が暗く埋まり、
+          原画のように後ろの色の光線が見えなくなる
         */}
         {/* 立体化したロゴ (既定)。next/image で端末に合わせた小さな形式で届く */}
         <div ref={stillRef} className="absolute inset-0">
@@ -309,7 +334,7 @@ export function Splash() {
             priority
             sizes="(max-width: 520px) 100vw, 520px"
             className="h-full w-full"
-            style={{ filter: "drop-shadow(0 0 18px rgba(0,0,0,0.85))" }}
+            style={{ filter: "drop-shadow(0 0 2px rgba(0,0,0,0.6))" }}
           />
           {/* 光の帯。ロゴの形で切り抜いて、ロゴの上だけを走らせる */}
           <div
@@ -335,13 +360,10 @@ export function Splash() {
             alt=""
             sizes="(max-width: 520px) 100vw, 520px"
             className="h-full w-full"
-            style={{ filter: "drop-shadow(0 0 18px rgba(0,0,0,0.85))" }}
+            style={{ filter: "drop-shadow(0 0 2px rgba(0,0,0,0.6))" }}
           />
         </div>
-        {/*
-          映像 (比較用)。黒地の映像をスクリーンで重ねると、黒が透けて
-          ロゴと光だけが光線の上に乗る。使うときだけ読み込む (preload="none")
-        */}
+        {/* 映像 (比較用)。透過付きで、使うときだけ読み込む (preload="none") */}
         <video
           ref={videoRef}
           muted
