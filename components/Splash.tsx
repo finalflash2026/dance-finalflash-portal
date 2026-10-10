@@ -1,8 +1,9 @@
 "use client";
 
+import Image from "next/image";
 import { useEffect, useRef, useState } from "react";
 
-import poster from "@/assets/splash-poster.jpg";
+import logoImage from "@/assets/splash-logo.png";
 
 /**
  * 起動アニメーション (SPEC.md §6.7.10 / v1.30)
@@ -17,8 +18,10 @@ import poster from "@/assets/splash-poster.jpg";
  *
  * - 触れば飛ばせる
  * - 「視差効果を減らす」の人には動きを付けず、ロゴを一瞬出して消すだけ
- * - ロゴの原画は光線とロゴが元から一体の絵。切り抜いて重ねると縁に溝が出たので、
- *   原画をそのまま使い、閃光の中で差し替える
+ * - **ロゴは背景を抜いた透過画像** (v1.31。Adobe の背景削除で原画から切り出した
+ *   `assets/logo/logo-cutout.png` を縮めたもの)。以前は光線ごと焼き込まれた原画を
+ *   重ねていたため、原画の四角い縁と外の光線の間に段差が出ていた。ロゴだけを
+ *   乗せれば、光線は画面いっぱいでひと続きのまま動き続ける
  */
 
 export const SPLASH_SESSION_KEY = "splash-shown";
@@ -159,10 +162,11 @@ export function Splash() {
       flash.style.opacity = (f * (1 - fo)).toFixed(3);
       const l = seg(t, 0.3, 0.62);
       logo.style.opacity = easeOut(l).toFixed(3);
-      logo.style.filter = `blur(${(14 * (1 - easeOut(l))).toFixed(2)}px)`;
+      // 閃光の中で白く飛んだ状態から、銀の質感へ落ち着く
+      logo.style.filter = `blur(${(14 * (1 - easeOut(l))).toFixed(2)}px) brightness(${(
+        1 + 1.4 * (1 - easeOut(seg(t, 0.32, 0.7)))
+      ).toFixed(3)})`;
       logo.style.transform = `translate(-50%,-50%) scale(${(1.3 - 0.3 * backOut(l)).toFixed(4)})`;
-      // 原画の光線と二重にならないよう、外の光線は少し引く (消しはしない)
-      canvas!.style.opacity = (1 - 0.45 * easeOut(l)).toFixed(3);
       sparks.forEach((spark, i) => {
         if (!spark) return;
         const s = seg(t, 0.55 + i * 0.07, 0.73 + i * 0.07);
@@ -233,29 +237,19 @@ export function Splash() {
       <div
         ref={logoRef}
         className="absolute left-1/2 top-[46%] aspect-square w-full max-w-[520px] opacity-0"
-        style={{
-          transform: "translate(-50%,-50%) scale(1.3)",
-          filter: "blur(14px)",
-          /*
-           * **スクリーンで重ねる。** 原画は黒地の上に光線とロゴが描かれた四角い絵で、
-           * 普通に重ねると黒地が外の光線を四角く隠し、境目に段差ができていた。
-           * スクリーンなら黒は透けて明るい部分 (ロゴ・光線) だけが乗るので、
-           * 外側で動く光線と原画の光線がひと続きになる
-           */
-          mixBlendMode: "screen",
-        }}
+        style={{ transform: "translate(-50%,-50%) scale(1.3)", filter: "blur(14px)" }}
       >
-        {/* eslint-disable-next-line @next/next/no-img-element -- 最初のペイントに要るので最適化の遅延を挟まない */}
-        <img
-          src={poster.src}
+        {/*
+          ロゴのまわりに暗い光をにじませ、後ろの光線と文字が混ざって読みにくくなるのを防ぐ。
+          next/image を通すので、端末に合わせて WebP / AVIF の小さな画像が届く
+        */}
+        <Image
+          src={logoImage}
           alt=""
+          priority
+          sizes="(max-width: 520px) 100vw, 520px"
           className="h-full w-full"
-          style={{
-            WebkitMaskImage:
-              "radial-gradient(closest-side, #000 72%, transparent 100%)",
-            maskImage:
-              "radial-gradient(closest-side, #000 72%, transparent 100%)",
-          }}
+          style={{ filter: "drop-shadow(0 0 18px rgba(0,0,0,0.85))" }}
         />
         {[
           { left: "78%", top: "32%" },
