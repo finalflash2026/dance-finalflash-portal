@@ -8,8 +8,9 @@ import logoImage from "@/assets/splash-logo.png";
 /**
  * 起動アニメーション (SPEC.md §6.7.10 / v1.31)
  *
- * 閃光とともにロゴが現れ、その裏 (中心) から色の光線が噴き出して、アプリの画面へ溶ける。
- * 全体で約1.7秒。原画と同じく、文字の後ろ・すき間にも色の光線が見える。
+ * 読み込みが終わるまでは黒地にロゴが静止して見えている (HTML に最初から入っている)。
+ * ページが開けると分かったら、ロゴが脈打ち、閃光とともにその裏 (中心) から色の光線が
+ * 噴き出して、アプリの画面へ溶ける (約1.6秒)。原画と同じく、文字の後ろにも光線が見える。
  *
  * **起動したときだけ** (タブを閉じるまで1回)。画面の移動では出さない。
  * 2回目以降の表示を止めるのは、最初のペイント前に走る SPLASH_INIT_SCRIPT。
@@ -36,8 +37,10 @@ export const SPLASH_INIT_SCRIPT = `try{if(!/[?&]splash(=|&|$)/.test(location.sea
   SPLASH_SESSION_KEY,
 )})){document.documentElement.dataset.splash="off"}}catch(e){document.documentElement.dataset.splash="off"}`;
 
-const DURATION_MS = 1700;
-const REDUCED_DURATION_MS = 900;
+const DURATION_MS = 1600;
+const REDUCED_DURATION_MS = 500;
+/** 読み込みが長引いても、この時間で必ず動き出す */
+const START_TIMEOUT_MS = 6000;
 /**
  * 光線の色。**原画から測った割合に合わせて並べる** (v1.31.2)。
  * 白 35% / ローズ 21% / 金茶 17% / 黄 9% / ピンク 8% / 青紫 4% / 水色 3% / 緑 2%。
@@ -68,11 +71,6 @@ interface Ray {
 const clamp = (v: number) => Math.max(0, Math.min(1, v));
 const seg = (t: number, a: number, b: number) => clamp((t - a) / (b - a));
 const easeOut = (x: number) => 1 - Math.pow(1 - x, 3);
-const backOut = (x: number) => {
-  const c1 = 1.70158;
-  const c3 = c1 + 1;
-  return 1 + c3 * Math.pow(x - 1, 3) + c1 * Math.pow(x - 1, 2);
-};
 
 export function Splash() {
   /**
@@ -178,45 +176,42 @@ export function Splash() {
 
     function frame(t: number) {
       if (reduce) {
-        logo.style.opacity = String(seg(t, 0, 0.25));
-        logo.style.filter = "none";
-        logo.style.transform = "translate(-50%,-50%) scale(1)";
-        root!.style.opacity = String(1 - seg(t, 0.7, 1));
+        // 動きを減らす設定: 静止したロゴのまま、ふっと消えるだけ
+        root!.style.opacity = String(1 - seg(t, 0.2, 1));
         return;
       }
-      // 先にロゴが閃光とともに現れ、その裏から光線が噴き出す
-      drawRays(seg(t, 0.12, 0.66));
+      /*
+       * 読み込みが終わるまでは静止していたロゴが (v1.31.3)、
+       * 小さく脈打ち、閃光とともにその裏から光線が噴き出す
+       */
+      drawRays(seg(t, 0.06, 0.62));
       const f = seg(t, 0.02, 0.1);
       const fo = seg(t, 0.1, 0.36);
       flash.style.opacity = (f * (1 - fo)).toFixed(3);
-      const l = seg(t, 0.04, 0.34);
-      logo.style.opacity = easeOut(l).toFixed(3);
-      // 閃光の中で白く飛んだ状態から、元のロゴの質感へ落ち着く。
-      // 落ち着いた後はぼかしも明るさも素のまま (= 元のロゴそのもの)
-      const blur = 14 * (1 - easeOut(l));
-      const bright = 1 + 1.4 * (1 - easeOut(seg(t, 0.06, 0.5)));
+      const pulse = Math.sin(Math.PI * seg(t, 0, 0.28));
+      const bright = 1 + 1.1 * Math.sin(Math.PI * seg(t, 0.02, 0.34));
       /*
        * **途中で filter を "none" に切り替えない** (v1.31.2)。切り替えた瞬間に
        * Safari がロゴの層を描き直し、ロゴの範囲が白い四角 (Mac では紫の線) で
-       * 一瞬覆われた。最後まで同じ形の指定のまま 0 と 1 に近づける
+       * 一瞬覆われた。最初から最後まで同じ形の指定のまま動かす
        */
-      logo.style.filter = `blur(${blur.toFixed(2)}px) brightness(${bright.toFixed(3)})`;
-      // 小さく弾むように前へ出る
-      logo.style.transform = `translate(-50%,-50%) scale(${(0.82 + 0.18 * backOut(l)).toFixed(4)})`;
+      logo.style.filter = `blur(0px) brightness(${bright.toFixed(3)})`;
+      logo.style.transform = `translate(-50%,-50%) scale(${(1 + 0.05 * pulse).toFixed(4)})`;
       sparks.forEach((spark, i) => {
         if (!spark) return;
-        const s = seg(t, 0.55 + i * 0.07, 0.73 + i * 0.07);
+        const s = seg(t, 0.45 + i * 0.07, 0.63 + i * 0.07);
         const v = Math.sin(s * Math.PI);
         spark.style.opacity = v.toFixed(3);
         spark.style.transform = `scale(${(v * 1.3).toFixed(3)}) rotate(${s * 90}deg)`;
       });
-      const x = easeOut(seg(t, 0.82, 1));
+      const x = easeOut(seg(t, 0.8, 1));
       root!.style.opacity = (1 - x).toFixed(3);
       root!.style.transform = `scale(${1 + x * 0.08})`;
     }
 
     const duration = reduce ? REDUCED_DURATION_MS : DURATION_MS;
     const begin = () => {
+      if (raf || finished) return;
       const start = performance.now();
       const tick = (now: number) => {
         const t = (now - start) / duration;
@@ -227,27 +222,26 @@ export function Splash() {
       raf = requestAnimationFrame(tick);
     };
 
-    // ロゴが読めるまで少しだけ待つ (間に合わなければ光線だけで進める)。
-    // 2回目以降は端末に持っているので待たずに始まる
-    const image = logo.querySelector("img");
-    if (image && !image.complete) {
-      const timeout = window.setTimeout(begin, 600);
-      image.addEventListener(
-        "load",
-        () => {
-          window.clearTimeout(timeout);
-          if (!raf && !finished) begin();
-        },
-        { once: true },
-      );
-    } else {
+    /*
+     * **ページが開けると分かってから動かす** (v1.31.3)。
+     * ここに来た時点で画面の準備 (ハイドレーション) は済んでいる。あとは
+     * 画像などを含むページの読み込み (`load`) が終われば、溶けた先の画面は描き終わっている。
+     * 長引いても START_TIMEOUT_MS で動かす (幕が残り続けないように)
+     */
+    const onLoad = () => begin();
+    if (document.readyState === "complete") {
       begin();
+    } else {
+      window.addEventListener("load", onLoad, { once: true });
     }
+    const startTimeout = window.setTimeout(begin, START_TIMEOUT_MS);
 
     // 何かあっても幕が残り続けないよう、上限で必ず外す
-    const safety = window.setTimeout(finish, 4000);
+    const safety = window.setTimeout(finish, START_TIMEOUT_MS + duration + 1000);
     return () => {
       window.clearTimeout(safety);
+      window.clearTimeout(startTimeout);
+      window.removeEventListener("load", onLoad);
       cancelAnimationFrame(raf);
     };
   }, []);
@@ -281,10 +275,11 @@ export function Splash() {
       />
       <div
         ref={logoRef}
-        className="absolute left-1/2 top-[46%] aspect-square w-full max-w-[520px] opacity-0"
+        className="absolute left-1/2 top-[46%] aspect-square w-full max-w-[520px]"
+        // **最初から静止した状態で見せる** (v1.31.3)。読み込み中はこのまま動かない
         style={{
-          transform: "translate(-50%,-50%) scale(0.82)",
-          filter: "blur(14px) brightness(2.4)",
+          transform: "translate(-50%,-50%) scale(1)",
+          filter: "blur(0px) brightness(1)",
           // 動いている間は同じ層のまま保たせる (描き直しの乱れを防ぐ)
           willChange: "transform, filter, opacity",
         }}
