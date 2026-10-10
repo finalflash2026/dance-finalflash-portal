@@ -3,7 +3,9 @@
 import Image from "next/image";
 import { useEffect, useRef, useState } from "react";
 
+import logoMask from "@/assets/splash-logo-mask.png";
 import logoImage from "@/assets/splash-logo.png";
+import logo3dImage from "@/assets/splash-logo-3d.png";
 
 /**
  * 起動アニメーション (SPEC.md §6.7.10 / v1.30)
@@ -36,7 +38,23 @@ export const SPLASH_INIT_SCRIPT = `try{if(!/[?&]splash(=|&|$)/.test(location.sea
   SPLASH_SESSION_KEY,
 )})){document.documentElement.dataset.splash="off"}}catch(e){document.documentElement.dataset.splash="off"}`;
 
+/**
+ * ロゴの出し方 (v1.31 で比べている途中。`?splash=still|video|flat` で切り替えて見られる)
+ *   still … Blender で立体化した銀のロゴ (静止画) の上を、光の帯が横切る
+ *   video … Blender で書き出した映像。ロゴが数度だけ傾きながら光が走る (約0.4MB)
+ *   flat  … 背景を抜いた元のロゴ (平面)
+ */
+type Variant = "still" | "video" | "flat";
+const DEFAULT_VARIANT: Variant = "still";
+
+function readVariant(): Variant {
+  const value = new URLSearchParams(window.location.search).get("splash");
+  return value === "video" || value === "flat" || value === "still" ? value : DEFAULT_VARIANT;
+}
+
 const DURATION_MS = 1700;
+/** 映像 (1.4秒) を最後まで見せるため、映像のときだけ少し長くする */
+const VIDEO_DURATION_MS = 2300;
 const REDUCED_DURATION_MS = 900;
 const COLORS = ["#ff3b6b", "#ff6fa0", "#ffd23f", "#f7b733", "#3fe0ff", "#4cff8a", "#ffffff", "#a98bff"];
 
@@ -69,6 +87,10 @@ export function Splash() {
   const flashRef = useRef<HTMLDivElement>(null);
   const logoRef = useRef<HTMLDivElement>(null);
   const sparkRefs = useRef<(HTMLSpanElement | null)[]>([]);
+  const flatRef = useRef<HTMLDivElement>(null);
+  const stillRef = useRef<HTMLDivElement>(null);
+  const shineRef = useRef<HTMLDivElement>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
 
   useEffect(() => {
     const root = rootRef.current;
@@ -83,6 +105,20 @@ export function Splash() {
     } catch {}
 
     const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    // 動きを減らす設定の人には映像を使わない (静止画のまま一瞬出して消す)
+    const variant: Variant = reduce && readVariant() === "video" ? "still" : readVariant();
+    flatRef.current!.style.display = variant === "flat" ? "block" : "none";
+    stillRef.current!.style.display = variant === "still" ? "block" : "none";
+    const video = videoRef.current!;
+    video.style.display = variant === "video" ? "block" : "none";
+    if (variant === "video") {
+      video.src = "/splash/logo-3d.mp4";
+      video.load();
+    }
+    let videoStarted = false;
+    // 黒地の映像は、ロゴの枠ごとスクリーンで重ねて黒を透かす。枠にぼかし (filter) が
+    // あるので、中の video だけに掛けても枠の中で閉じてしまい、黒が残る
+    logoRef.current!.style.mixBlendMode = variant === "video" ? "screen" : "normal";
     const ctx = canvas.getContext("2d");
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
     const width = window.innerWidth;
@@ -162,10 +198,23 @@ export function Splash() {
       flash.style.opacity = (f * (1 - fo)).toFixed(3);
       const l = seg(t, 0.3, 0.62);
       logo.style.opacity = easeOut(l).toFixed(3);
-      // 閃光の中で白く飛んだ状態から、銀の質感へ落ち着く
-      logo.style.filter = `blur(${(14 * (1 - easeOut(l))).toFixed(2)}px) brightness(${(
-        1 + 1.4 * (1 - easeOut(seg(t, 0.32, 0.7)))
-      ).toFixed(3)})`;
+      // 閃光の中で白く飛んだ状態から、銀の質感へ落ち着く。
+      // 映像は自分で光が走るので、明るさはいじらずぼかしだけ
+      logo.style.filter =
+        variant === "video"
+          ? `blur(${(10 * (1 - easeOut(l))).toFixed(2)}px)`
+          : `blur(${(14 * (1 - easeOut(l))).toFixed(2)}px) brightness(${(
+              1 + 1.4 * (1 - easeOut(seg(t, 0.32, 0.7)))
+            ).toFixed(3)})`;
+      if (variant === "video" && !videoStarted && t >= 0.2) {
+        videoStarted = true;
+        void video.play().catch(() => {});
+      }
+      // 静止画の立体ロゴの上を、光の帯が左上から右下へ横切る
+      if (variant === "still" && shineRef.current) {
+        const sweep = easeOut(seg(t, 0.5, 0.86));
+        shineRef.current.style.backgroundPosition = `${(160 - 220 * sweep).toFixed(1)}% 0`;
+      }
       logo.style.transform = `translate(-50%,-50%) scale(${(1.3 - 0.3 * backOut(l)).toFixed(4)})`;
       sparks.forEach((spark, i) => {
         if (!spark) return;
@@ -179,7 +228,11 @@ export function Splash() {
       root!.style.transform = `scale(${1 + x * 0.08})`;
     }
 
-    const duration = reduce ? REDUCED_DURATION_MS : DURATION_MS;
+    const duration = reduce
+      ? REDUCED_DURATION_MS
+      : variant === "video"
+        ? VIDEO_DURATION_MS
+        : DURATION_MS;
     const begin = () => {
       const start = performance.now();
       const tick = (now: number) => {
@@ -193,7 +246,12 @@ export function Splash() {
 
     // 原画が読めるまで少しだけ待つ (間に合わなければ光線だけで進める)。
     // 2回目以降は端末に持っているので待たずに始まる
-    const image = logo.querySelector("img");
+    const image =
+      variant === "flat"
+        ? flatRef.current!.querySelector("img")
+        : variant === "still"
+          ? stillRef.current!.querySelector("img")
+          : null;
     if (image && !image.complete) {
       const timeout = window.setTimeout(begin, 600);
       image.addEventListener(
@@ -243,13 +301,54 @@ export function Splash() {
           ロゴのまわりに暗い光をにじませ、後ろの光線と文字が混ざって読みにくくなるのを防ぐ。
           next/image を通すので、端末に合わせて WebP / AVIF の小さな画像が届く
         */}
-        <Image
-          src={logoImage}
-          alt=""
-          priority
-          sizes="(max-width: 520px) 100vw, 520px"
-          className="h-full w-full"
-          style={{ filter: "drop-shadow(0 0 18px rgba(0,0,0,0.85))" }}
+        {/* 立体化したロゴ (既定)。next/image で端末に合わせた小さな形式で届く */}
+        <div ref={stillRef} className="absolute inset-0">
+          <Image
+            src={logo3dImage}
+            alt=""
+            priority
+            sizes="(max-width: 520px) 100vw, 520px"
+            className="h-full w-full"
+            style={{ filter: "drop-shadow(0 0 18px rgba(0,0,0,0.85))" }}
+          />
+          {/* 光の帯。ロゴの形で切り抜いて、ロゴの上だけを走らせる */}
+          <div
+            ref={shineRef}
+            className="pointer-events-none absolute inset-0"
+            style={{
+              mixBlendMode: "screen",
+              background:
+                "linear-gradient(115deg, transparent 38%, rgba(255,255,255,0.85) 48%, rgba(200,225,255,0.6) 52%, transparent 62%)",
+              backgroundSize: "300% 100%",
+              backgroundPosition: "160% 0",
+              WebkitMaskImage: `url(${logoMask.src})`,
+              maskImage: `url(${logoMask.src})`,
+              WebkitMaskSize: "100% 100%",
+              maskSize: "100% 100%",
+            }}
+          />
+        </div>
+        {/* 平面のロゴ (比較用) */}
+        <div ref={flatRef} className="absolute inset-0" style={{ display: "none" }}>
+          <Image
+            src={logoImage}
+            alt=""
+            sizes="(max-width: 520px) 100vw, 520px"
+            className="h-full w-full"
+            style={{ filter: "drop-shadow(0 0 18px rgba(0,0,0,0.85))" }}
+          />
+        </div>
+        {/*
+          映像 (比較用)。黒地の映像をスクリーンで重ねると、黒が透けて
+          ロゴと光だけが光線の上に乗る。使うときだけ読み込む (preload="none")
+        */}
+        <video
+          ref={videoRef}
+          muted
+          playsInline
+          preload="none"
+          className="absolute inset-0 h-full w-full"
+          style={{ display: "none" }}
         />
         {[
           { left: "78%", top: "32%" },

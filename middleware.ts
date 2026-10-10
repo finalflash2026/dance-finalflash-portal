@@ -94,6 +94,6 @@ export const config = {
      * ことがあり、ログインHTMLが返るとスクリプトとして解釈できず
      * 登録そのものが失敗する (SPEC §6.6)。中身は固定のコードだけ。
      */
-    "/((?!_next/static|_next/image|favicon.ico|manifest.webmanifest|sw.js|api/cal|api/health|api/cron|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)",
+    "/((?!_next/static|_next/image|favicon.ico|manifest.webmanifest|sw.js|api/cal|api/health|api/cron|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|mp4)$).*)",
   ],
 };
