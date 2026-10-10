@@ -201,7 +201,8 @@ export function Splash() {
       logo.style.transform = `translate(-50%,-50%) scale(${(0.82 + 0.18 * backOut(l)).toFixed(4)})`;
       // ロゴの形に沿って、光の帯が左上から右下へ一度だけ横切る
       const sweep = easeOut(seg(t, 0.4, 0.8));
-      shine.style.backgroundPosition = `${(160 - 220 * sweep).toFixed(1)}% 0`;
+      // 帯 (背景の幅の中央) が左の外 → 右の外へ動くよう、位置を 90% → 10% へ
+      shine.style.backgroundPosition = `${(90 - 80 * sweep).toFixed(1)}% 0`;
       sparks.forEach((spark, i) => {
         if (!spark) return;
         const s = seg(t, 0.55 + i * 0.07, 0.73 + i * 0.07);
@@ -301,10 +302,16 @@ export function Splash() {
           className="pointer-events-none absolute inset-0"
           style={{
             mixBlendMode: "screen",
-            background:
-              "linear-gradient(115deg, transparent 38%, rgba(255,255,255,0.85) 48%, rgba(200,225,255,0.6) 52%, transparent 62%)",
+            /*
+             * **純白にする** (v1.31.1)。青白くしていたときは、外側の雲形の線の上で
+             * 後ろのピンクの光線と重なり、紫の枠が一瞬見えていた。
+             * 繰り返さない (繰り返すと、走り出す前から帯の端がロゴに乗る)
+             */
+            backgroundImage:
+              "linear-gradient(115deg, transparent 40%, rgba(255,255,255,0.7) 50%, transparent 60%)",
+            backgroundRepeat: "no-repeat",
             backgroundSize: "300% 100%",
-            backgroundPosition: "160% 0",
+            backgroundPosition: "90% 0",
             WebkitMaskImage: `url(${logoMask.src})`,
             maskImage: `url(${logoMask.src})`,
             WebkitMaskSize: "100% 100%",

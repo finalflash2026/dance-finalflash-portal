@@ -389,6 +389,9 @@ function attendanceTarget(event: MyEvent): AttendanceTarget {
 
 // ---------- 今日 (予定 + 近い締切) ----------
 
+/** 「今日」の欄に最初から出す件数 (§6.7.13 / v1.31.1)。残りは折りたたむ */
+const TODAY_VISIBLE = 3;
+
 function TodaySection({
   today,
   entries,
@@ -400,52 +403,98 @@ function TodaySection({
   deadlines: UpcomingDeadline[];
   onSelect: (event: MyEvent) => void;
 }) {
+  const [expanded, setExpanded] = useState(false);
+  // 終わった予定を後ろへ回すのに使う。サーバーとずれないよう描画後に読む
+  const [now, setNow] = useState<string | null>(null);
+  useEffect(() => {
+    setNow(nowTimeInTokyo());
+    const timer = window.setInterval(() => setNow(nowTimeInTokyo()), 60_000);
+    return () => window.clearInterval(timer);
+  }, []);
+
   // 前日から跨いできた深夜練の後半は、朝には終わっているので「今日」には出さない。
-  // 締切は下の行で期限つきで出すので、予定の側からは外す
-  const rows = entries.filter(
+  // 締切は期限つきの行で出すので、予定の側からは外す
+  const events = entries.filter(
     (entry) => entry.part !== "second" && entry.event.kind !== "deadline",
   );
-  const shownDeadlines = deadlines.slice(0, 2);
+  // **直近のものから並べる。** 終わった予定は後ろへ (今から何があるかを先に見せる)
+  const ended = (entry: Entry) =>
+    now !== null && !isWholeDayEntry(entry) && entry.endTime <= now;
+  const ordered = [...events.filter((e) => !ended(e)), ...events.filter(ended)];
+
+  const items: React.ReactNode[] = [
+    ...ordered.map((entry) => (
+      <li key={`${entry.event.kind}-${entry.event.sourceId}`}>
+        <button
+          type="button"
+          onClick={() => onSelect(entry.event)}
+          className={`flex w-full items-center gap-3 px-4 py-2.5 text-left ${
+            ended(entry) ? "opacity-50" : ""
+          }`}
+        >
+          <span
+            aria-hidden
+            className="h-9 w-1 shrink-0 rounded-full"
+            style={{ backgroundColor: eventColor(entry.event).bg }}
+          />
+          <span className="w-[92px] shrink-0 text-[14px] tabular-nums text-[var(--muted)]">
+            {isWholeDayEntry(entry)
+              ? "終日"
+              : formatSpanRange(entry.event.startTime, entry.event.endTime)}
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block truncate text-[16px]">{entry.event.title}</span>
+            {entry.event.location ? (
+              <span className="block truncate text-[13px] text-[var(--muted)]">
+                {entry.event.location}
+              </span>
+            ) : null}
+          </span>
+        </button>
+      </li>
+    )),
+    ...deadlines
+      .slice(0, 2)
+      .map((deadline) => <DeadlineRow key={deadline.id} deadline={deadline} today={today} />),
+  ];
+
+  const hidden = items.length - TODAY_VISIBLE;
 
   return (
     <section data-tour="today">
       <GroupHeader>今日 {formatDateLabel(today)}</GroupHeader>
       <ul className={groupClass}>
-        {rows.length === 0 ? (
+        {events.length === 0 ? (
           <li className="px-4 py-3 text-[15px] text-[var(--muted)]">今日の予定はありません</li>
-        ) : (
-          rows.map((entry) => (
-            <li key={`${entry.event.kind}-${entry.event.sourceId}`}>
-              <button
-                type="button"
-                onClick={() => onSelect(entry.event)}
-                className="flex w-full items-center gap-3 px-4 py-2.5 text-left"
+        ) : null}
+        {expanded || hidden <= 0 ? items : items.slice(0, TODAY_VISIBLE)}
+        {hidden > 0 ? (
+          <li>
+            <button
+              type="button"
+              onClick={() => setExpanded((open) => !open)}
+              aria-expanded={expanded}
+              className="flex w-full items-center justify-center gap-1.5 px-4 py-2.5 text-[15px] text-[var(--tint)]"
+            >
+              {expanded ? "閉じる" : `ほか ${hidden}件`}
+              <svg
+                viewBox="0 0 14 8"
+                width="11"
+                height="7"
+                aria-hidden
+                className={`transition-transform duration-300 ${expanded ? "rotate-180" : ""}`}
               >
-                <span
-                  aria-hidden
-                  className="h-9 w-1 shrink-0 rounded-full"
-                  style={{ backgroundColor: eventColor(entry.event).bg }}
+                <path
+                  d="M1 1l6 6 6-6"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2.2"
+                  strokeLinecap="round"
                 />
-                <span className="w-[92px] shrink-0 text-[14px] tabular-nums text-[var(--muted)]">
-                  {isWholeDayEntry(entry)
-                    ? "終日"
-                    : formatSpanRange(entry.event.startTime, entry.event.endTime)}
-                </span>
-                <span className="min-w-0 flex-1">
-                  <span className="block truncate text-[16px]">{entry.event.title}</span>
-                  {entry.event.location ? (
-                    <span className="block truncate text-[13px] text-[var(--muted)]">
-                      {entry.event.location}
-                    </span>
-                  ) : null}
-                </span>
-              </button>
-            </li>
-          ))
-        )}
-        {shownDeadlines.map((deadline) => (
-          <DeadlineRow key={deadline.id} deadline={deadline} today={today} />
-        ))}
+              </svg>
+            </button>
+          </li>
+        ) : null}
       </ul>
     </section>
   );
