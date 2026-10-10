@@ -27,8 +27,9 @@ export const SPLASH_SESSION_KEY = "splash-shown";
  * 最初のペイント前に走らせる (app/layout.tsx の head に埋め込む)。
  * この起動で既に出していたら `<html data-splash="off">` を立てて幕を消す。
  * sessionStorage が使えない環境では出さない (毎回出ると邪魔になるため)。
+ * URL に `?splash` を付けると、表示済みでももう一度流す (見た目の確認用)。
  */
-export const SPLASH_INIT_SCRIPT = `try{if(sessionStorage.getItem(${JSON.stringify(
+export const SPLASH_INIT_SCRIPT = `try{if(!/[?&]splash(=|&|$)/.test(location.search)&&sessionStorage.getItem(${JSON.stringify(
   SPLASH_SESSION_KEY,
 )})){document.documentElement.dataset.splash="off"}}catch(e){document.documentElement.dataset.splash="off"}`;
 
@@ -160,7 +161,8 @@ export function Splash() {
       logo.style.opacity = easeOut(l).toFixed(3);
       logo.style.filter = `blur(${(14 * (1 - easeOut(l))).toFixed(2)}px)`;
       logo.style.transform = `translate(-50%,-50%) scale(${(1.3 - 0.3 * backOut(l)).toFixed(4)})`;
-      canvas!.style.opacity = (1 - 0.35 * easeOut(l)).toFixed(3);
+      // 原画の光線と二重にならないよう、外の光線は少し引く (消しはしない)
+      canvas!.style.opacity = (1 - 0.45 * easeOut(l)).toFixed(3);
       sparks.forEach((spark, i) => {
         if (!spark) return;
         const s = seg(t, 0.55 + i * 0.07, 0.73 + i * 0.07);
@@ -231,7 +233,17 @@ export function Splash() {
       <div
         ref={logoRef}
         className="absolute left-1/2 top-[46%] aspect-square w-full max-w-[520px] opacity-0"
-        style={{ transform: "translate(-50%,-50%) scale(1.3)", filter: "blur(14px)" }}
+        style={{
+          transform: "translate(-50%,-50%) scale(1.3)",
+          filter: "blur(14px)",
+          /*
+           * **スクリーンで重ねる。** 原画は黒地の上に光線とロゴが描かれた四角い絵で、
+           * 普通に重ねると黒地が外の光線を四角く隠し、境目に段差ができていた。
+           * スクリーンなら黒は透けて明るい部分 (ロゴ・光線) だけが乗るので、
+           * 外側で動く光線と原画の光線がひと続きになる
+           */
+          mixBlendMode: "screen",
+        }}
       >
         {/* eslint-disable-next-line @next/next/no-img-element -- 最初のペイントに要るので最適化の遅延を挟まない */}
         <img
@@ -240,9 +252,9 @@ export function Splash() {
           className="h-full w-full"
           style={{
             WebkitMaskImage:
-              "radial-gradient(ellipse 70% 62% at 50% 50%, #000 62%, transparent 100%)",
+              "radial-gradient(closest-side, #000 72%, transparent 100%)",
             maskImage:
-              "radial-gradient(ellipse 70% 62% at 50% 50%, #000 62%, transparent 100%)",
+              "radial-gradient(closest-side, #000 72%, transparent 100%)",
           }}
         />
         {[

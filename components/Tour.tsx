@@ -85,7 +85,8 @@ export function Tour() {
 
   // 初めての起動 (またはヘルプから ?tour=1 で来た) ならカレンダーで始める
   useEffect(() => {
-    if (pathname !== "/") return;
+    // デモ画面のカレンダー (/demo/calendar) でも始められる
+    if (pathname !== "/" && pathname !== "/demo/calendar") return;
     const requested = new URLSearchParams(window.location.search).has("tour");
     let done = false;
     try {
@@ -95,6 +96,8 @@ export function Tour() {
       done = true;
     }
     if (done && !requested) return;
+    // デモ画面では頼まれたとき (?tour=1) だけ始める。画面の見本を見るたびに出ると邪魔
+    if (pathname !== "/" && !requested) return;
     // 起動アニメーションが終わってから始める (重なると読めない)
     const timer = window.setTimeout(start, requested ? 300 : 2200);
     return () => window.clearTimeout(timer);
