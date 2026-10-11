@@ -2,7 +2,7 @@ import { z } from "zod";
 
 import { dummyEmail } from "@/lib/auth/email";
 import { hasSupabaseEnv } from "@/lib/env";
-import { checkRateLimit, clientIp } from "@/lib/rate-limit";
+import { clientIp, hitRateLimit } from "@/lib/rate-limit";
 import { createClient } from "@/lib/supabase/server";
 
 /**
@@ -23,14 +23,9 @@ const schema = z.object({
   password: z.string().min(1),
 });
 
-export async function POST(request: Request) {
-  if (!checkRateLimit(`login:${clientIp(request)}`, 10)) {
-    return Response.json(
-      { error: "試行回数が多すぎます。1分ほど待ってからやり直してください" },
-      { status: 429 },
-    );
-  }
+const TOO_MANY = "試行回数が多すぎます。しばらく待ってからやり直してください";
 
+export async function POST(request: Request) {
   if (!hasSupabaseEnv()) {
     return Response.json(
       { error: "サーバーの設定が未完了です (Supabase 未接続)" },
@@ -38,9 +33,25 @@ export async function POST(request: Request) {
     );
   }
 
+  // 試行回数の制限は DB で数える (§13.2 / v1.31.4)。IP ごと 10回/分
+  if (!(await hitRateLimit(`login:ip:${clientIp(request)}`, 10, 60_000))) {
+    return Response.json({ error: TOO_MANY }, { status: 429 });
+  }
+
   const parsed = schema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) {
     return Response.json({ error: LOGIN_ERROR }, { status: 401 });
+  }
+
+  // **ユーザーIDごとにも数える** (10回/10分)。IP を変えながら1人を狙う総当たりを止める
+  if (
+    !(await hitRateLimit(
+      `login:user:${parsed.data.username.toLowerCase()}`,
+      10,
+      10 * 60_000,
+    ))
+  ) {
+    return Response.json({ error: TOO_MANY }, { status: 429 });
   }
 
   // createClient のセッション書き込みで cookie がセットされる
