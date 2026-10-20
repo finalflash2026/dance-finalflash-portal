@@ -7,16 +7,11 @@ import { hasSupabaseEnv } from "@/lib/env";
  *
  * **Supabase が設定されていない手元の環境でだけ開ける。** 本番・プレビューは
  * 環境変数が入っているので 404 になる (存在ごと隠す。SPEC §7)。
+ * 見本のデータなので保存はされない (ブラウザ側は lib/supabase/demo-client.ts)。
  * 起動: `npm run dev` → http://localhost:3000/demo
  */
 export default function DemoLayout({ children }: { children: React.ReactNode }) {
   if (hasSupabaseEnv()) notFound();
-  return (
-    <>
-      <p className="mx-4 mb-1 rounded-lg bg-[var(--fill)] px-3 py-1.5 text-center text-[12px] text-[var(--muted)]">
-        デモ表示 (見本のデータ・保存はされません)
-      </p>
-      {children}
-    </>
-  );
+  // 「デモ表示」の帯は出さない (v1.31.5)。実際の見た目と比べにくくなる
+  return children;
 }
