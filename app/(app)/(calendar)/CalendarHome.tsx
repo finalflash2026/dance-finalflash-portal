@@ -595,27 +595,31 @@ function FreeRoomsToday({
   return (
     <section data-tour="free-rooms">
       <GroupHeader>今日自主練できる部屋</GroupHeader>
-      <ul className={groupClass}>
+      {/*
+       * 横に並ぶチップ (v1.31.5)。縦の行だと部屋が増えるほど下のカレンダーが
+       * 遠のく。入りきらない分は折り返す。押すと申請シート
+       */}
+      <ul className="flex flex-wrap gap-2">
         {rows.map(({ block, range, current }) => (
           <li key={`${block.id}-${range.startTime}`}>
             <button
               type="button"
               onClick={() => onClaim(block, range)}
-              className="flex w-full items-center gap-3 px-4 py-2.5 text-left"
+              aria-label={`${roomById.get(block.roomId)?.name ?? "?"} ${range.startTime}〜${range.endTime} を申請`}
+              className="flex items-center gap-1.5 rounded-full bg-[var(--cell)] py-1.5 pl-2.5 pr-3 text-left active:opacity-60"
             >
               <span
                 aria-hidden
-                className={`h-2.5 w-2.5 shrink-0 rounded-full ${
+                className={`h-2 w-2 shrink-0 rounded-full ${
                   current ? "bg-[#34c759]" : "bg-[var(--muted)] opacity-50"
                 }`}
               />
-              <span className="min-w-0 flex-1 truncate text-[16px]">
+              <span className="text-[14px] font-semibold">
                 {roomById.get(block.roomId)?.name ?? "?"}
               </span>
-              <span className="shrink-0 text-[13px] tabular-nums text-[var(--muted)]">
-                {current ? `いま空き 〜${range.endTime}` : `${range.startTime}〜${range.endTime}`}
+              <span className="text-[12px] tabular-nums text-[var(--muted)]">
+                {current ? `いま〜${range.endTime}` : `${range.startTime}〜${range.endTime}`}
               </span>
-              <span className="shrink-0 text-[15px] text-[var(--tint)]">申請</span>
             </button>
           </li>
         ))}
