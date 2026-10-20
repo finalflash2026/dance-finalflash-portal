@@ -211,7 +211,11 @@ export function demoCalendar(isOb: boolean) {
     boards: isOb
       ? null
       : {
-          roomStatusRows: [],
+          // ホームの入口の「開錠 2部屋」と合わせる
+          roomStatusRows: [
+            { room_id: 5, is_unlocked: true, updated_at: new Date(Date.now() - 40 * 60_000).toISOString(), profiles: { username: "23LOCKはなこ" } },
+            { room_id: 6, is_unlocked: true, updated_at: new Date(Date.now() - 15 * 60_000).toISOString(), profiles: { username: "22BREAKたろう" } },
+          ],
           roomMessages: [
             { id: "m1", body: "控室136は開けていないけど、鍵はリハ室にいる人が持ってます", userId: "u2", username: "23LOCKはなこ", createdAt: new Date().toISOString() },
           ],

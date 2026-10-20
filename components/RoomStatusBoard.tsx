@@ -126,11 +126,9 @@ export function RoomStatusBoard({
 
   if (rooms.length === 0) {
     return (
-      <section
-        className="rounded-xl bg-[var(--cell)] px-4 py-3"
-        data-tour="room-board"
-      >
-        <p className="text-sm text-[var(--muted)]">
+      <section className="rounded-2xl bg-[var(--cell)] p-3" data-tour="room-board">
+        <h2 className="text-[17px] font-bold">今日の練習場所</h2>
+        <p className="mt-1 text-[15px] text-[var(--muted)]">
           今日は練習場所の予約がありません
         </p>
         {/* 予約が無い日でも連絡は残せる (鍵の受け渡しなど) */}
@@ -153,24 +151,26 @@ export function RoomStatusBoard({
      * 「誰がいつ開けたか」は ○ のときだけ出す (× は既定値で、誰も触っていない
      * ことがほとんどのため表示する価値が薄い)。
      */
-    <section
-      className="rounded-xl bg-[var(--cell)] p-2"
-      data-tour="room-board"
-    >
-      <header className="flex items-baseline justify-between gap-2">
-        <h2 className="text-sm font-bold">今日の練習場所</h2>
-        <div className="flex items-center gap-2 text-[10px] text-[var(--muted)]">
-          <span>○=開錠 ×=施錠</span>
-          {fetchedAt ? <span>{formatAsTokyoTime(fetchedAt)}</span> : null}
-          <button
-            type="button"
-            onClick={refresh}
-            className="rounded border border-[var(--border)] px-1.5 py-0.5"
-          >
-            更新
-          </button>
-        </div>
+    /*
+     * v1.31.11: 見やすく作り直した。○× と 10px の凡例では読み取りにくかったので、
+     * 状態は「開いている / 閉まっている」と言葉で出し、カードを大きくした
+     */
+    <section className="rounded-2xl bg-[var(--cell)] p-3" data-tour="room-board">
+      <header className="flex items-center justify-between gap-2">
+        <h2 className="text-[17px] font-bold">今日の練習場所</h2>
+        <button
+          type="button"
+          onClick={refresh}
+          aria-label="最新の状態にする"
+          className="flex h-9 items-center gap-1.5 rounded-full bg-[var(--fill)] px-3 text-[13px] text-[var(--tint)] active:opacity-60"
+        >
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" aria-hidden>
+            <path d="M20 11a8 8 0 1 0-2.3 5.7M20 4v7h-7" />
+          </svg>
+          {fetchedAt ? `${formatAsTokyoTime(fetchedAt)} 時点` : "更新"}
+        </button>
       </header>
+      <p className="mt-1 text-[14px] text-[var(--muted)]">押すと、開けた・閉めたを報告できます</p>
 
       {error ? (
         <p role="alert" className="mt-1 text-xs text-[var(--danger-fg)]">
@@ -178,7 +178,7 @@ export function RoomStatusBoard({
         </p>
       ) : null}
 
-      <ul className="mt-1.5 grid grid-cols-2 gap-1">
+      <ul className="mt-3 grid grid-cols-2 gap-2">
         {rooms.map((room) => {
           const row = byRoomId.get(room.id);
           // 行が無い = 未設定。UI 上は × (施錠中) を既定とする
@@ -199,31 +199,37 @@ export function RoomStatusBoard({
                 disabled={pendingRoomId === room.id}
                 aria-label={`${room.name} を${unlocked ? "施錠中" : "開錠済"}に切り替える`}
                 aria-pressed={unlocked}
-                className={`flex w-full items-center gap-1.5 rounded-lg border px-2 py-1 text-left disabled:opacity-40 ${
+                className={`flex min-h-[64px] w-full flex-col items-start justify-between gap-1 rounded-xl border-2 px-3 py-2 text-left active:opacity-70 disabled:opacity-40 ${
                   unlocked
                     ? "border-[var(--success-fg)] bg-[var(--success-bg)]"
-                    : "border-[var(--border)] bg-[var(--surface)]"
+                    : "border-transparent bg-[var(--fill)]"
                 } ${stale ? "opacity-60" : ""}`}
               >
-                <span
-                  className={`shrink-0 text-base font-bold ${
-                    unlocked ? "text-[var(--success-fg)]" : "text-[var(--muted)]"
-                  }`}
-                >
-                  {unlocked ? "○" : "×"}
+                {/* 建物の括弧は落とす (「練習室2(フレスコ)」→「練習室2」)。細いカードで2行に折れないように */}
+                <span className="w-full truncate text-[15px] font-semibold leading-snug">
+                  {room.name.replace(/[(（][^)）]*[)）]$/, "") || room.name}
                 </span>
-                <span className="min-w-0 flex-1">
-                  <span className="block truncate text-xs leading-tight">
-                    {room.name}
+                <span className="flex w-full items-center gap-1.5">
+                  <span
+                    aria-hidden
+                    className={`h-2.5 w-2.5 shrink-0 rounded-full ${
+                      unlocked ? "bg-[var(--success-fg)]" : "bg-[var(--muted)] opacity-60"
+                    }`}
+                  />
+                  <span
+                    className={`text-[14px] font-semibold ${
+                      unlocked ? "text-[var(--success-fg)]" : "text-[var(--muted)]"
+                    }`}
+                  >
+                    {unlocked ? "開いている" : "閉まっている"}
                   </span>
-                  {unlocked && row ? (
-                    <span className="block truncate text-[10px] text-[var(--muted)]">
-                      {formatAsTokyoTime(row.updated_at)}{" "}
-                      {row.profiles?.username ?? ""}
-                      {stale ? " (古いかも)" : ""}
-                    </span>
-                  ) : null}
                 </span>
+                {unlocked && row ? (
+                  <span className="w-full truncate text-[12px] text-[var(--muted)]">
+                    {formatAsTokyoTime(row.updated_at)} {row.profiles?.username ?? ""}
+                    {stale ? " (古いかも)" : ""}
+                  </span>
+                ) : null}
               </button>
             </li>
           );
@@ -259,7 +265,7 @@ export function RoomStatusBoard({
         >
           <p className="text-[17px] leading-relaxed">
             <strong>{confirming.name}</strong>を
-            {confirming.unlock ? "「開錠済 ○」" : "「施錠中 ×」"}にして、
+            {confirming.unlock ? "「開いている」" : "「閉まっている」"}にして、
             現役全員に通知します。
           </p>
           <p className="mt-2 text-[15px] text-[var(--muted)]">
