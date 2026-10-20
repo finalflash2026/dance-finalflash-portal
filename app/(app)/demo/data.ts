@@ -6,6 +6,7 @@
  * 「いま空いている部屋」も出るようにするため。
  */
 import type { DayBlock } from "@/components/DayGrid";
+import { ROOMS } from "@/lib/constants";
 import { addDays, todayInTokyo } from "@/lib/time";
 import type {
   Announcement,
@@ -29,35 +30,32 @@ export function demoProfile(role: Profile["role"] = "admin"): Profile {
   };
 }
 
+const ROOM_NAMES: Record<number, string> = Object.fromEntries(ROOMS.map((r) => [r.id, r.name]));
+
 const base = { location: "", numberId: null, genreCode: null };
 const ev = (
   o: Partial<MyEvent> & Pick<MyEvent, "kind" | "sourceId" | "date" | "title">,
 ): MyEvent =>
   ({ sourceIds: [o.sourceId], startTime: "18:00", endTime: "19:30", ...base, ...o }) as MyEvent;
 
+/** 日付 → 曜日 (0=日) */
+const weekday = (date: string) => new Date(`${date}T00:00:00Z`).getUTCDay();
+
+/**
+ * 決まった種から 0〜1 を返す (毎回同じ見本になるように。Math.random は使わない)。
+ * 日によって空きや他ジャンルの数をばらつかせるのに使う
+ */
+const pseudo = (seed: number) => {
+  const x = Math.sin(seed * 9301 + 49297) * 233280;
+  return x - Math.floor(x);
+};
+
+/** 見本を置く範囲 (今日の前後の日数)。カレンダーが読み込む前後1か月を埋める */
+const DEMO_SPAN_DAYS = 40;
+
 export function demoCalendar(isOb: boolean) {
   const today = todayInTokyo();
   const d = (n: number) => addDays(today, n);
-
-  const events: MyEvent[] = [
-    ...(isOb
-      ? []
-      : [
-          ev({ kind: "genre", sourceId: "g1", date: today, title: "BREAK 公式練", genreCode: "BREAK", location: "練習室1(フレスコ)" }),
-          ev({ kind: "genre", sourceId: "g2", date: d(2), title: "BREAK 公式練", genreCode: "BREAK", startTime: "17:00", endTime: "19:00", location: "スタジオ101(7号館)" }),
-          ev({ kind: "genre", sourceId: "g3", date: d(3), title: "POP 公式練", genreCode: "POP", startTime: "19:10", endTime: "21:10", location: "リハーサル室" }),
-          ev({ kind: "claim", sourceId: "c1", date: d(1), title: "空き使用(個人練)", startTime: "13:00", endTime: "14:30", location: "控室136" }),
-          ev({ kind: "studio", sourceId: "s1", date: d(5), title: "BREAKスタ練", genreCode: "BREAK", startTime: "20:00", endTime: "22:00", location: "スタジオB" }),
-          ev({ kind: "deadline", sourceId: "dl1", date: d(4), allDay: true, startTime: "00:00", endTime: "24:00", title: "締切: 合宿費の集金", important: true, dueTime: "23:59", url: "https://example.com/form" }),
-          ev({ kind: "deadline", sourceId: "dl2", date: d(9), allDay: true, startTime: "00:00", endTime: "24:00", title: "締切: 2ジャン登録フォーム", url: "https://example.com/form" }),
-        ]),
-    ev({ kind: "number", sourceId: "n1", date: today, title: "秋ナンバー", numberId: "num-1", startTime: "21:00", endTime: "23:00", location: "スタジオA" }),
-    ev({ kind: "number", sourceId: "n2", date: d(6), title: "秋ナンバー", numberId: "num-1", startTime: "23:00", endTime: "05:00", location: "スタジオA" }),
-    ev({ kind: "event", sourceId: "e1", date: d(10), lastDate: d(12), allDay: true, startTime: "00:00", endTime: "24:00", title: "秋合宿", location: "長野" }),
-    ...(isOb
-      ? [ev({ kind: "event", sourceId: "e2", date: d(15), title: "縦イベ", startTime: "13:00", endTime: "18:00", location: "講堂" })]
-      : [ev({ kind: "event", sourceId: "e2", date: d(15), title: "縦イベ", startTime: "13:00", endTime: "18:00", location: "講堂" })]),
-  ];
 
   const slot = (o: Partial<DayBlock> & Pick<DayBlock, "id" | "roomId" | "startTime" | "endTime" | "status">): DayBlock => ({
     genreCode: null,
@@ -66,23 +64,120 @@ export function demoCalendar(isOb: boolean) {
     claims: [],
     ...o,
   });
-  const todayBlocks: DayBlock[] = [
-    slot({ id: "g1", roomId: 2, startTime: "18:00", endTime: "19:30", status: "genre", genreCode: "BREAK" }),
-    slot({ id: "o1", roomId: 3, startTime: "18:00", endTime: "19:30", status: "genre", genreCode: "HIPHOP" }),
-    slot({ id: "o2", roomId: 5, startTime: "17:00", endTime: "19:00", status: "genre", genreCode: "JAZZ" }),
-    slot({ id: "o3", roomId: 9, startTime: "19:10", endTime: "21:10", status: "genre", genreCode: "LOCK" }),
-    slot({
-      id: "f1", roomId: 6, startTime: "00:00", endTime: "23:50", status: "open",
-      claims: [{ id: "cl1", userId: "u2", username: "23LOCKはなこ", startTime: "13:00", endTime: "14:00", purpose: null }],
-    }),
-    slot({ id: "f2", roomId: 7, startTime: "09:00", endTime: "21:00", status: "open" }),
-    slot({ id: "u1", roomId: 8, startTime: "09:00", endTime: "12:00", status: "unavailable" }),
+
+  const events: MyEvent[] = [];
+  const blocksByDate: Record<string, DayBlock[]> = {};
+
+  /*
+   * 毎日の見本 (v1.31.5 で増やした。使い心地を確かめるため)。
+   * 自分 = 1ジャン BREAK・2ジャン POP、ナンバーは「秋ナンバー」「縦イベ HIPHOP」。
+   */
+  for (let n = -DEMO_SPAN_DAYS; n <= DEMO_SPAN_DAYS; n++) {
+    const date = d(n);
+    const wd = weekday(date);
+    const r = (k: number) => pseudo(n * 31 + k);
+    const blocks: DayBlock[] = [];
+
+    // ---- 公式練 (平日)。自分のジャンルは自分の予定、他ジャンルは薄く出す用 ----
+    if (wd >= 1 && wd <= 5) {
+      if (wd === 1 || wd === 3 || wd === 5) {
+        const room = wd === 3 ? 1 : 2;
+        blocks.push(slot({ id: `g-${n}`, roomId: room, startTime: "18:00", endTime: "19:30", status: "genre", genreCode: "BREAK" }));
+        events.push(ev({ kind: "genre", sourceId: `g-${n}`, date, title: "BREAK 公式練", genreCode: "BREAK", location: ROOM_NAMES[room] }));
+      }
+      if (wd === 2 || wd === 4) {
+        blocks.push(slot({ id: `p-${n}`, roomId: 5, startTime: "19:10", endTime: "21:10", status: "genre", genreCode: "POP" }));
+        events.push(ev({ kind: "genre", sourceId: `p-${n}`, date, title: "POP 公式練", genreCode: "POP", startTime: "19:10", endTime: "21:10", location: ROOM_NAMES[5] }));
+      }
+      const others = (["HIPHOP", "LOCK", "JAZZ", "HOUSE", "PUNKING", "KRUMP", "GIRLS"] as const).filter(
+        (_, i) => r(i) < 0.45,
+      );
+      const otherRooms = [3, 4, 9, 10, 11, 12, 1];
+      others.forEach((code, i) => {
+        const early = r(20 + i) < 0.5;
+        blocks.push(
+          slot({
+            id: `o-${n}-${code}`,
+            roomId: otherRooms[i % otherRooms.length],
+            startTime: early ? "17:00" : "19:10",
+            endTime: early ? "18:50" : "21:10",
+            status: "genre",
+            genreCode: code,
+          }),
+        );
+      });
+    }
+
+    // ---- 空き (控室)。他の人の申請が入っていることもある ----
+    if (r(40) < 0.85) {
+      const from = wd === 0 || wd === 6 ? "09:00" : "14:00";
+      blocks.push(
+        slot({
+          id: `f136-${n}`, roomId: 6, startTime: from, endTime: "23:50", status: "open",
+          claims: r(41) < 0.5
+            ? [{ id: `cl136-${n}`, userId: "u2", username: "23LOCKはなこ", startTime: "16:00", endTime: "17:30", purpose: null }]
+            : [],
+        }),
+      );
+    }
+    if (r(42) < 0.6) {
+      blocks.push(slot({ id: `f132-${n}`, roomId: 7, startTime: "09:00", endTime: "21:00", status: "open" }));
+    }
+    if (r(43) < 0.3) {
+      blocks.push(slot({ id: `f131-${n}`, roomId: 8, startTime: "12:00", endTime: "18:00", status: "open" }));
+    }
+
+    // ---- 自分の空き使用 (たまに) ----
+    if (r(50) < 0.15 && blocks.some((b) => b.id === `f136-${n}`)) {
+      events.push(ev({ kind: "claim", sourceId: `c-${n}`, date, title: "空き使用(個人練)", startTime: "20:00", endTime: "21:30", location: ROOM_NAMES[6] }));
+    }
+
+    // ---- ナンバー練 ----
+    if (wd === 2 || wd === 6) {
+      events.push(ev({ kind: "number", sourceId: `n1-${n}`, date, title: "秋ナンバー", numberId: "num-1", startTime: wd === 6 ? "13:00" : "21:00", endTime: wd === 6 ? "16:00" : "23:00", location: "スタジオA" }));
+    }
+    if (wd === 0 || (wd === 4 && r(60) < 0.5)) {
+      events.push(ev({ kind: "number", sourceId: `n2-${n}`, date, title: "縦イベ HIPHOP", numberId: "num-2", startTime: wd === 0 ? "10:00" : "22:00", endTime: wd === 0 ? "12:30" : "24:00", location: wd === 0 ? "アリーナB" : "スタジオC" }));
+    }
+    if (wd === 5 && r(61) < 0.4) {
+      // 深夜練 (日をまたぐ)
+      events.push(ev({ kind: "number", sourceId: `n3-${n}`, date, title: "秋ナンバー 深夜練", numberId: "num-1", startTime: "23:00", endTime: "05:00", location: "スタジオA" }));
+    }
+
+    // ---- スタ練 (土曜) ----
+    if (wd === 6 && r(70) < 0.6) {
+      events.push(ev({ kind: "studio", sourceId: `s-${n}`, date, title: "BREAKスタ練", genreCode: "BREAK", startTime: "20:00", endTime: "22:00", location: "スタジオB" }));
+    }
+
+    if (blocks.length > 0) blocksByDate[date] = blocks;
+  }
+
+  // ---- イベント・締切 (終日) ----
+  const deadlineEvents: MyEvent[] = [
+    ev({ kind: "deadline", sourceId: "dl1", date: d(4), allDay: true, startTime: "00:00", endTime: "24:00", title: "締切: 合宿費の集金", important: true, dueTime: "23:59", url: "https://example.com/form" }),
+    ev({ kind: "deadline", sourceId: "dl2", date: d(9), allDay: true, startTime: "00:00", endTime: "24:00", title: "締切: 2ジャン登録フォーム", url: "https://example.com/form" }),
+    ev({ kind: "deadline", sourceId: "dl3", date: d(1), allDay: true, startTime: "00:00", endTime: "24:00", title: "締切: 学祭の出演アンケート", url: "https://example.com/form" }),
+    ev({ kind: "deadline", sourceId: "dl4", date: d(18), allDay: true, startTime: "00:00", endTime: "24:00", title: "締切: 部費の集金", important: true, dueTime: "18:00", url: "https://example.com/form" }),
+    ev({ kind: "deadline", sourceId: "dl0", date: d(-6), allDay: true, startTime: "00:00", endTime: "24:00", title: "締切: Tシャツ注文", url: "https://example.com/form" }),
   ];
+  const circleEvents: MyEvent[] = [
+    ev({ kind: "event", sourceId: "e1", date: d(10), lastDate: d(12), allDay: true, startTime: "00:00", endTime: "24:00", title: "秋合宿", location: "長野" }),
+    ev({ kind: "event", sourceId: "e2", date: d(15), title: "縦イベ", startTime: "13:00", endTime: "18:00", location: "講堂" }),
+    ev({ kind: "event", sourceId: "e3", date: d(24), lastDate: d(25), allDay: true, startTime: "00:00", endTime: "24:00", title: "学祭", location: "キャンパス" }),
+    ev({ kind: "event", sourceId: "e4", date: d(-12), title: "新入生歓迎ショーケース", startTime: "17:00", endTime: "20:00", location: "講堂" }),
+    ev({ kind: "event", sourceId: "e5", date: d(7), title: "定例ミーティング", startTime: "12:15", endTime: "13:00", location: "部室" }),
+  ];
+  events.push(...circleEvents);
+  if (!isOb) events.push(...deadlineEvents);
 
   return {
     today,
     events,
-    blocksByDate: isOb ? {} : { [today]: todayBlocks },
+    // OB は縦イベのナンバーと、OB にも見せるイベントだけ (§3.6)
+    ...(isOb
+      ? { events: events.filter((e) => (e.kind === "number" && e.numberId === "num-2") || e.sourceId === "e2") }
+      : {}),
+    blocksByDate: isOb ? {} : blocksByDate,
     notifications: [
       {
         id: "nt1",
@@ -91,12 +186,25 @@ export function demoCalendar(isOb: boolean) {
         body: "部室の棚に置いてあります。1人1部持っていってください。",
         createdAt: new Date().toISOString(),
       },
+      {
+        id: "nt3",
+        type: "announcement" as const,
+        title: "学祭の出演アンケートは明日まで",
+        body: "まだの人は今日中にお願いします。",
+        createdAt: new Date(Date.now() - 5 * 3600_000).toISOString(),
+      },
     ],
-    numbers: [{ id: "num-1", name: "秋ナンバー" }],
+    numbers: isOb
+      ? [{ id: "num-2", name: "縦イベ HIPHOP" }]
+      : [
+          { id: "num-1", name: "秋ナンバー" },
+          { id: "num-2", name: "縦イベ HIPHOP" },
+        ],
     genreCodes: isOb ? [] : ["BREAK", "POP"],
     upcomingDeadlines: isOb
       ? []
       : [
+          { id: "dl3", title: "学祭の出演アンケート", dueDate: d(1), dueTime: null, url: "https://example.com/form", important: false },
           { id: "dl1", title: "合宿費の集金", dueDate: d(4), dueTime: "23:59", url: "https://example.com/form", important: true },
           { id: "dl2", title: "2ジャン登録フォーム", dueDate: d(9), dueTime: null, url: "https://example.com/form", important: false },
         ],
