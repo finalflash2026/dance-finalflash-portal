@@ -416,9 +416,6 @@ function attendanceTarget(event: MyEvent): AttendanceTarget {
   return { kind: "info" };
 }
 
-/** 選んだ日の一覧に最初から出す件数 (§6.7.13 / v1.31.1 → v1.31.6)。残りは折りたたむ */
-const DAY_VISIBLE = 3;
-
 // ---------- 近い締切 (§6.7.13 / v1.31.6) ----------
 
 /** 近い締切の欄に出す件数 */
@@ -1044,7 +1041,6 @@ function DayContent({
   onClaim: (slot: DayBlock, range: TimeRange) => void;
 }) {
   const roomById = useRoomById();
-  const [expanded, setExpanded] = useState(false);
   // 今日を選んでいるときは、終わった予定を後ろへ回して薄くする (v1.31.6。
   // 以前の「今日」の欄の動き)。サーバーとずれないよう描画後に読む
   const [now, setNow] = useState<string | null>(null);
@@ -1162,40 +1158,10 @@ function DayContent({
     <div className="space-y-4">
       {mineRows.length > 0 ? (
         <ul className={groupClass}>
-          {(expanded || mineRows.length <= DAY_VISIBLE + 1
-            ? mineRows
-            : mineRows.slice(0, DAY_VISIBLE)
-          ).map((row) => (
+          {/* 折りたたまずに全部出す (v1.31.11。1日の予定は多くても数件) */}
+          {mineRows.map((row) => (
             <ListRow key={row.key} row={row} />
           ))}
-          {/* 3件を超えたら折りたたむ (1件だけ隠すのは手間が増えるだけなので、4件までは全部出す) */}
-          {mineRows.length > DAY_VISIBLE + 1 ? (
-            <li>
-              <button
-                type="button"
-                onClick={() => setExpanded((open) => !open)}
-                aria-expanded={expanded}
-                className="flex w-full items-center justify-center gap-1.5 px-4 py-2.5 text-[15px] text-[var(--tint)]"
-              >
-                {expanded ? "閉じる" : `ほか ${mineRows.length - DAY_VISIBLE}件`}
-                <svg
-                  viewBox="0 0 14 8"
-                  width="11"
-                  height="7"
-                  aria-hidden
-                  className={`transition-transform duration-300 ${expanded ? "rotate-180" : ""}`}
-                >
-                  <path
-                    d="M1 1l6 6 6-6"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2.2"
-                    strokeLinecap="round"
-                  />
-                </svg>
-              </button>
-            </li>
-          ) : null}
         </ul>
       ) : (
         <p className={`${groupClass} px-4 py-3 text-[15px] text-[var(--muted)]`}>
