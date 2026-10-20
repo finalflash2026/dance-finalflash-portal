@@ -1,3 +1,4 @@
+import { BackButton } from "@/components/BackButton";
 import { BellButton } from "@/components/BellButton";
 import { HelpButton } from "@/components/HelpButton";
 import { LaunchPrompts } from "@/components/LaunchPrompts";
@@ -59,13 +60,17 @@ export default async function AppLayout({
     /* 浮いたタブバーのぶん、下に余白を置く (バーの高さ + 逃げ) */
     <div className="min-h-dvh pb-24">
       <header className="flex items-center justify-between gap-2 px-4 py-2">
-        <div className="min-w-0">
+        <div className="flex min-w-0 items-center gap-2">
+          {/* 設定・鍵・お知らせなどでは左上に戻るボタン (v1.31.9。どの画面でも同じ場所) */}
+          <BackButton />
           {/* 未ログイン (セットアップ前・デモ) ではサイト名を出さない (v1.31.5。場所を取るだけ) */}
-          {profile ? <p className="truncate text-sm font-bold">{profile.username}</p> : null}
-          {profile && profile.role !== "member" ? (
-            <p className="text-xs text-[var(--muted)]">
-              {ROLE_LABELS[profile.role]}
-            </p>
+          {profile ? (
+            <div className="min-w-0">
+              <p className="truncate text-sm font-bold">{profile.username}</p>
+              {profile.role !== "member" ? (
+                <p className="text-xs text-[var(--muted)]">{ROLE_LABELS[profile.role]}</p>
+              ) : null}
+            </div>
           ) : null}
         </div>
         {/* ? と歯車 (v1.30 §6.7.8)。どちらも同じ丸い浮いたボタン */}

@@ -5,7 +5,6 @@ import { SetupNotice } from "@/components/SetupNotice";
 import { getCurrentProfile } from "@/lib/auth/session";
 import { hasSupabaseEnv } from "@/lib/env";
 import { createClient } from "@/lib/supabase/server";
-import { BackButton } from "@/components/BackButton";
 
 /**
  * お知らせ (SPEC.md §6.7.13 / v1.31)
@@ -44,9 +43,6 @@ export default async function NotificationsPage() {
 
   return (
     <main className="mx-auto max-w-2xl space-y-4 px-4 py-3">
-      <div>
-        <BackButton href="/" label="ホーム" />
-      </div>
       <h1 className="text-[28px] font-bold leading-tight">お知らせ</h1>
       {rows.length === 0 ? (
         <p className="rounded-xl bg-[var(--cell)] px-4 py-6 text-center text-[15px] text-[var(--muted)]">

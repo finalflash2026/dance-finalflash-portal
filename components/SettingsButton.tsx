@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useRef } from "react";
+import { useEffect } from "react";
 
 /**
  * ヘッダの設定ボタン (SPEC.md §12)
@@ -47,26 +47,49 @@ function isAboveTabs(pathname: string): boolean {
   );
 }
 
-/** 浮いた丸ボタン。タブバーと同じすりガラス */
+/**
+ * 浮いた丸ボタン。タブバーと同じすりガラス。
+ * 44px (v1.31.9。40px では押し損ねが多かった。iOS の押しやすい大きさ)。
+ * 押した瞬間に縮めて、反応したことを見せる
+ */
 export const BUTTON_CLASS =
-  "glass flex h-10 w-10 shrink-0 items-center justify-center rounded-full";
+  "glass flex h-11 w-11 shrink-0 items-center justify-center rounded-full transition-transform active:scale-90";
+
+/**
+ * 設定に入る前の画面。ヘッダー左上の戻るボタン (BackButton) と右上の ✕ が
+ * 同じ行き先を使うので、モジュールに1つだけ持つ (レイアウトは作り直されない)
+ */
+const settingsReturn: { cameFrom: string | null; oneStepBack: boolean } = {
+  cameFrom: null,
+  oneStepBack: false,
+};
+
+/** 設定を閉じて、入る前の画面へ戻る */
+export function closeSettings(router: ReturnType<typeof useRouter>) {
+  if (!settingsReturn.cameFrom) {
+    router.push("/");
+  } else if (settingsReturn.oneStepBack) {
+    // 素直に開いただけなら戻るで済ませる。push だと履歴が伸び続け、
+    // 端末の戻るで設定を何度も通ることになる
+    router.back();
+  } else {
+    // 設定の上に管理者・折衝を積んでいる。何回戻ればよいかは
+    // 数えられない (端末の戻るでも動く) ので、行き先を直接指定する
+    router.push(settingsReturn.cameFrom);
+  }
+}
 
 export function SettingsButton() {
   const pathname = usePathname();
   const router = useRouter();
-  /** 設定に入る前に見ていた画面。日付などの指定ごと覚える */
-  const cameFrom = useRef<string | null>(null);
-  /** 設定の上に何も積んでいない (= 戻るが1回で足りる) か */
-  const oneStepBack = useRef(false);
-
   useEffect(() => {
     if (!isAboveTabs(pathname)) {
       // タブ側の画面。`?date=` まで含めて覚え、戻ったときに同じ日を出す
-      cameFrom.current = `${pathname}${window.location.search}`;
-      oneStepBack.current = true;
+      settingsReturn.cameFrom = `${pathname}${window.location.search}`;
+      settingsReturn.oneStepBack = true;
     } else if (pathname !== SETTINGS_PATH) {
       // 管理者・折衝へ入った。ここから設定に戻っても、履歴は伸びたまま
-      oneStepBack.current = false;
+      settingsReturn.oneStepBack = false;
     }
   }, [pathname]);
 
@@ -74,6 +97,8 @@ export function SettingsButton() {
     return (
       <Link
         href={SETTINGS_PATH}
+        // 押してから開くまでが遅かった (v1.31.9)。先に読み込んでおく
+        prefetch
         aria-label="設定"
         className={BUTTON_CLASS}
         data-tour="settings"
@@ -87,19 +112,7 @@ export function SettingsButton() {
     <button
       type="button"
       aria-label="設定を閉じる"
-      onClick={() => {
-        if (!cameFrom.current) {
-          router.push("/");
-        } else if (oneStepBack.current) {
-          // 素直に開いただけなら戻るで済ませる。push だと履歴が伸び続け、
-          // 端末の戻るで設定を何度も通ることになる
-          router.back();
-        } else {
-          // 設定の上に管理者・折衝を積んでいる。何回戻ればよいかは
-          // 数えられない (端末の戻るでも動く) ので、行き先を直接指定する
-          router.push(cameFrom.current);
-        }
-      }}
+      onClick={() => closeSettings(router)}
       className={BUTTON_CLASS}
     >
       <CloseIcon />
@@ -117,8 +130,8 @@ export function SettingsButton() {
 function GearIcon() {
   return (
     <svg
-      width="20"
-      height="20"
+      width="22"
+      height="22"
       viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"
@@ -140,8 +153,8 @@ function GearIcon() {
 function CloseIcon() {
   return (
     <svg
-      width="14"
-      height="14"
+      width="16"
+      height="16"
       viewBox="0 0 14 14"
       fill="none"
       stroke="currentColor"

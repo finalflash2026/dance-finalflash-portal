@@ -22,8 +22,8 @@ export function BellButton({ unread }: { unread: number }) {
       data-tour="bell"
     >
       <svg
-        width="19"
-        height="19"
+        width="21"
+        height="21"
         viewBox="0 0 24 24"
         fill="none"
         stroke="currentColor"

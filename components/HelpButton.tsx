@@ -121,7 +121,7 @@ export function HelpButton() {
         className={BUTTON_CLASS}
         data-tour="help"
       >
-        <span aria-hidden className="text-[18px] font-bold leading-none">
+        <span aria-hidden className="text-[20px] font-bold leading-none">
           ?
         </span>
       </button>
