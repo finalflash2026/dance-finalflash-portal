@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 
-import { settingsSectionClass } from "@/components/ui";
+import { SettingsGroup } from "@/components/SettingsGroup";
 import {
   isIos,
   isStandalone,
@@ -260,11 +260,11 @@ export function PushSection({ vapidPublicKey }: { vapidPublicKey: string }) {
   }
 
   return (
-    <section className={settingsSectionClass}>
-      <h2 className="text-base font-bold">通知</h2>
-      <p className="text-sm text-[var(--muted)]">
-        この端末だけの設定です。別の端末では別に登録が要ります。
-      </p>
+    <SettingsGroup
+      title="通知"
+      summary={status === "ready" && subscribed ? "オン" : "オフ"}
+      hint="この端末だけの設定です。別の端末では別に登録が要ります。iPhone は、ホーム画面に追加したアイコンから開いたときだけ届きます。"
+    >
 
       {error ? (
         <p role="alert" className="text-sm text-[var(--danger-fg)]">
@@ -315,11 +315,6 @@ export function PushSection({ vapidPublicKey }: { vapidPublicKey: string }) {
           >
             この端末で通知を受け取る
           </button>
-          {ios && !standalone ? (
-            <p className="text-xs text-[var(--muted)]">
-              iPhone では、ホーム画面に追加したアイコンから開いた場合のみ届きます。
-            </p>
-          ) : null}
         </div>
       ) : null}
 
@@ -357,6 +352,6 @@ export function PushSection({ vapidPublicKey }: { vapidPublicKey: string }) {
           </button>
         </div>
       ) : null}
-    </section>
+    </SettingsGroup>
   );
 }

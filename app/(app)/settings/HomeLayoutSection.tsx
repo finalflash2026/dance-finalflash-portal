@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from "react";
 
-import { Switch, settingsSectionClass } from "@/components/ui";
+import { SettingsGroup } from "@/components/SettingsGroup";
+import { Switch } from "@/components/ui";
 import {
   HOME_SECTION_LABELS,
   REQUIRED_SECTIONS,
@@ -42,11 +43,11 @@ export function HomeLayoutSection() {
   }
 
   return (
-    <section className={settingsSectionClass}>
-      <h2 className="text-base font-bold">ホームの並び</h2>
-      <p className="text-xs text-[var(--muted)]">
-        よく見るものを上に。使わない欄はオフにすると隠れます。この端末だけの設定です。
-      </p>
+    <SettingsGroup
+      title="ホームの並び"
+      summary={`${HOME_SECTION_LABELS[layout.order[0]].split("・")[0]}が一番上`}
+      hint="よく見るものを上に。使わない欄はオフにすると隠れます。この端末だけの設定です。"
+    >
       <ol className="divide-y divide-[var(--separator)] rounded-xl bg-[var(--cell)]">
         {layout.order.map((key, index) => {
           const required = REQUIRED_SECTIONS.includes(key);
@@ -101,7 +102,7 @@ export function HomeLayoutSection() {
       >
         最初の並びに戻す
       </button>
-    </section>
+    </SettingsGroup>
   );
 }
 

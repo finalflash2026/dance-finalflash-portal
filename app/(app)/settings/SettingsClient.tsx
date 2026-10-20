@@ -12,7 +12,6 @@ import {
   inputClass,
   primaryButtonClass,
   secondaryButtonClass,
-  settingsSectionClass,
 } from "@/components/ui";
 import {
   GENRES,
@@ -30,6 +29,8 @@ import {
   type Theme,
 } from "@/lib/theme";
 import type { Profile } from "@/lib/types";
+
+import { SettingsGroup } from "@/components/SettingsGroup";
 
 import { HomeLayoutSection } from "./HomeLayoutSection";
 import { PushSection } from "./PushSection";
@@ -98,7 +99,8 @@ export function SettingsClient({
   }
 
   return (
-    <main className="mx-auto max-w-2xl space-y-8 px-4 py-3">
+    // ブロックは閉じた状態で並べ、押すと開く (v1.31.9)。1画面に全部の見出しが収まる
+    <main className="mx-auto max-w-2xl space-y-3 px-4 py-3">
       <h1 className="text-[28px] font-bold leading-tight">設定</h1>
 
       <ErrorMessage>{error}</ErrorMessage>
@@ -108,9 +110,12 @@ export function SettingsClient({
         </p>
       ) : null}
 
-      <section className={settingsSectionClass}>
-        <h2 className="text-base font-bold">アカウント</h2>
-        <dl className="space-y-1 text-sm">
+      <SettingsGroup
+        title="アカウント"
+        summary={profile.username}
+        hint="期・1ジャンを直したいときは、管理者に頼んでください。"
+      >
+        <dl className="space-y-1.5 text-[15px]">
           <div className="flex gap-3">
             <dt className="w-24 shrink-0 text-[var(--muted)]">ユーザーID</dt>
             <dd>{profile.username}</dd>
@@ -124,10 +129,7 @@ export function SettingsClient({
             <dd>{GENRE_BY_ID.get(profile.main_genre_id)?.code ?? "-"}</dd>
           </div>
         </dl>
-        <p className="text-xs text-[var(--muted)]">
-          期・1ジャンの修正は管理者のみ行えます (SPEC §6.5.1)
-        </p>
-      </section>
+      </SettingsGroup>
 
       {/* OB には表示しない: 公式練に紐づく設定のため (SPEC §6.4.1) */}
       {profile.role !== "ob" ? (
@@ -147,11 +149,22 @@ export function SettingsClient({
         貼る手順は、Google カレンダーのアプリからは行えず (ブラウザが要る)、
         やり方が分からないまま止まっている人が多かった。
       */}
-      <section className={settingsSectionClass} data-tour="subscribe">
-        <h2 className="text-base font-bold">カレンダーに追加</h2>
-        <p className="text-sm text-[var(--muted)]">
-          自分の練習・ナンバー・イベント・締切が、普段使っているカレンダーに自動で入り続けます。
-        </p>
+      <SettingsGroup
+        title="カレンダーに追加"
+        summary="iPhone・Google"
+        tour="subscribe"
+        hint={
+          <ul className="space-y-1.5">
+            <li>自分の練習・ナンバー・イベント・締切が、普段使っているカレンダーに自動で入り続けます。</li>
+            <li>iPhone は押すと「照会カレンダーを追加」と出るので「照会」を押すだけです。</li>
+            <li>
+              Google カレンダーは<strong>アプリからは追加できません</strong>。ボタンを押すと
+              ブラウザで開くので、ログインして「追加」を押してください。
+            </li>
+            <li>Google カレンダーは反映が半日〜1日遅れることがあります。</li>
+          </ul>
+        }
+      >
 
         {httpsUrl && webcalUrl ? (
           <div className="space-y-2">
@@ -166,20 +179,6 @@ export function SettingsClient({
             >
               Google カレンダーに追加
             </a>
-            <ul className="space-y-1 pt-1 text-[13px] leading-snug text-[var(--muted)]">
-              <li>
-                ・iPhone は押すと「照会カレンダーを追加」と出るので「照会」を押すだけです。
-              </li>
-              <li>
-                ・Google カレンダーは<strong>アプリからは追加できません</strong>。
-                ボタンを押すとブラウザで開くので、ログインして「追加」を押してください。
-                追加したあとはスマホのアプリにも出ます。
-              </li>
-              <li>
-                ・Google カレンダーは反映が<strong>半日〜1日遅れる</strong>ことがあります。
-                直前の変更はこのアプリで確かめてください。
-              </li>
-            </ul>
           </div>
         ) : (
           <p className="text-sm text-[var(--muted)]">
@@ -187,7 +186,7 @@ export function SettingsClient({
           </p>
         )}
 
-        <details className="rounded-lg bg-[var(--cell)] p-3 text-sm">
+        <details className="rounded-lg bg-[var(--fill)] p-3 text-[15px]">
           <summary className="cursor-pointer font-medium">
             URL を直接使う・再発行する
           </summary>
@@ -210,12 +209,9 @@ export function SettingsClient({
             >
               購読URLを再発行する
             </button>
-            <p className="text-xs text-[var(--muted)]">
-              再発行すると古いURLは使えなくなり、カレンダーアプリに登録し直す必要があります。
-            </p>
           </div>
         </details>
-      </section>
+      </SettingsGroup>
 
       {/*
         通知は現役だけに配る (練習日程・鍵はどちらも OB に関係が無い。SPEC §6.6)。
@@ -246,17 +242,16 @@ export function SettingsClient({
       ) : null}
 
       {/* ログアウトは設定ではなく操作なので、すべての後ろに置く */}
-      <section className={settingsSectionClass}>
-        <h2 className="text-base font-bold">ログアウト</h2>
+      <div className="pt-4">
         <button
           type="button"
           onClick={logout}
           disabled={pending}
-          className={buttonClass}
+          className={`${buttonClass} w-full`}
         >
           ログアウト
         </button>
-      </section>
+      </div>
     </main>
   );
 }
@@ -289,8 +284,17 @@ function ThemeSection() {
    * どこで切り替えるのか自体に気付かれていなかった。iOS の「画面表示と明るさ」と同じ形。
    */
   return (
-    <section className={settingsSectionClass} data-tour="theme">
-      <h2 className="text-base font-bold">画面の明るさ</h2>
+    <SettingsGroup
+      title="画面の明るさ"
+      summary={theme ? THEME_LABELS[theme] : null}
+      tour="theme"
+      hint={
+        <>
+          {theme ? THEME_HINTS[theme] : ""}
+          この端末だけの設定です。
+        </>
+      }
+    >
       <div role="radiogroup" aria-label="表示テーマ" className="grid grid-cols-3 gap-3">
         {(["system", "light", "dark"] as const).map((value) => {
           const selected = theme === value;
@@ -330,11 +334,7 @@ function ThemeSection() {
           );
         })}
       </div>
-      <p className="text-[13px] text-[var(--muted)]">
-        {theme ? THEME_HINTS[theme] : ""}
-        この端末だけの設定です。
-      </p>
-    </section>
+    </SettingsGroup>
   );
 }
 
@@ -462,11 +462,11 @@ function RoleSection({
   }
 
   return (
-    <section className={settingsSectionClass}>
-      <h2 className="text-base font-bold">権限</h2>
-      <p className="text-sm text-[var(--muted)]">
-        現在: <strong>{ROLE_LABELS[role]}</strong>
-      </p>
+    <SettingsGroup
+      title="権限"
+      summary={ROLE_LABELS[role]}
+      hint="折衝または3役の合言葉を入れると、その担当の画面が使えるようになります。いま持っている権限が減ることはありません。"
+    >
 
       {isCoordinatorOrAbove(role) ? (
         <div className="space-y-2">
@@ -495,10 +495,7 @@ function RoleSection({
       ) : null}
 
       <form onSubmit={elevate} className="space-y-3">
-        <Field
-          label="合言葉を入れて権限を追加する"
-          hint="折衝または3役の合言葉を入れると、その担当の画面が使えるようになります。いま持っている権限が減ることはありません。"
-        >
+        <Field label="合言葉を入れて権限を追加する">
           <input
             type="password"
             className={inputClass}
@@ -515,7 +512,7 @@ function RoleSection({
           権限を追加する
         </button>
       </form>
-    </section>
+    </SettingsGroup>
   );
 }
 
@@ -588,11 +585,14 @@ function SubgenreSection({
   }
 
   return (
-    <section className={settingsSectionClass}>
-      <h2 className="text-base font-bold">サブジャンル</h2>
-      <p className="text-sm text-[var(--muted)]">
-        ここで選んだジャンルの公式練が自分の予定に入ります。変更は今日以降の予定にだけ反映され、昨日までの予定はそのまま残ります。
-      </p>
+    <SettingsGroup
+      title="サブジャンル"
+      summary={[values[2], values[3]]
+        .map((id) => (id ? GENRE_BY_ID.get(id)?.code : null))
+        .filter(Boolean)
+        .join("・") || "なし"}
+      hint="ここで選んだジャンルの公式練が自分の予定に入ります。変更は今日以降の予定にだけ反映され、昨日までの予定はそのまま残ります。"
+    >
       {([2, 3] as const).map((slot) => (
         <Field key={slot} label={`${slot}ジャン`}>
           <select
@@ -610,6 +610,6 @@ function SubgenreSection({
           </select>
         </Field>
       ))}
-    </section>
+    </SettingsGroup>
   );
 }
