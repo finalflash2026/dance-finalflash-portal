@@ -6,7 +6,7 @@ import { useState } from "react";
 
 import { BUTTON_CLASS } from "@/components/SettingsButton";
 import { Sheet } from "@/components/Sheet";
-import { fillButtonClass, groupClass } from "@/components/ui";
+import { GroupHeader, fillButtonClass, groupClass } from "@/components/ui";
 import { START_TOUR_EVENT } from "@/components/Tour";
 
 /**
@@ -19,81 +19,122 @@ import { START_TOUR_EVENT } from "@/components/Tour";
  * 一番下から初回ツアー (components/Tour.tsx) を見返せる。
  */
 
+/**
+ * v1.31.9 で作り直した。以前は文章で説明していて、どこを押せばよいかが
+ * 文の中に埋もれていた。**やりたいことを見出しに、押す場所を番号付きの手順に**し、
+ * ボタンの名前は今の画面に出ている文字と同じにする。
+ */
 interface Hint {
   q: string;
-  a: React.ReactNode;
+  /** 押す順番。1つずつ短く */
+  steps: React.ReactNode[];
+  /** 手順のあとに添える一言 (無くてよい) */
+  note?: React.ReactNode;
 }
 
-const HINTS: Hint[] = [
+const GROUPS: { title: string; hints: Hint[] }[] = [
   {
-    q: "通知を受け取るには?",
-    a: (
-      <>
-        iPhone は<strong>ホーム画面に追加したアイコンから開いたときだけ</strong>
-        通知を受け取れます。追加したら、右上の歯車 →「通知」で
-        「この端末で通知を受け取る」を押してください。練習・締切・告知など、
-        種類ごとにオン/オフできます。
-      </>
-    ),
+    title: "はじめに (最初に1回だけ)",
+    hints: [
+      {
+        q: "ホーム画面に追加する",
+        steps: [
+          <>iPhone: 画面下の<b>共有ボタン</b>(四角から矢印)を押す</>,
+          <><b>ホーム画面に追加</b> → <b>追加</b></>,
+        ],
+        note: "Android は右上の︙ →「ホーム画面に追加」。アプリのように開けて、通知も届くようになります。",
+      },
+      {
+        q: "通知を受け取る",
+        steps: [
+          <>ホーム画面に追加した<b>アイコンから</b>開く</>,
+          <>右上の<b>歯車</b> → <b>通知</b></>,
+          <><b>この端末で通知を受け取る</b>を押す</>,
+        ],
+        note: "練習のある日の朝・締切・告知などが届きます。種類ごとにオン/オフできます。",
+      },
+      {
+        q: "予定をスマホのカレンダーに入れる",
+        steps: [
+          <>右上の<b>歯車</b> → <b>カレンダーに追加</b></>,
+          <><b>iPhone / Mac</b> か <b>Google</b> のボタンを押す</>,
+        ],
+        note: "一度入れれば、あとは自動で入り続けます。",
+      },
+    ],
   },
   {
-    q: "ホーム画面に追加するには?",
-    a: (
-      <>
-        <strong>iPhone (Safari)</strong>: 下の共有ボタン (四角から矢印) →
-        「ホーム画面に追加」。
-        <br />
-        <strong>Android (Chrome)</strong>: 右上の︙ →「ホーム画面に追加」または
-        「アプリをインストール」。
-      </>
-    ),
+    title: "練習の日",
+    hints: [
+      {
+        q: "欠席・遅刻を伝える",
+        steps: [
+          <>カレンダーの下の一覧で<b>自分の予定</b>を押す</>,
+          <><b>欠席・遅刻・早退</b>を選ぶ</>,
+        ],
+        note: "出席するときは何もしなくて大丈夫です。",
+      },
+      {
+        q: "空いている部屋で自主練する",
+        steps: [
+          <>ホームの<b>今日自主練できる部屋</b>で部屋を押す</>,
+          <>時間を選んで<b>申請</b></>,
+        ],
+        note: "別の日は、カレンダーの右の「表示」→「空き」をオンにすると出ます。",
+      },
+      {
+        q: "練習場所の鍵を開けた・閉めた",
+        steps: [
+          <>ホームの<b>練習場所の鍵・部室の鍵・連絡</b>を押す</>,
+          <>部屋を押して、確認の画面で<b>報告</b></>,
+        ],
+        note: "開けたときは現役全員に通知が届きます。",
+      },
+    ],
   },
   {
-    q: "自分のカレンダーアプリに予定を入れたい",
-    a: (
-      <>
-        歯車 →「カレンダーに追加」のボタンから登録できます。iPhone
-        の標準カレンダーはボタン1つ。Google カレンダーはブラウザで開いて登録します
-        (アプリからは追加できません)。一度登録すれば、予定は自動で入り続けます。
-      </>
-    ),
-  },
-  {
-    q: "空いている部屋を使いたい",
-    a: (
-      <>
-        ホームの「今日自主練できる部屋」から押すと申請できます。別の日は、カレンダー右の
-        「自分の予定」から「空き」をオンにすると、その日の空きが出ます。
-      </>
-    ),
-  },
-  {
-    q: "欠席・遅刻を伝えたい",
-    a: (
-      <>
-        ホームやカレンダーで自分の予定を押すと、欠席・遅刻・早退を登録できます。
-        <strong>出席するときは何もしなくて大丈夫</strong>です。
-      </>
-    ),
-  },
-  {
-    q: "練習場所の鍵を開けた・閉めた",
-    a: (
-      <>
-        ホームの「練習場所の鍵・部室の鍵・連絡」から部屋を押し、
-        「開けましたと報告する」を押します。現役全員に通知が届きます。
-      </>
-    ),
-  },
-  {
-    q: "締切やイベントはどこで分かる?",
-    a: (
-      <>
-        近い締切はホームの「近い締切」の欄に出ます。締切の日の朝に通知が届き、
-        集金などの大事な締切は1週間前の朝にも届きます。合宿などのイベントは
-        カレンダーに金色で出ます。
-      </>
-    ),
+    title: "画面の見方",
+    hints: [
+      {
+        q: "日付を変える",
+        steps: [
+          <>週の帯の日付を押す。<b>横に滑らせる</b>と前後の週へ</>,
+          <>左上の<b>日付のボタン</b>を押すと月の表示に広がる</>,
+          <><b>今日</b>のボタンで今日に戻る</>,
+        ],
+      },
+      {
+        q: "一覧・時間・部屋の違い",
+        steps: [
+          <><b>一覧</b>: その日の予定を時刻順に</>,
+          <><b>時間</b>: 1日の時間の流れで。練習の無い時間は畳まれる(押すと開く)</>,
+          <><b>部屋</b>: 部屋ごとに、どこが使われているか</>,
+        ],
+      },
+      {
+        q: "他のジャンルの練習や空きも見たい",
+        steps: [
+          <>カレンダーの右の<b>表示</b>を押す</>,
+          <>見たいジャンルや<b>空き</b>をオンにする</>,
+        ],
+        note: "足したものは薄い色で出ます。「自分の予定だけ」で元に戻せます。",
+      },
+      {
+        q: "ホームの並びを変える",
+        steps: [
+          <>右上の<b>歯車</b> → <b>ホームの並び</b></>,
+          <>↑↓ で並べ替え、スイッチで出す/出さないを選ぶ</>,
+        ],
+      },
+      {
+        q: "締切やイベントはどこに出る?",
+        steps: [
+          <>2週間以内の締切はホームの<b>近い締切</b>に</>,
+          <>合宿などのイベントはカレンダーに金色で</>,
+        ],
+        note: "締切の日の朝に通知が届き、集金など大事な締切は1週間前にも届きます。",
+      },
+    ],
   },
 ];
 
@@ -128,36 +169,60 @@ export function HelpButton() {
 
       {open ? (
         <Sheet title="使い方とヒント" onClose={() => setOpen(false)}>
-          <div className="space-y-4">
-            <ul className={groupClass}>
-              {HINTS.map((hint) => (
-                <li key={hint.q}>
-                  <details className="group">
-                    <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-[17px] [&::-webkit-details-marker]:hidden">
-                      {hint.q}
-                      <svg
-                        aria-hidden
-                        viewBox="0 0 14 8"
-                        width="12"
-                        height="8"
-                        className="shrink-0 text-[var(--muted)] transition-transform group-open:rotate-180"
-                      >
-                        <path
-                          d="M1 1l6 6 6-6"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="2"
-                          strokeLinecap="round"
-                        />
-                      </svg>
-                    </summary>
-                    <p className="px-4 pb-3 text-[15px] leading-relaxed text-[var(--muted)]">
-                      {hint.a}
-                    </p>
-                  </details>
-                </li>
-              ))}
-            </ul>
+          <div className="space-y-5">
+            {GROUPS.map((group) => (
+              <div key={group.title}>
+                <GroupHeader>{group.title}</GroupHeader>
+                <ul className={groupClass}>
+                  {group.hints.map((hint) => (
+                    <li key={hint.q}>
+                      <details className="group">
+                        <summary className="flex min-h-[48px] cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-[17px] [&::-webkit-details-marker]:hidden">
+                          {hint.q}
+                          <svg
+                            aria-hidden
+                            viewBox="0 0 14 8"
+                            width="12"
+                            height="8"
+                            className="shrink-0 text-[var(--muted)] transition-transform group-open:rotate-180"
+                          >
+                            <path
+                              d="M1 1l6 6 6-6"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth="2"
+                              strokeLinecap="round"
+                            />
+                          </svg>
+                        </summary>
+                        <div className="space-y-2 px-4 pb-4">
+                          <ol className="space-y-2">
+                            {hint.steps.map((step, i) => (
+                              <li key={i} className="flex gap-2.5 text-[16px] leading-snug">
+                                <span
+                                  aria-hidden
+                                  className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-[var(--tint)] text-[13px] font-bold text-white"
+                                >
+                                  {i + 1}
+                                </span>
+                                <span className="pt-0.5 [&_b]:font-semibold [&_b]:text-[var(--tint)]">
+                                  {step}
+                                </span>
+                              </li>
+                            ))}
+                          </ol>
+                          {hint.note ? (
+                            <p className="text-[15px] leading-relaxed text-[var(--muted)]">
+                              {hint.note}
+                            </p>
+                          ) : null}
+                        </div>
+                      </details>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ))}
             <button type="button" onClick={startTour} className={fillButtonClass}>
               使い方ツアーをもう一度見る
             </button>
