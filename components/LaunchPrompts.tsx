@@ -53,6 +53,12 @@ export function LaunchPrompts({
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    // 見本として出す (v1.31.12)。`?prompt=install` / `?prompt=push` で回数に関係なく出る
+    const forced = new URLSearchParams(window.location.search).get("prompt");
+    if (forced === "install" || forced === "push") {
+      const timer = window.setTimeout(() => setPrompt(forced), 600);
+      return () => window.clearTimeout(timer);
+    }
     let cancelled = false;
     (async () => {
       let count = 0;

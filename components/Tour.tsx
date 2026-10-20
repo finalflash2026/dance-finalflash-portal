@@ -183,6 +183,8 @@ export function Tour() {
   useEffect(() => {
     if (!tour) return;
     const requested = new URLSearchParams(window.location.search).has("tour");
+    // 起動時の案内の見本 (?prompt=...) を見ているときは重ねない
+    if (new URLSearchParams(window.location.search).has("prompt")) return;
     let done = false;
     try {
       done = localStorage.getItem(tour.done) === "1";

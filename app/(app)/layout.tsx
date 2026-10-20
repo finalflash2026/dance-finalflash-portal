@@ -93,10 +93,11 @@ export default async function AppLayout({
 
       {/* 初回ツアーと、起動時の案内 (ホーム画面への追加・通知。§6.7.9) */}
       <Tour />
-      {profile ? (
+      {profile || !hasSupabaseEnv() ? (
         <LaunchPrompts
           vapidPublicKey={VAPID_PUBLIC_KEY}
-          isActiveMember={profile.role !== "ob"}
+          // デモ (Supabase 未設定) は現役として出す
+          isActiveMember={profile ? profile.role !== "ob" : true}
         />
       ) : null}
 
