@@ -3,7 +3,7 @@
 import Image from "next/image";
 import { useEffect, useRef, useState } from "react";
 
-import logoImage from "@/assets/splash-logo.png";
+import logoImage from "@/assets/splash-logo.webp";
 
 /**
  * 起動アニメーション (SPEC.md §6.7.10 / v1.31)
@@ -285,9 +285,11 @@ export function Splash() {
         }}
       >
         {/*
-          **元のロゴをそのまま出す。** unoptimized で変換を挟まない (WebP/AVIF にすると
-          細かな質感が崩れる)。影も付けない (文字のすき間が暗く埋まり、
-          後ろの色の光線が見えなくなる)
+          **元のロゴをそのまま出す。** unoptimized で Next の変換を挟まない (既定の画質だと
+          細かな質感が崩れる)。画像は画質 90 の WebP を自分で作って置いている
+          (v1.31.9。PNG 905KB → 約250KB、並べて見比べても差が分からない)。
+          ファイル名にハッシュが付くので Service Worker が端末に持つ (public/sw.js)。
+          影も付けない (文字のすき間が暗く埋まり、後ろの色の光線が見えなくなる)
         */}
         <Image
           src={logoImage}
