@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 
 import { SettingsGroup } from "@/components/SettingsGroup";
+import { Switch, primaryButtonClass } from "@/components/ui";
 import {
   isIos,
   isStandalone,
@@ -312,47 +313,50 @@ export function PushSection({ vapidPublicKey }: { vapidPublicKey: string }) {
             type="button"
             onClick={enable}
             disabled={busy}
-            className="rounded-lg border border-[var(--foreground)] px-4 py-2 text-sm font-bold disabled:opacity-50"
+            className={primaryButtonClass}
           >
             この端末で通知を受け取る
           </button>
         </div>
       ) : null}
 
-      {status === "ready" && subscribed ? (
-        <div className="space-y-2">
-          <ul className="space-y-1">
-            {CATEGORIES.map((category) => (
-              <li key={category.key}>
-                <label className="flex cursor-pointer items-start gap-3 rounded-lg border border-[var(--border)] px-3 py-2">
-                  <input
-                    type="checkbox"
-                    checked={prefs[category.key]}
-                    onChange={() => toggle(category.key)}
-                    className="mt-0.5 h-4 w-4 shrink-0"
-                  />
-                  <span className="min-w-0">
-                    <span className="block text-sm font-bold">
-                      {category.label}
-                    </span>
-                    <span className="block text-xs text-[var(--muted)]">
-                      {category.hint}
-                    </span>
-                  </span>
-                </label>
-              </li>
-            ))}
-          </ul>
+      {/*
+        通知の種類 (v1.31.12)。**オンにする前から一覧を見せる** — 何が届くのかが
+        分からないとオンにする理由も分からない。オンにするまでは選べない状態で出す
+      */}
+      <div className="space-y-2">
+        <p className="text-[15px] font-semibold">届く通知</p>
+        <ul className="divide-y divide-[var(--separator)] rounded-xl bg-[var(--fill)]">
+          {CATEGORIES.map((category) => (
+            <li key={category.key} className="flex items-center gap-3 px-3 py-2.5">
+              <span className="min-w-0 flex-1">
+                <span className="block text-[16px]">{category.label}</span>
+                <span className="block text-[13px] text-[var(--muted)]">{category.hint}</span>
+              </span>
+              <Switch
+                checked={subscribed ? prefs[category.key] : false}
+                disabled={!subscribed || busy}
+                label={category.label}
+                onChange={() => toggle(category.key)}
+              />
+            </li>
+          ))}
+        </ul>
+        {!subscribed ? (
+          <p className="text-[14px] text-[var(--muted)]">
+            上の「この端末で通知を受け取る」を押すと選べるようになります。
+          </p>
+        ) : (
           <button
             type="button"
             onClick={disable}
             disabled={busy}
-            className="text-sm text-[var(--muted)] underline disabled:opacity-50"
+            className="h-11 text-[15px] text-[var(--danger-fg)] disabled:opacity-50"
           >
             この端末への通知を止める
           </button>
-        </div>
-      ) : null}
+        )}
+      </div>
     </SettingsGroup>
   );
 }
