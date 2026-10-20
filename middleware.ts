@@ -21,9 +21,36 @@ const PUBLIC_PATHS = ["/login", "/signup"];
 /** 認証を要求しない API (トークン自体が鍵 / cron 用) */
 const PUBLIC_API_PREFIXES = ["/api/auth", "/api/cal", "/api/health", "/api/cron"];
 
+/**
+ * Supabase 未設定の手元の環境で、ふだんのアドレスをデモの画面に差し替える
+ * (SPEC §14.1 / v1.31.7)。画面の中のリンクやタブは本番のアドレスを指すので、
+ * そのままだとデモの中で移るたびに「セットアップが必要です」になっていた。
+ * アドレスは変えずに中身だけ差し替える (rewrite)。デモの無い画面は差し替えない。
+ */
+function demoPath(pathname: string): string | null {
+  const exact: Record<string, string> = {
+    "/": "/demo/calendar",
+    "/number-cal": "/demo/numbers",
+    "/settings": "/demo/settings",
+    "/keys": "/demo/keys",
+    "/notifications": "/demo/notifications",
+    "/manage": "/demo/manage",
+  };
+  if (exact[pathname]) return exact[pathname];
+  if (pathname.startsWith("/numbers/")) return "/demo/number";
+  return null;
+}
+
 export async function middleware(request: NextRequest) {
-  // Supabase 未設定 (セットアップ前) は素通しして dev を起動できるようにする
+  // Supabase 未設定 (セットアップ前) は素通しして dev を起動できるようにする。
+  // デモのある画面は、デモの中身を出す
   if (!hasSupabaseEnv()) {
+    const target = demoPath(request.nextUrl.pathname);
+    if (target) {
+      const url = request.nextUrl.clone();
+      url.pathname = target;
+      return NextResponse.rewrite(url);
+    }
     return NextResponse.next({ request });
   }
 
