@@ -81,7 +81,6 @@ export function closeSettings(router: ReturnType<typeof useRouter>) {
 
 export function SettingsButton() {
   const pathname = usePathname();
-  const router = useRouter();
   useEffect(() => {
     if (!isAboveTabs(pathname)) {
       // タブ側の画面。`?date=` まで含めて覚え、戻ったときに同じ日を出す
@@ -108,16 +107,9 @@ export function SettingsButton() {
     );
   }
 
-  return (
-    <button
-      type="button"
-      aria-label="設定を閉じる"
-      onClick={() => closeSettings(router)}
-      className={BUTTON_CLASS}
-    >
-      <CloseIcon />
-    </button>
-  );
+  // 設定の中では出さない (v1.31.11)。閉じるのは左上の戻るボタン (BackButton) だけにする。
+  // 右上に ✕ もあると、同じことをするボタンが2つになる
+  return null;
 }
 
 /**
@@ -146,24 +138,3 @@ function GearIcon() {
   );
 }
 
-/**
- * 設定を閉じる。**三本線のままにしない。**
- * 同じ絵で挙動だけ変わると、押した人には何が起きるか分からない。
- */
-function CloseIcon() {
-  return (
-    <svg
-      width="16"
-      height="16"
-      viewBox="0 0 14 14"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      aria-hidden
-    >
-      <line x1="1" y1="1" x2="13" y2="13" />
-      <line x1="13" y1="1" x2="1" y2="13" />
-    </svg>
-  );
-}
