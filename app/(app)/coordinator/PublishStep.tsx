@@ -137,7 +137,7 @@ export function PublishStep() {
 
               <div className="space-y-2 border-t border-[var(--border)] pt-4">
                 <p className="text-sm text-[var(--muted)]">
-                  公開すると全体カレンダーに出て、空き申請ができるようになります。
+                  公開するとカレンダーに出て、空き申請ができるようになります。
                   あわせて OB 以外の全員にお知らせが配られます
                   {publishedCount > 0
                     ? " (この月は既に公開済のコマがあるため「更新されました」として届きます)"

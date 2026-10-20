@@ -181,7 +181,7 @@ export async function POST(request: Request) {
     user_id: r.user_id,
     type: "schedule_updated" as const,
     title,
-    body: `${published}件のコマが公開されました。全体カレンダーで確認してください`,
+    body: `${published}件のコマが公開されました。カレンダーで確認してください`,
   }));
 
   const { error: notifyError } = rows.length

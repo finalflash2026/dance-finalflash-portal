@@ -161,7 +161,7 @@ export function SignupForm() {
       */}
       <Field
         label="2ジャン (任意)"
-        hint="選んだジャンルの公式練が、マイカレンダーに出るようになります"
+        hint="選んだジャンルの公式練が、自分の予定に入ります。あとから設定で変えられます"
       >
         <select
           className={inputClass}
