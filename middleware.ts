@@ -35,6 +35,8 @@ function demoPath(pathname: string): string | null {
     "/keys": "/demo/keys",
     "/notifications": "/demo/notifications",
     "/manage": "/demo/manage",
+    "/admin": "/demo/admin",
+    "/coordinator": "/demo/coordinator",
   };
   if (exact[pathname]) return exact[pathname];
   if (pathname.startsWith("/numbers/")) return "/demo/number";
