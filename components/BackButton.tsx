@@ -18,7 +18,7 @@ import { closeSettings } from "@/components/SettingsButton";
 function backTarget(pathname: string): { href: string; label: string } | null {
   const path = pathname.replace(/^\/demo(?=\/)/, "");
   if (path === "/settings") return { href: "/", label: "戻る" };
-  if (path === "/keys" || path === "/notifications") return { href: "/", label: "ホーム" };
+  if (path === "/keys" || path === "/notifications") return { href: "/", label: "戻る" };
   if (path.startsWith("/numbers/") || path === "/number") {
     return { href: "/number-cal", label: "ナンバー" };
   }

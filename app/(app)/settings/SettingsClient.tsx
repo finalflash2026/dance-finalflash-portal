@@ -290,7 +290,7 @@ function ThemeSection() {
    */
   return (
     <SettingsGroup
-      title="画面の明るさ"
+      title="外観モード"
       icon="theme"
       summary={theme ? THEME_LABELS[theme] : null}
       tour="theme"
