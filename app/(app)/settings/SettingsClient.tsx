@@ -31,6 +31,7 @@ import {
 } from "@/lib/theme";
 import type { Profile } from "@/lib/types";
 
+import { HomeLayoutSection } from "./HomeLayoutSection";
 import { PushSection } from "./PushSection";
 
 /**
@@ -223,6 +224,9 @@ export function SettingsClient({
       {profile.role !== "ob" ? (
         <PushSection vapidPublicKey={vapidPublicKey} />
       ) : null}
+
+      {/* OB はホームの欄がカレンダーだけなので出さない (§6.7.13 / v1.31.6) */}
+      {profile.role !== "ob" ? <HomeLayoutSection /> : null}
 
       <ThemeSection />
 

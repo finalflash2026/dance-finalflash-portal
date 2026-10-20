@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 import {
   AttendanceSheet,
@@ -31,6 +31,13 @@ import {
 } from "@/lib/constants";
 import { spanNote } from "@/lib/day-span";
 import { eventColor, expandMyEvents } from "@/lib/event-display";
+import {
+  DEFAULT_HOME_LAYOUT,
+  HOME_LAYOUT_EVENT,
+  readHomeLayout,
+  type HomeLayout,
+  type HomeSection,
+} from "@/lib/home-layout";
 import { useRoomById } from "@/lib/rooms";
 import {
   CLAIM_STEP_MINUTES,
@@ -132,6 +139,7 @@ export function CalendarHome({
   const [filter, setFilter] = useState<Filter>(DEFAULT_FILTER);
   const [dayView, setDayView] = useState<DayView>("list");
   const [monthOpen, setMonthOpen] = useState(false);
+  const [layout, setLayout] = useState<HomeLayout>(DEFAULT_HOME_LAYOUT);
   const [selected, setSelected] = useState<MyEvent | null>(null);
   const [claiming, setClaiming] = useState<{
     date: DateString;
@@ -150,6 +158,18 @@ export function CalendarHome({
       if (view === "time" || (view === "rooms" && !isOb)) setDayView(view);
     } catch {}
   }, [isOb]);
+
+  // ホームの並びも端末に保存してある。設定で変えたら同じタブでも追いかける
+  useEffect(() => {
+    const load = () => setLayout(readHomeLayout());
+    load();
+    window.addEventListener(HOME_LAYOUT_EVENT, load);
+    window.addEventListener("storage", load);
+    return () => {
+      window.removeEventListener(HOME_LAYOUT_EVENT, load);
+      window.removeEventListener("storage", load);
+    };
+  }, []);
 
   function changeFilter(next: Filter) {
     setFilter(next);
@@ -208,108 +228,116 @@ export function CalendarHome({
     (code) => !genreCodes.includes(code),
   );
 
+  // 欄の中身。並びと表示/非表示は設定の「ホームの並び」で変える (v1.31.6)
+  const sections: Record<HomeSection, React.ReactNode> = {
+    deadlines: isOb ? null : <DeadlinesSection today={today} deadlines={upcomingDeadlines} />,
+    freeRooms: isOb ? null : (
+      <FreeRoomsToday
+        blocks={todayBlocks}
+        onClaim={(slot, range) => setClaiming({ date: today, slot, range })}
+      />
+    ),
+    keys: keysSummary ? <KeysEntry summary={keysSummary} href={keysHref} /> : null,
+    calendar: (
+      <>
+        <section className="space-y-3" data-tour="calendar">
+          <CalendarHeader
+            selectedDate={selectedDate}
+            today={today}
+            monthOpen={monthOpen}
+            onToday={() => selectDate(today)}
+            onToggleMonth={() => setMonthOpen((open) => !open)}
+            filterButton={
+              isOb ? null : (
+                <FilterButton filter={filter} otherGenres={otherGenres} onChange={changeFilter} />
+              )
+            }
+          />
+
+          {/*
+            週の帯と月表示は、高さをなめらかに伸び縮みさせて切り替える
+            (grid の 0fr ↔ 1fr。高さを数えずに中身なりで動かせる)
+          */}
+          <Collapse open={!monthOpen}>
+            <WeekStrip
+              rangeStart={rangeStart}
+              rangeEnd={rangeEnd}
+              selectedDate={selectedDate}
+              today={today}
+              eventsByDate={eventsByDate}
+              onSelect={selectDate}
+            />
+          </Collapse>
+          <Collapse open={monthOpen}>
+            <LabelCalendar
+              basePath="/"
+              monthAnchor={startOfMonth(selectedDate)}
+              selectedDate={selectedDate}
+              today={today}
+              eventsByDate={eventsByDate}
+              onSelectDate={(date) => {
+                selectDate(date);
+                setMonthOpen(false);
+              }}
+            />
+          </Collapse>
+        </section>
+
+        <section className="space-y-2" data-tour="day">
+          <div className="flex items-center justify-between gap-3">
+            <h2 className="text-[20px] font-bold">
+              {formatDateLabel(selectedDate)}
+              {selectedDate === today ? (
+                <span className="ml-1.5 text-[15px] font-normal text-[var(--muted)]">今日</span>
+              ) : null}
+            </h2>
+            <div className={isOb ? "w-32" : "w-44"}>
+              <Segmented
+                label="表示のしかた"
+                value={dayView}
+                onChange={changeView}
+                options={[
+                  { value: "list", label: "一覧" },
+                  { value: "time", label: "時間" },
+                  ...(isOb ? [] : [{ value: "rooms" as const, label: "部屋" }]),
+                ]}
+              />
+            </div>
+          </div>
+
+          {/* 日を変えたら、滑らせた向きに合わせて中身を少しずらして入れ替える */}
+          <div
+            key={`${selectedDate}-${dayView}`}
+            className={
+              direction === "right" ? "page-in-right" : direction === "left" ? "page-in-left" : ""
+            }
+          >
+            {dayView === "rooms" && !isOb ? (
+              <DayGrid date={selectedDate} blocks={dayBlocks} currentUserId={currentUserId} />
+            ) : (
+              <DayContent
+                date={selectedDate}
+                today={today}
+                view={dayView === "time" ? "time" : "list"}
+                mine={entries.filter((entry) => entry.date === selectedDate)}
+                blocks={dayBlocks}
+                filter={filter}
+                mySlotIds={mySlotIds}
+                onSelect={setSelected}
+                onClaim={(slot, range) => setClaiming({ date: selectedDate, slot, range })}
+              />
+            )}
+          </div>
+        </section>
+      </>
+    ),
+  };
+
   return (
     <>
-      {isOb ? null : <DeadlinesSection today={today} deadlines={upcomingDeadlines} />}
-
-      {isOb ? null : (
-        <FreeRoomsToday
-          blocks={todayBlocks}
-          onClaim={(slot, range) => setClaiming({ date: today, slot, range })}
-        />
-      )}
-
-      {keysSummary ? <KeysEntry summary={keysSummary} href={keysHref} /> : null}
-
-      <section className="space-y-3" data-tour="calendar">
-        <CalendarHeader
-          selectedDate={selectedDate}
-          today={today}
-          monthOpen={monthOpen}
-          onToday={() => selectDate(today)}
-          onToggleMonth={() => setMonthOpen((open) => !open)}
-          filterButton={
-            isOb ? null : (
-              <FilterButton filter={filter} otherGenres={otherGenres} onChange={changeFilter} />
-            )
-          }
-        />
-
-        {/*
-          週の帯と月表示は、高さをなめらかに伸び縮みさせて切り替える
-          (grid の 0fr ↔ 1fr。高さを数えずに中身なりで動かせる)
-        */}
-        <Collapse open={!monthOpen}>
-          <WeekStrip
-            rangeStart={rangeStart}
-            rangeEnd={rangeEnd}
-            selectedDate={selectedDate}
-            today={today}
-            eventsByDate={eventsByDate}
-            onSelect={selectDate}
-          />
-        </Collapse>
-        <Collapse open={monthOpen}>
-          <LabelCalendar
-            basePath="/"
-            monthAnchor={startOfMonth(selectedDate)}
-            selectedDate={selectedDate}
-            today={today}
-            eventsByDate={eventsByDate}
-            onSelectDate={(date) => {
-              selectDate(date);
-              setMonthOpen(false);
-            }}
-          />
-        </Collapse>
-      </section>
-
-      <section className="space-y-2" data-tour="day">
-        <div className="flex items-center justify-between gap-3">
-          <h2 className="text-[20px] font-bold">
-            {formatDateLabel(selectedDate)}
-            {selectedDate === today ? (
-              <span className="ml-1.5 text-[15px] font-normal text-[var(--muted)]">今日</span>
-            ) : null}
-          </h2>
-          <div className={isOb ? "w-32" : "w-44"}>
-            <Segmented
-              label="表示のしかた"
-              value={dayView}
-              onChange={changeView}
-              options={[
-                { value: "list", label: "一覧" },
-                { value: "time", label: "時間" },
-                ...(isOb ? [] : [{ value: "rooms" as const, label: "部屋" }]),
-              ]}
-            />
-          </div>
-        </div>
-
-        {/* 日を変えたら、滑らせた向きに合わせて中身を少しずらして入れ替える */}
-        <div
-          key={`${selectedDate}-${dayView}`}
-          className={
-            direction === "right" ? "page-in-right" : direction === "left" ? "page-in-left" : ""
-          }
-        >
-          {dayView === "rooms" && !isOb ? (
-            <DayGrid date={selectedDate} blocks={dayBlocks} currentUserId={currentUserId} />
-          ) : (
-            <DayContent
-              date={selectedDate}
-              today={today}
-              view={dayView === "time" ? "time" : "list"}
-              mine={entries.filter((entry) => entry.date === selectedDate)}
-              blocks={dayBlocks}
-              filter={filter}
-              mySlotIds={mySlotIds}
-              onSelect={setSelected}
-              onClaim={(slot, range) => setClaiming({ date: selectedDate, slot, range })}
-            />
-          )}
-        </div>
-      </section>
+      {layout.order
+        .filter((key) => !layout.hidden.includes(key))
+        .map((key) => <Fragment key={key}>{sections[key]}</Fragment>)}
 
       {selected && (selected.kind === "event" || selected.kind === "deadline") ? (
         <EventDetailSheet event={selected} onClose={() => setSelected(null)} />

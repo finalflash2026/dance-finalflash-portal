@@ -140,6 +140,7 @@ Next.js の決まりで、**フォルダの並びがそのまま URL になる**
 | `time.ts`・`day-span.ts`・`timeline.ts` | 日付・時刻の計算(**日本時間で、文字列のまま計算**して日付ずれを防ぐ)、日をまたぐ予定、時間表の配置 |
 | `constants.ts`・`rooms.tsx`・`rooms-server.ts` | ジャンル・色・役職名などの定数、練習場所の一覧 |
 | `theme.ts` | 明暗テーマの切り替え |
+| `home-layout.ts` | ホームの欄の並びと表示/非表示 (端末に保存) |
 | `rate-limit.ts` | ログインなどの試行回数の制限 |
 | `cron-auth.ts` | Cron からの呼び出しかどうかの確認 |
 | `use-live-refresh.ts`・`refresh-signal.ts`・`nav-direction.ts` | 鍵のボードの自動更新、引っぱって更新の合図、タブ移動の向き |
