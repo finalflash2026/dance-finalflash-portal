@@ -17,7 +17,6 @@ export default async function DemoCalendar({
         initialDate={data.today}
         today={data.today}
         events={data.events}
-        todayEvents={null}
         blocksByDate={data.blocksByDate}
         numbers={data.numbers}
         genreCodes={data.genreCodes}

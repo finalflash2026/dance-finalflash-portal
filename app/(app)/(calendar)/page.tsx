@@ -22,8 +22,8 @@ import { CalendarHome, type KeysSummary, type UpcomingDeadline } from "./Calenda
 /**
  * ホーム (SPEC.md §6.7.13 / v1.31)
  *
- * **開いてすぐ見たいものだけ**を置く: 今日 (予定 + 近い締切) / 今日自主練できる部屋 /
- * 鍵まわりの入口 / 1週間の帯 + 選んだ日の予定。鍵のボードは /keys、お知らせはベルへ移した。
+ * **開いてすぐ見たいものだけ**を置く: 近い締切 / 今日自主練できる部屋 /
+ * 鍵まわりの入口 / 1週間の帯 + 選んだ日の予定 (開いた直後は今日)。鍵のボードは /keys、お知らせはベルへ移した。
  *
  * 週の帯は横に滑らせて前後の週へ行けるので、**表示中の月の前後1か月ぶん**をまとめて取る。
  * その外へ滑らせたら、その日付でページごと読み直す (CalendarHome)。
@@ -137,11 +137,6 @@ export default async function HomePage({
           .order("due_date", { ascending: true }),
   ]);
 
-  // 「今日」の欄は表示中の範囲に関係なく今日を見る。範囲に入っていれば取得済み
-  const todayEvents = todayInRange
-    ? null
-    : await getMyEvents(supabase, profile, today, today);
-
   const blocksByDate = toBlocksByDate([
     ...((rangeSlotsResult.data ?? []) as SlotRow[]),
     ...((todaySlotsResult.data ?? []) as SlotRow[]),
@@ -213,7 +208,6 @@ export default async function HomePage({
         initialDate={selectedDate}
         today={today}
         events={events}
-        todayEvents={todayEvents}
         blocksByDate={blocksByDate}
         numbers={numbers}
         genreCodes={genreIds.flatMap((id) => {

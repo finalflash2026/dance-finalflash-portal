@@ -28,9 +28,9 @@ interface Step {
 
 const STEPS: Step[] = [
   {
-    target: "today",
-    title: "今日",
-    body: "今日の自分の予定と、近い締切がここにまとまっています。予定を押すと欠席・遅刻を伝えられます。",
+    target: "deadlines",
+    title: "近い締切",
+    body: "集金やフォームなど、2週間以内の締切です。押すと提出先が開きます。",
   },
   {
     target: "free-rooms",
@@ -49,8 +49,8 @@ const STEPS: Step[] = [
   },
   {
     target: "day",
-    title: "その日の予定",
-    body: "選んだ日の予定です。「時間表」「部屋」に切り替えられます。",
+    title: "今日・選んだ日の予定",
+    body: "開いた直後は今日の予定です。予定を押すと欠席・遅刻を伝えられます。「時間」「部屋」に切り替えられます。",
   },
   {
     target: "bell",

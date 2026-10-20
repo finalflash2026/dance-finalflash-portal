@@ -29,7 +29,7 @@ import {
   SLOT_OPEN_COLOR,
   type GenreCode,
 } from "@/lib/constants";
-import { formatSpanRange, spanNote } from "@/lib/day-span";
+import { spanNote } from "@/lib/day-span";
 import { eventColor, expandMyEvents } from "@/lib/event-display";
 import { useRoomById } from "@/lib/rooms";
 import {
@@ -48,8 +48,11 @@ import type { DateString, MyEvent } from "@/lib/types";
 /**
  * ホーム (SPEC.md §6.7.13 / v1.31)
  *
- * 上から: 今日 (予定 + 近い締切) → 今日自主練できる部屋 → 鍵まわりの入口 →
- *         1週間の帯 (押すと月表示) → 選んだ日の予定
+ * 既定の並び: 近い締切 → 今日自主練できる部屋 → 鍵まわりの入口 →
+ *             1週間の帯 (押すと月表示) + 選んだ日の予定
+ * 並びと表示/非表示は設定の「ホームの並び」で変えられる (v1.31.6)。
+ * 今日の予定は、開いた直後に今日を選んでいる「選んだ日の予定」で見る
+ * (以前は上に「今日」の欄があり、同じ予定を2回出していた)。
  *
  * **開いてすぐ見たいものだけを置く。** 鍵のボードは /keys、お知らせはベルへ。
  *
@@ -94,7 +97,6 @@ export function CalendarHome({
   initialDate,
   today,
   events,
-  todayEvents,
   blocksByDate,
   genreCodes,
   isOb,
@@ -109,8 +111,6 @@ export function CalendarHome({
   initialDate: DateString;
   today: DateString;
   events: MyEvent[];
-  /** 範囲に今日が入っていないときの今日の予定。入っていれば null */
-  todayEvents: MyEvent[] | null;
   /** 範囲 (と今日) の公開済みコマ。OB は空 */
   blocksByDate: Record<DateString, DayBlock[]>;
   /** 所属ナンバー (今は使っていないが、ページ側の取得と揃えておく) */
@@ -184,10 +184,6 @@ export function CalendarHome({
   // **日をまたぐ深夜練・複数日のイベントは日ごとに割る** (v1.21 / v1.30)。
   // 同じ日の中は終日を先頭に、あとは開始時刻順
   const entries = useMemo(() => sortEntries(expandMyEvents(events)), [events]);
-  const todayEntries = useMemo(
-    () => (todayEvents ? sortEntries(expandMyEvents(todayEvents)) : entries),
-    [todayEvents, entries],
-  );
 
   const eventsByDate = useMemo(() => {
     const map = new Map<DateString, MyEvent[]>();
@@ -214,12 +210,7 @@ export function CalendarHome({
 
   return (
     <>
-      <TodaySection
-        today={today}
-        entries={todayEntries.filter((entry) => entry.date === today)}
-        deadlines={upcomingDeadlines}
-        onSelect={setSelected}
-      />
+      {isOb ? null : <DeadlinesSection today={today} deadlines={upcomingDeadlines} />}
 
       {isOb ? null : (
         <FreeRoomsToday
@@ -307,6 +298,7 @@ export function CalendarHome({
           ) : (
             <DayContent
               date={selectedDate}
+              today={today}
               view={dayView === "time" ? "time" : "list"}
               mine={entries.filter((entry) => entry.date === selectedDate)}
               blocks={dayBlocks}
@@ -387,114 +379,33 @@ function attendanceTarget(event: MyEvent): AttendanceTarget {
   return { kind: "info" };
 }
 
-// ---------- 今日 (予定 + 近い締切) ----------
+/** 選んだ日の一覧に最初から出す件数 (§6.7.13 / v1.31.1 → v1.31.6)。残りは折りたたむ */
+const DAY_VISIBLE = 3;
 
-/** 「今日」の欄に最初から出す件数 (§6.7.13 / v1.31.1)。残りは折りたたむ */
-const TODAY_VISIBLE = 3;
+// ---------- 近い締切 (§6.7.13 / v1.31.6) ----------
 
-function TodaySection({
+/** 近い締切の欄に出す件数 */
+const DEADLINES_VISIBLE = 3;
+
+/**
+ * 近い締切。以前は「今日」の欄に予定と一緒に入れていたが、「今日」は
+ * カレンダーの選んだ日の予定にまとめたので (v1.31.6)、締切だけで1つの欄にする
+ */
+function DeadlinesSection({
   today,
-  entries,
   deadlines,
-  onSelect,
 }: {
   today: DateString;
-  entries: Entry[];
   deadlines: UpcomingDeadline[];
-  onSelect: (event: MyEvent) => void;
 }) {
-  const [expanded, setExpanded] = useState(false);
-  // 終わった予定を後ろへ回すのに使う。サーバーとずれないよう描画後に読む
-  const [now, setNow] = useState<string | null>(null);
-  useEffect(() => {
-    setNow(nowTimeInTokyo());
-    const timer = window.setInterval(() => setNow(nowTimeInTokyo()), 60_000);
-    return () => window.clearInterval(timer);
-  }, []);
-
-  // 前日から跨いできた深夜練の後半は、朝には終わっているので「今日」には出さない。
-  // 締切は期限つきの行で出すので、予定の側からは外す
-  const events = entries.filter(
-    (entry) => entry.part !== "second" && entry.event.kind !== "deadline",
-  );
-  // **直近のものから並べる。** 終わった予定は後ろへ (今から何があるかを先に見せる)
-  const ended = (entry: Entry) =>
-    now !== null && !isWholeDayEntry(entry) && entry.endTime <= now;
-  const ordered = [...events.filter((e) => !ended(e)), ...events.filter(ended)];
-
-  const items: React.ReactNode[] = [
-    ...ordered.map((entry) => (
-      <li key={`${entry.event.kind}-${entry.event.sourceId}`}>
-        <button
-          type="button"
-          onClick={() => onSelect(entry.event)}
-          className={`flex w-full items-center gap-3 px-4 py-2.5 text-left ${
-            ended(entry) ? "opacity-50" : ""
-          }`}
-        >
-          <span
-            aria-hidden
-            className="h-9 w-1 shrink-0 rounded-full"
-            style={{ backgroundColor: eventColor(entry.event).bg }}
-          />
-          <span className="w-[92px] shrink-0 text-[14px] tabular-nums text-[var(--muted)]">
-            {isWholeDayEntry(entry)
-              ? "終日"
-              : formatSpanRange(entry.event.startTime, entry.event.endTime)}
-          </span>
-          <span className="min-w-0 flex-1">
-            <span className="block truncate text-[16px]">{entry.event.title}</span>
-            {entry.event.location ? (
-              <span className="block truncate text-[13px] text-[var(--muted)]">
-                {entry.event.location}
-              </span>
-            ) : null}
-          </span>
-        </button>
-      </li>
-    )),
-    ...deadlines
-      .slice(0, 2)
-      .map((deadline) => <DeadlineRow key={deadline.id} deadline={deadline} today={today} />),
-  ];
-
-  const hidden = items.length - TODAY_VISIBLE;
-
+  if (deadlines.length === 0) return null;
   return (
-    <section data-tour="today">
-      <GroupHeader>今日 {formatDateLabel(today)}</GroupHeader>
+    <section data-tour="deadlines">
+      <GroupHeader>近い締切</GroupHeader>
       <ul className={groupClass}>
-        {events.length === 0 ? (
-          <li className="px-4 py-3 text-[15px] text-[var(--muted)]">今日の予定はありません</li>
-        ) : null}
-        {expanded || hidden <= 0 ? items : items.slice(0, TODAY_VISIBLE)}
-        {hidden > 0 ? (
-          <li>
-            <button
-              type="button"
-              onClick={() => setExpanded((open) => !open)}
-              aria-expanded={expanded}
-              className="flex w-full items-center justify-center gap-1.5 px-4 py-2.5 text-[15px] text-[var(--tint)]"
-            >
-              {expanded ? "閉じる" : `ほか ${hidden}件`}
-              <svg
-                viewBox="0 0 14 8"
-                width="11"
-                height="7"
-                aria-hidden
-                className={`transition-transform duration-300 ${expanded ? "rotate-180" : ""}`}
-              >
-                <path
-                  d="M1 1l6 6 6-6"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2.2"
-                  strokeLinecap="round"
-                />
-              </svg>
-            </button>
-          </li>
-        ) : null}
+        {deadlines.slice(0, DEADLINES_VISIBLE).map((deadline) => (
+          <DeadlineRow key={deadline.id} deadline={deadline} today={today} />
+        ))}
       </ul>
     </section>
   );
@@ -1050,6 +961,8 @@ interface Row {
   color: { bg: string; fg: string };
   pale: boolean;
   important?: boolean;
+  /** 今日の終わった予定。薄く出す (v1.31.6) */
+  ended?: boolean;
   /** 「空き」。時間表の折りたたみの判断に使わない (DayTimeline の filler) */
   filler?: boolean;
   onClick?: () => void;
@@ -1061,6 +974,7 @@ interface Row {
  */
 function DayContent({
   date,
+  today,
   view,
   mine,
   blocks,
@@ -1070,6 +984,7 @@ function DayContent({
   onClaim,
 }: {
   date: DateString;
+  today: DateString;
   view: "list" | "time";
   mine: Entry[];
   blocks: DayBlock[];
@@ -1079,8 +994,21 @@ function DayContent({
   onClaim: (slot: DayBlock, range: TimeRange) => void;
 }) {
   const roomById = useRoomById();
+  const [expanded, setExpanded] = useState(false);
+  // 今日を選んでいるときは、終わった予定を後ろへ回して薄くする (v1.31.6。
+  // 以前の「今日」の欄の動き)。サーバーとずれないよう描画後に読む
+  const [now, setNow] = useState<string | null>(null);
+  useEffect(() => {
+    if (date !== today) return;
+    setNow(nowTimeInTokyo());
+    const timer = window.setInterval(() => setNow(nowTimeInTokyo()), 60_000);
+    return () => window.clearInterval(timer);
+  }, [date, today]);
+  const ended = (entry: Entry) =>
+    date === today && now !== null && !isWholeDayEntry(entry) && entry.endTime <= now;
+  const ordered = [...mine.filter((e) => !ended(e)), ...mine.filter(ended)];
 
-  const mineRows: Row[] = mine.map((entry) => {
+  const mineRows: Row[] = ordered.map((entry) => {
     const event = entry.event;
     const note = event.lastDate
       ? multiDayNote(event, date)
@@ -1096,6 +1024,7 @@ function DayContent({
       subtitle: [event.location, note, dueNote].filter(Boolean).join(" · "),
       color: eventColor(event),
       pale: false,
+      ended: ended(entry),
       important: event.important,
       onClick: () => onSelect(event),
     };
@@ -1183,9 +1112,40 @@ function DayContent({
     <div className="space-y-4">
       {mineRows.length > 0 ? (
         <ul className={groupClass}>
-          {mineRows.map((row) => (
+          {(expanded || mineRows.length <= DAY_VISIBLE + 1
+            ? mineRows
+            : mineRows.slice(0, DAY_VISIBLE)
+          ).map((row) => (
             <ListRow key={row.key} row={row} />
           ))}
+          {/* 3件を超えたら折りたたむ (1件だけ隠すのは手間が増えるだけなので、4件までは全部出す) */}
+          {mineRows.length > DAY_VISIBLE + 1 ? (
+            <li>
+              <button
+                type="button"
+                onClick={() => setExpanded((open) => !open)}
+                aria-expanded={expanded}
+                className="flex w-full items-center justify-center gap-1.5 px-4 py-2.5 text-[15px] text-[var(--tint)]"
+              >
+                {expanded ? "閉じる" : `ほか ${mineRows.length - DAY_VISIBLE}件`}
+                <svg
+                  viewBox="0 0 14 8"
+                  width="11"
+                  height="7"
+                  aria-hidden
+                  className={`transition-transform duration-300 ${expanded ? "rotate-180" : ""}`}
+                >
+                  <path
+                    d="M1 1l6 6 6-6"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2.2"
+                    strokeLinecap="round"
+                  />
+                </svg>
+              </button>
+            </li>
+          ) : null}
         </ul>
       ) : (
         <p className={`${groupClass} px-4 py-3 text-[15px] text-[var(--muted)]`}>
@@ -1241,7 +1201,9 @@ function ListRow({ row }: { row: Row }) {
       </span>
     </>
   );
-  const className = `flex w-full gap-3 px-4 py-2.5 text-left ${row.pale ? "opacity-55" : ""}`;
+  const className = `flex w-full gap-3 px-4 py-2.5 text-left ${
+    row.pale ? "opacity-55" : row.ended ? "opacity-50" : ""
+  }`;
   return (
     <li>
       {row.onClick ? (
