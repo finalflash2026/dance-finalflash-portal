@@ -1,15 +1,15 @@
-import Link from "next/link";
 
 import { NotificationList } from "@/components/NotificationList";
 import { demoCalendar } from "../data";
+import { BackButton } from "@/components/BackButton";
 
 export default function DemoNotifications() {
   const data = demoCalendar(false);
   return (
     <main className="mx-auto max-w-2xl space-y-4 px-4 py-3">
-      <Link href="/demo/calendar" className="text-[15px] text-[var(--tint)]">
-        ‹ ホーム
-      </Link>
+      <div>
+        <BackButton href="/" label="ホーム" />
+      </div>
       <h1 className="text-[28px] font-bold leading-tight">お知らせ</h1>
       <NotificationList
         fullHeight

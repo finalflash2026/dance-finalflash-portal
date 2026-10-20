@@ -114,6 +114,7 @@ Next.js の決まりで、**フォルダの並びがそのまま URL になる**
 | `Sheet.tsx` | 下から出る窓 |
 | `TabBar.tsx`・`SwipeTabs.tsx`・`PageTransition.tsx` | 下のタブ、横スワイプでのタブ移動、画面切り替えの動き |
 | `SettingsButton.tsx`・`HelpButton.tsx`・`BellButton.tsx` | 右上の歯車・?・ベル |
+| `BackButton.tsx` | 左上の「‹ ホーム」などの戻るボタン |
 | `Tour.tsx`・`LaunchPrompts.tsx` | 初回ツアー、ホーム画面追加・通知オンの案内 |
 | `Splash.tsx` | 起動アニメーション |
 | `LabelCalendar.tsx`・`DayTimeline.tsx`・`DayGrid.tsx` | 月カレンダー、その日の時間表、部屋×時間の表 |

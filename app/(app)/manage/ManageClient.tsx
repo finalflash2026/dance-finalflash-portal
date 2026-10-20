@@ -24,6 +24,7 @@ import {
   normalizeTime,
 } from "@/lib/time";
 import type { Announcement, CircleEvent, Deadline } from "@/lib/types";
+import { BackButton } from "@/components/BackButton";
 
 /**
  * イベント・締切・告知の管理 (SPEC.md §6.7.11 / v1.30)
@@ -64,6 +65,9 @@ export function ManageClient({
 
   return (
     <main className="mx-auto max-w-2xl space-y-5 px-4 py-4">
+      <div>
+        <BackButton href="/settings" label="設定" />
+      </div>
       <h1 className="text-[28px] font-bold leading-tight">イベントと締切</h1>
       <Segmented label="表示する一覧" value={tab} options={tabs} onChange={setTab} />
       <ErrorMessage>

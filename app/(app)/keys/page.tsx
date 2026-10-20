@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { redirect } from "next/navigation";
 
 import { ClubKeyBoard } from "@/components/ClubKeyBoard";
@@ -10,6 +9,7 @@ import { KEY_HISTORY_LIMIT, toKeyHolderRows } from "@/lib/club-key";
 import { hasSupabaseEnv } from "@/lib/env";
 import { createClient } from "@/lib/supabase/server";
 import { todayInTokyo } from "@/lib/time";
+import { BackButton } from "@/components/BackButton";
 
 /**
  * 練習場所の鍵・部室の鍵・連絡 (SPEC.md §6.7.13 / v1.31)
@@ -49,9 +49,9 @@ export default async function KeysPage() {
 
   return (
     <main className="mx-auto max-w-2xl space-y-4 px-4 py-3">
-      <Link href="/" className="text-[15px] text-[var(--tint)]">
-        ‹ ホーム
-      </Link>
+      <div>
+        <BackButton href="/" label="ホーム" />
+      </div>
       <h1 className="text-[28px] font-bold leading-tight">鍵と連絡</h1>
       <RoomStatusBoard
         today={today}

@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
@@ -22,6 +21,7 @@ import {
   normalizeTimeInput,
   todayInTokyo,
 } from "@/lib/time";
+import { BackButton } from "@/components/BackButton";
 
 /**
  * ナンバー詳細 (SPEC.md §6.3)
@@ -79,9 +79,7 @@ export function NumberDetailClient({
   return (
     <main className="mx-auto max-w-2xl space-y-4 px-4 py-3">
       <div className="flex items-center gap-2">
-        <Link href="/number-cal" className="text-sm text-[var(--muted)]">
-          ‹ ナンバー
-        </Link>
+        <BackButton href="/number-cal" label="ナンバー" />
       </div>
 
       <div className="flex items-center gap-3">

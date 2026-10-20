@@ -33,6 +33,7 @@ import type { Profile } from "@/lib/types";
 
 import { HomeLayoutSection } from "./HomeLayoutSection";
 import { PushSection } from "./PushSection";
+import { BackButton } from "@/components/BackButton";
 
 /**
  * 設定画面の操作部 (SPEC.md §6.4.1)
@@ -98,8 +99,12 @@ export function SettingsClient({
   }
 
   return (
-    <main className="mx-auto max-w-2xl space-y-8 px-4 py-6">
-      <h1 className="text-xl font-bold">設定</h1>
+    <main className="mx-auto max-w-2xl space-y-8 px-4 py-3">
+      {/* どこからでも開けるので、来た画面へ戻る (v1.31.8) */}
+      <div className="space-y-3">
+        <BackButton href="/" label="戻る" history />
+        <h1 className="text-[28px] font-bold leading-tight">設定</h1>
+      </div>
 
       <ErrorMessage>{error}</ErrorMessage>
       {notice ? (
