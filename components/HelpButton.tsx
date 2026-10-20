@@ -7,7 +7,7 @@ import { useState } from "react";
 import { BUTTON_CLASS } from "@/components/SettingsButton";
 import { Sheet } from "@/components/Sheet";
 import { GroupHeader, fillButtonClass, groupClass } from "@/components/ui";
-import { START_TOUR_EVENT } from "@/components/Tour";
+import { START_TOUR_EVENT, hasTour } from "@/components/Tour";
 
 /**
  * ? ボタンとヒント (SPEC.md §6.7.9 / v1.30)
@@ -144,10 +144,11 @@ export function HelpButton() {
   const pathname = usePathname();
   const router = useRouter();
 
+  // この画面にツアーがあればそれを、無ければホームのツアーを見せる (v1.31.11)
+  const pageTour = hasTour(pathname);
   function startTour() {
     setOpen(false);
-    // ツアーはカレンダーの部品を指すので、別の画面にいるなら戻ってから始める
-    if (pathname !== "/") {
+    if (!pageTour) {
       router.push("/?tour=1");
       return;
     }
@@ -171,6 +172,13 @@ export function HelpButton() {
       {open ? (
         <Sheet title="使い方とヒント" onClose={() => setOpen(false)}>
           <div className="space-y-5">
+            {/* ツアーは一番上に (v1.31.11)。手順を読むより、画面で見せたほうが早い */}
+            <button type="button" onClick={startTour} className={`${fillButtonClass} gap-2`}>
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" aria-hidden>
+                <path d="M8 5v14l11-7z" />
+              </svg>
+              {pageTour ? "この画面の使い方ツアーを見る" : "使い方ツアーを見る (ホーム)"}
+            </button>
             {GROUPS.map((group) => (
               <div key={group.title}>
                 <GroupHeader>{group.title}</GroupHeader>
@@ -224,9 +232,6 @@ export function HelpButton() {
                 </ul>
               </div>
             ))}
-            <button type="button" onClick={startTour} className={fillButtonClass}>
-              使い方ツアーをもう一度見る
-            </button>
             <Link
               href="/settings"
               onClick={() => setOpen(false)}

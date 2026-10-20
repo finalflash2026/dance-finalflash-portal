@@ -109,7 +109,7 @@ export function AdminClient({
         }
       />
 
-      <section className="space-y-3">
+      <section className="space-y-3" data-tour="admin-users">
         <h2 className="text-base font-bold">
           ユーザー一覧
           <span className="ml-2 text-xs font-normal text-[var(--muted)]">
@@ -300,7 +300,7 @@ function PassphraseSection({
   }
 
   return (
-    <section className="space-y-3 rounded-xl border border-[var(--border)] p-3">
+    <section className="space-y-3 rounded-xl border border-[var(--border)] p-3" data-tour="admin-pass">
       <h2 className="text-base font-bold">合言葉</h2>
       <p className="text-xs text-[var(--muted)]">
         <strong>代替わり・卒業の時期には必ず変更してください</strong>
@@ -753,7 +753,7 @@ function BulkGraduateSection({
   }
 
   return (
-    <section className="space-y-3 rounded-xl border border-[var(--border)] p-3">
+    <section className="space-y-3 rounded-xl border border-[var(--border)] p-3" data-tour="admin-graduate">
       <h2 className="text-base font-bold">卒業処理 (一括OB化)</h2>
       <p className="text-xs text-[var(--muted)]">
         卒業者は<strong>削除ではなくOB/OGへ移行</strong>します。ナンバー機能と購読URLは

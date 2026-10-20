@@ -72,7 +72,7 @@ export function NumberList({
     <>
       <ErrorMessage>{error}</ErrorMessage>
 
-      <section className="space-y-2">
+      <section className="space-y-2" data-tour="numbers">
         <h2 className="text-sm font-bold">現在進行中のナンバー</h2>
 
         {numbers.length === 0 ? (
@@ -119,6 +119,7 @@ export function NumberList({
       <form
         onSubmit={create}
         className="space-y-2 rounded-xl bg-[var(--cell)] p-3"
+        data-tour="number-create"
       >
         <h2 className="text-sm font-bold">ナンバーを作る</h2>
         <p className="text-xs text-[var(--muted)]">

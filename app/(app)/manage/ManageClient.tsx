@@ -65,7 +65,9 @@ export function ManageClient({
   return (
     <main className="mx-auto max-w-2xl space-y-5 px-4 py-4">
       <h1 className="text-[28px] font-bold leading-tight">イベントと締切</h1>
-      <Segmented label="表示する一覧" value={tab} options={tabs} onChange={setTab} />
+      <div data-tour="manage-tabs">
+        <Segmented label="表示する一覧" value={tab} options={tabs} onChange={setTab} />
+      </div>
       <ErrorMessage>
         {loadError ? `一覧を取得できませんでした: ${loadError}` : null}
       </ErrorMessage>
@@ -144,7 +146,7 @@ function EventsPanel({
   }
 
   return (
-    <section>
+    <section data-tour="manage-list">
       <div className="flex items-end justify-between px-4 pb-1.5">
         <GroupHeader>これからのイベント</GroupHeader>
         <button type="button" onClick={create} className={tintTextClass}>

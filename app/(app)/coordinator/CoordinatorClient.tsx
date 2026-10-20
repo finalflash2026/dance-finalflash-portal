@@ -30,7 +30,10 @@ export function CoordinatorClient() {
     <main className="mx-auto w-full max-w-[1600px] space-y-4 px-4 py-4">
       <h1 className="text-xl font-bold">折衝ワークフロー</h1>
 
-      <nav className="flex max-w-2xl gap-1 rounded-xl border border-[var(--border)] p-1">
+      <nav
+        className="flex max-w-2xl gap-1 rounded-xl border border-[var(--border)] p-1"
+        data-tour="coord-steps"
+      >
         {STEPS.map((s) => (
           <button
             key={s.id}
@@ -51,7 +54,7 @@ export function CoordinatorClient() {
       {step === 2 ? (
         <SlotStep />
       ) : (
-        <div className="max-w-2xl">
+        <div className="max-w-2xl" data-tour="coord-body">
           {step === 1 ? <ImportStep /> : <PublishStep />}
         </div>
       )}

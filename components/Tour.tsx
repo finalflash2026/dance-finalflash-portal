@@ -9,6 +9,10 @@ import { useCallback, useEffect, useLayoutEffect, useState } from "react";
  * 初めて開いたとき、**説明する部分以外を暗くして、吹き出しで順に案内する**。
  * 飛ばせる。見終わった印は端末に保存し、? ボタン (HelpButton) から見返せる。
  *
+ * **画面ごとにツアーを持つ** (v1.31.11)。ホームのほか、ナンバー・折衝・管理者・
+ * イベントと締切。それぞれ初めて開いたときに1回だけ出し、? の「この画面の
+ * 使い方ツアー」で見返せる。見終わった印も画面ごと。
+ *
  * 指す先は `data-tour="..."` の付いた要素。**画面に無いものは飛ばす**
  * (OB には鍵のボードが無い・締切が無い日がある、など)。
  *
@@ -26,7 +30,7 @@ interface Step {
   body: string;
 }
 
-const STEPS: Step[] = [
+const HOME_STEPS: Step[] = [
   {
     target: "deadlines",
     title: "近い締切",
@@ -69,6 +73,83 @@ const STEPS: Step[] = [
   },
 ];
 
+const NUMBER_STEPS: Step[] = [
+  {
+    target: "numbers",
+    title: "ナンバー",
+    body: "自分が入っているナンバーの一覧です。押すと日程とメンバーが見られ、主催なら日程を足せます。",
+  },
+  {
+    target: "number-create",
+    title: "ナンバーを作る",
+    body: "名前を入れて作ると、自分が主催になります。メンバーの追加と日程の登録は主催が行います。",
+  },
+  {
+    target: "studio",
+    title: "スタ練",
+    body: "1ジャンのスタジオ練習をここで登録します。そのジャンルを取っている人全員のカレンダーに出ます。",
+  },
+];
+
+const COORDINATOR_STEPS: Step[] = [
+  {
+    target: "coord-steps",
+    title: "折衝の流れ",
+    body: "① CSV取込 → ② コマ割り → ③ 公開 の順に進めます。上のボタンでいつでも行き来できます。",
+  },
+  {
+    target: "coord-body",
+    title: "① CSV取込",
+    body: "施設の予約画面のスクショからCSVを作り、ここで取り込みます。取り込んだ内容は表で確かめてから確定します。",
+  },
+];
+
+const ADMIN_STEPS: Step[] = [
+  {
+    target: "admin-graduate",
+    title: "卒業処理",
+    body: "卒業する期をまとめてOB/OGにします。削除ではないので、ナンバーと購読カレンダーはそのまま使えます。",
+  },
+  {
+    target: "admin-users",
+    title: "ユーザー一覧",
+    body: "ユーザーIDで探して、権限の変更・期や1ジャンの修正・仮パスワードの発行ができます。",
+  },
+  {
+    target: "admin-pass",
+    title: "合言葉",
+    body: "登録・折衝・3役の合言葉を変えます。代替わりと卒業の時期には必ず変えてください。",
+  },
+];
+
+const MANAGE_STEPS: Step[] = [
+  {
+    target: "manage-tabs",
+    title: "イベント・締切・告知",
+    body: "上で一覧を切り替えます。告知は3役だけが出せます。",
+  },
+  {
+    target: "manage-list",
+    title: "追加と編集",
+    body: "右の「追加」から登録します。一覧の項目を押すと編集・削除できます。締切は当日の朝に通知が届き、大事な締切は1週間前にも届きます。",
+  },
+];
+
+/** 画面ごとのツアー。done は見終わった印の名前 (ホームは以前からの名前のまま) */
+const TOURS: Record<string, { steps: Step[]; done: string }> = {
+  "/": { steps: HOME_STEPS, done: TOUR_DONE_KEY },
+  "/demo/calendar": { steps: HOME_STEPS, done: TOUR_DONE_KEY },
+  "/number-cal": { steps: NUMBER_STEPS, done: "tour-done-number" },
+  "/coordinator": { steps: COORDINATOR_STEPS, done: "tour-done-coordinator" },
+  "/admin": { steps: ADMIN_STEPS, done: "tour-done-admin" },
+  "/manage": { steps: MANAGE_STEPS, done: "tour-done-manage" },
+};
+
+/** この画面にツアーがあるか (? の「この画面の使い方ツアー」に使う) */
+export function hasTour(pathname: string): boolean {
+  return pathname in TOURS;
+}
+
 const PADDING = 8;
 /** 穴の高さの上限 (画面の高さに対する割合)。残りに吹き出しを置く */
 const MAX_HOLE_RATIO = 0.45;
@@ -79,8 +160,11 @@ export function Tour() {
   const [index, setIndex] = useState(0);
   const [rect, setRect] = useState<DOMRect | null>(null);
 
+  const tour = TOURS[pathname] ?? null;
+
   const start = useCallback(() => {
-    const present = STEPS.filter((step) => {
+    if (!tour) return;
+    const present = tour.steps.filter((step) => {
       const element = document.querySelector(`[data-tour="${step.target}"]`);
       return element instanceof HTMLElement && element.offsetParent !== null;
     });
@@ -93,27 +177,27 @@ export function Tour() {
     const body = present.filter((s) => !header.has(s.target)).sort((a, b) => top(a) - top(b));
     setSteps([...body, ...present.filter((s) => header.has(s.target))]);
     setIndex(0);
-  }, []);
+  }, [tour]);
 
-  // 初めての起動 (またはヘルプから ?tour=1 で来た) ならカレンダーで始める
+  // その画面を初めて開いた (またはヘルプから ?tour=1 で来た) なら始める
   useEffect(() => {
-    // デモ画面のカレンダー (/demo/calendar) でも始められる
-    if (pathname !== "/" && pathname !== "/demo/calendar") return;
+    if (!tour) return;
     const requested = new URLSearchParams(window.location.search).has("tour");
     let done = false;
     try {
-      done = localStorage.getItem(TOUR_DONE_KEY) === "1";
+      done = localStorage.getItem(tour.done) === "1";
     } catch {
       // 保存が使えない環境では毎回出すとうるさいので出さない
       done = true;
     }
     if (done && !requested) return;
-    // デモ画面では頼まれたとき (?tour=1) だけ始める。画面の見本を見るたびに出ると邪魔
-    if (pathname !== "/" && !requested) return;
-    // 起動アニメーションが終わってから始める (重なると読めない)
-    const timer = window.setTimeout(start, requested ? 300 : 2200);
+    // デモの見本 (/demo/calendar) では頼まれたとき (?tour=1) だけ始める
+    if (pathname === "/demo/calendar" && !requested) return;
+    // ホームは起動アニメーションが終わってから始める (重なると読めない)
+    const delay = requested ? 300 : pathname === "/" ? 2200 : 600;
+    const timer = window.setTimeout(start, delay);
     return () => window.clearTimeout(timer);
-  }, [pathname, start]);
+  }, [pathname, start, tour]);
 
   useEffect(() => {
     window.addEventListener(START_TOUR_EVENT, start);
@@ -148,7 +232,7 @@ export function Tour() {
 
   function finish() {
     try {
-      localStorage.setItem(TOUR_DONE_KEY, "1");
+      if (tour) localStorage.setItem(tour.done, "1");
     } catch {}
     setSteps(null);
     setRect(null);

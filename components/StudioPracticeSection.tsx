@@ -186,7 +186,7 @@ export function StudioPracticeSection({
   }
 
   return (
-    <section className="space-y-2">
+    <section className="space-y-2" data-tour="studio">
       <h2 className="text-sm font-bold">{genreCode}スタ練を設定する</h2>
       <p className="text-xs text-[var(--muted)]">
         登録すると、{genreCode}を取っている人全員のカレンダーに出ます。
