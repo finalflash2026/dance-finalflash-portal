@@ -64,7 +64,7 @@ export function DayTimeline({
   emptyMessage?: string;
   onSelect?: (event: TimelineEvent) => void;
 }) {
-  // 開いた折りたたみ (日付ごと。日を変えたら畳み直す)
+  // 開いた折りたたみ (日付ごと。「折りたたむ」で閉じ直せる)
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set());
   const allDayRows =
     allDay.length > 0 ? (
@@ -235,6 +235,34 @@ export function DayTimeline({
                 {fromMinutes(segment.start)}〜{fromMinutes(segment.end)}
               </span>
               <span aria-hidden>⌄</span>
+            </button>
+          ))}
+
+        {/*
+         * 開いた時間帯には「折りたたむ」を置く (v1.31.5)。その時間帯には
+         * 空き以外の予定が無いので、左の広い列の頭に置いても予定とは重ならない
+         */}
+        {segments
+          .filter((segment) => segment.foldable && !segment.folded)
+          .map((segment) => (
+            <button
+              key={`fold-${segment.start}`}
+              type="button"
+              onClick={() =>
+                setExpanded((prev) => {
+                  const next = new Set(prev);
+                  next.delete(`${date}|${segment.start}`);
+                  return next;
+                })
+              }
+              aria-label={`${fromMinutes(segment.start)}〜${fromMinutes(segment.end)} を折りたたむ`}
+              className="absolute z-10 flex items-center gap-1 rounded-full border border-[var(--border)] bg-[var(--cell)] px-2 py-0.5 text-[10px] text-[var(--tint)] tabular-nums"
+              style={{ top: y(segment.start) + 4, left: TIME_COLUMN_WIDTH + 6 }}
+            >
+              <span aria-hidden>⌃</span>
+              <span>
+                {fromMinutes(segment.start)}〜{fromMinutes(segment.end)} を折りたたむ
+              </span>
             </button>
           ))}
       </div>
