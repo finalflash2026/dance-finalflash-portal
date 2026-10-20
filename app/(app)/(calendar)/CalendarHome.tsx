@@ -141,6 +141,8 @@ export function CalendarHome({
   const [direction, setDirection] = useState<"left" | "right" | null>(null);
   const [filter, setFilter] = useState<Filter>(DEFAULT_FILTER);
   const [dayView, setDayView] = useState<DayView>("list");
+  /** 表示のしかたを変えた向き。日を変えた向き (direction) とは別に持つ */
+  const [viewDirection, setViewDirection] = useState<"left" | "right" | null>(null);
   const [monthOpen, setMonthOpen] = useState(false);
   const [layout, setLayout] = useState<HomeLayout>(DEFAULT_HOME_LAYOUT);
   const [selected, setSelected] = useState<MyEvent | null>(null);
@@ -182,6 +184,11 @@ export function CalendarHome({
   }
 
   function changeView(view: DayView) {
+    // 押した向きへ中身を流す (v1.31.13)。一覧 → 時間 → 部屋 の並びで右か左か
+    const order: DayView[] = ["list", "time", "rooms"];
+    if (view !== dayView) {
+      setViewDirection(order.indexOf(view) > order.indexOf(dayView) ? "right" : "left");
+    }
     setDayView(view);
     try {
       localStorage.setItem(VIEW_STORAGE_KEY, view);
@@ -196,6 +203,7 @@ export function CalendarHome({
       return;
     }
     setDirection(date > selectedDate ? "right" : "left");
+    setViewDirection(null);
     setSelectedDate(date);
     window.history.replaceState(
       null,
@@ -318,7 +326,15 @@ export function CalendarHome({
           <div
             key={`${selectedDate}-${dayView}`}
             className={
-              direction === "right" ? "page-in-right" : direction === "left" ? "page-in-left" : ""
+              viewDirection === "right"
+                ? "view-in-right"
+                : viewDirection === "left"
+                  ? "view-in-left"
+                  : direction === "right"
+                    ? "page-in-right"
+                    : direction === "left"
+                      ? "page-in-left"
+                      : ""
             }
           >
             {dayView === "rooms" && !isOb ? (

@@ -256,6 +256,28 @@
 .page-in-left {
   animation: page-in-from-left 0.22s ease-out;
 }
+/*
+ * 一覧・時間・部屋の切り替え (v1.31.13)。日を変えるときより大きく流し、
+ * 少しだけ縮んだところから元の大きさへ戻す。印 (Segmented) と同じ曲線
+ */
+@keyframes view-in-from-right {
+  from {
+    opacity: 0;
+    transform: translate3d(48px, 0, 0) scale(0.98);
+  }
+}
+@keyframes view-in-from-left {
+  from {
+    opacity: 0;
+    transform: translate3d(-48px, 0, 0) scale(0.98);
+  }
+}
+.view-in-right {
+  animation: view-in-from-right 0.36s cubic-bezier(0.32, 0.72, 0, 1);
+}
+.view-in-left {
+  animation: view-in-from-left 0.36s cubic-bezier(0.32, 0.72, 0, 1);
+}
 .backdrop-in {
   animation: fade-in 0.18s ease-out;
 }
@@ -267,6 +289,8 @@
 @media (prefers-reduced-motion: reduce) {
   .page-in-right,
   .page-in-left,
+  .view-in-right,
+  .view-in-left,
   .backdrop-in,
   .sheet-in {
     animation: none;

@@ -119,12 +119,26 @@ export function Segmented<T extends string>({
   /** large = 高さ 36px・文字 14px (よく押す切り替え。v1.31.7) */
   size?: "regular" | "large";
 }) {
+  const index = Math.max(0, options.findIndex((option) => option.value === value));
   return (
     <div
       role="radiogroup"
       aria-label={label}
-      className={`flex rounded-[9px] bg-[var(--fill)] p-0.5 ${size === "large" ? "h-10" : ""}`}
+      className={`relative flex rounded-[9px] bg-[var(--fill)] p-0.5 ${size === "large" ? "h-10" : ""}`}
     >
+      {/*
+       * 選択の印は1枚だけ置いて、横に滑らせる (v1.31.13)。押したところへ
+       * 印が流れていくので、どこからどこへ切り替えたかが目で追える
+       */}
+      <span
+        aria-hidden
+        className="absolute bottom-0.5 top-0.5 rounded-[7px] bg-[var(--background)] shadow-[0_1px_3px_rgba(0,0,0,0.12)] transition-transform duration-300 ease-[cubic-bezier(0.32,0.72,0,1)]"
+        style={{
+          left: 2,
+          width: `calc((100% - 4px) / ${options.length})`,
+          transform: `translateX(${index * 100}%)`,
+        }}
+      />
       {options.map((option) => {
         const selected = option.value === value;
         return (
@@ -134,13 +148,9 @@ export function Segmented<T extends string>({
             role="radio"
             aria-checked={selected}
             onClick={() => onChange(option.value)}
-            className={`flex-1 rounded-[7px] font-medium whitespace-nowrap transition-colors ${
+            className={`relative z-10 flex-1 rounded-[7px] whitespace-nowrap transition-colors ${
               size === "large" ? "px-2 text-[14px]" : "px-2 py-1.5 text-[13px]"
-            } ${
-              selected
-                ? "bg-[var(--background)] font-semibold shadow-[0_1px_3px_rgba(0,0,0,0.12)]"
-                : "text-[var(--foreground)]"
-            }`}
+            } ${selected ? "font-semibold" : "font-medium text-[var(--foreground)]"}`}
           >
             {option.label}
           </button>
