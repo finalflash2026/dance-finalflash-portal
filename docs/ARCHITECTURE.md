@@ -150,7 +150,7 @@ Next.js の決まりで、**フォルダの並びがそのまま URL になる**
 
 | 場所 | 役割 |
 |---|---|
-| `supabase/migrations/0001〜0018_*.sql` | **データベースの設計図**。テーブル・権限(RLS)を番号順に積み重ねる。本番には Supabase の画面か CLI で番号順に流す |
+| `supabase/migrations/0001〜0020_*.sql` (0019 は fix/security-hardening 側) | **データベースの設計図**。テーブル・権限(RLS)を番号順に積み重ねる。本番には Supabase の画面か CLI で番号順に流す |
 | `public/sw.js` | Service Worker。通知の表示と、`/_next/static/`(アプリの部品ファイル)の端末保存 |
 | `public/` のアイコン類 | ホーム画面のアイコンなど |
 | `assets/` | 起動アニメーションのロゴ、ロゴの元データ(`assets/logo/`) |

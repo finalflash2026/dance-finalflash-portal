@@ -596,7 +596,7 @@ function SubgenreSection({
     <section className={settingsSectionClass}>
       <h2 className="text-base font-bold">サブジャンル</h2>
       <p className="text-sm text-[var(--muted)]">
-        ここで選んだジャンルの公式練が、カレンダーと購読カレンダーに含まれます。
+        ここで選んだジャンルの公式練が自分の予定に入ります。変更は今日以降の予定にだけ反映され、昨日までの予定はそのまま残ります。
       </p>
       {([2, 3] as const).map((slot) => (
         <Field key={slot} label={`${slot}ジャン`}>

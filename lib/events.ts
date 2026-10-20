@@ -174,16 +174,16 @@ async function getGenrePracticeEvents(
   from: DateString,
   to: DateString,
 ): Promise<MyEvent[]> {
-  const genreIds = await getMyGenreIds(supabase, profile);
+  const genres = await getMyGenreHistory(supabase, profile);
 
   const { data, error } = await supabase
     .from("slots")
     .select(
-      "id, date, start_time, end_time, target_generations, genres(code), rooms(name, sort_order)",
+      "id, genre_id, date, start_time, end_time, target_generations, genres(code), rooms(name, sort_order)",
     )
     .eq("published", true)
     .eq("status", "genre")
-    .in("genre_id", genreIds)
+    .in("genre_id", genres.ids)
     .gte("date", from)
     .lte("date", to);
 
@@ -191,6 +191,7 @@ async function getGenrePracticeEvents(
 
   const rows = (data ?? []) as unknown as {
     id: string;
+    genre_id: number;
     date: DateString;
     start_time: string;
     end_time: string;
@@ -200,6 +201,8 @@ async function getGenrePracticeEvents(
   }[];
 
   const events: GenreEvent[] = rows
+    // その日に自分のジャンルだったか (サブジャンルの変更は今日から先だけ。v1.31.9)
+    .filter((row) => genres.activeOn(row.genre_id, row.date))
     // 対象期の判定。配列の包含は JS 側で絞る (件数が少なく、条件が読みやすいため)
     .filter(
       (row) =>
@@ -412,13 +415,12 @@ async function getStudioPracticeEvents(
   from: DateString,
   to: DateString,
 ): Promise<MyEvent[]> {
-  const genreIds = await getMyGenreIds(supabase, profile);
-  if (genreIds.length === 0) return [];
+  const genres = await getMyGenreHistory(supabase, profile);
 
   const { data, error } = await supabase
     .from("genre_practices")
     .select("id, genre_id, date, start_time, end_time, place, target_generations")
-    .in("genre_id", genreIds)
+    .in("genre_id", genres.ids)
     // 前日から跨いできた予定を拾う (v1.21 と同じ理由)
     .gte("date", addDays(from, -1))
     .lte("date", to);
@@ -436,6 +438,8 @@ async function getStudioPracticeEvents(
     place: string;
     target_generations: number[] | null;
   }[])
+    // その日に自分のジャンルだったか (v1.31.9。公式練と同じ)
+    .filter((row) => genres.activeOn(row.genre_id, row.date))
     // 対象期の判定 (v1.25)。公式練と同じ約束で null は期を問わない。
     // 配列の包含は JS 側で絞る (件数が少なく、条件が読みやすいため)
     .filter(
@@ -463,7 +467,52 @@ async function getStudioPracticeEvents(
 }
 
 /**
- * 自分の 1ジャン + 2ジャン + 3ジャン のジャンルIDを返す。
+ * 自分のジャンルの履歴 (SPEC §6.4.1 / v1.31.9)。
+ *
+ * **サブジャンルの変更は今日から先にだけ効く。** サブジャンルはイベントごとに
+ * 変わるので、今の値だけで引くと、変えたときに過去の公式練まで消えたり
+ * 増えたりした。`user_subgenre_periods` の期間で、予定の日付ごとに判定する。
+ * 1ジャンは期間を持たず、いつでも自分のジャンル。
+ *
+ * - `ids`: 期間のどこかで自分のジャンルだったもの全部 (DB から引く範囲)
+ * - `activeOn`: その日に自分のジャンルだったか
+ */
+export async function getMyGenreHistory(
+  supabase: SupabaseClient,
+  profile: Profile,
+): Promise<{ ids: number[]; activeOn: (genreId: number, date: DateString) => boolean }> {
+  const { data, error } = await supabase
+    .from("user_subgenre_periods")
+    .select("genre_id, from_date, to_date")
+    .eq("user_id", profile.user_id);
+
+  if (error) {
+    throw new Error(`user_subgenre_periods の取得に失敗しました: ${error.message}`);
+  }
+
+  const periods = (data ?? []) as {
+    genre_id: number;
+    from_date: DateString;
+    to_date: DateString | null;
+  }[];
+  const ids = new Set<number>([profile.main_genre_id]);
+  for (const period of periods) ids.add(period.genre_id);
+
+  return {
+    ids: [...ids],
+    activeOn: (genreId, date) =>
+      genreId === profile.main_genre_id ||
+      periods.some(
+        (period) =>
+          period.genre_id === genreId &&
+          period.from_date <= date &&
+          (period.to_date === null || date <= period.to_date),
+      ),
+  };
+}
+
+/**
+ * 自分の 1ジャン + 2ジャン + 3ジャン のジャンルIDを返す (今の値)。
  * 1ジャンは profiles、2/3ジャンは user_subgenres から取る (SPEC §1 / §6.4.1)。
  *
  * タブ③の絞り込みチップ (SPEC §6.4-3) も同じ集合を使うので公開している。
