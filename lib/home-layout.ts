@@ -19,8 +19,9 @@ export const HOME_SECTION_LABELS: Record<HomeSection, string> = {
   calendar: "カレンダー・選んだ日の予定",
 };
 
+/** 既定はカレンダーが一番上 (v1.31.8)。開いてすぐ今日の予定が見える */
 export const DEFAULT_HOME_LAYOUT: HomeLayout = {
-  order: ["deadlines", "freeRooms", "keys", "calendar"],
+  order: ["calendar", "deadlines", "freeRooms", "keys"],
   hidden: [],
 };
 

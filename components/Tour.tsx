@@ -85,7 +85,13 @@ export function Tour() {
       return element instanceof HTMLElement && element.offsetParent !== null;
     });
     if (present.length === 0) return;
-    setSteps(present);
+    // ホームの欄は並べ替えられる (v1.31.6) ので、ホームの中は画面に出ている順に案内する。
+    // ヘッダーのボタン (ベル・設定・?) は STEPS の順のまま最後に回す
+    const header = new Set(["bell", "settings", "help"]);
+    const top = (step: Step) =>
+      document.querySelector(`[data-tour="${step.target}"]`)!.getBoundingClientRect().top;
+    const body = present.filter((s) => !header.has(s.target)).sort((a, b) => top(a) - top(b));
+    setSteps([...body, ...present.filter((s) => header.has(s.target))]);
     setIndex(0);
   }, []);
 
