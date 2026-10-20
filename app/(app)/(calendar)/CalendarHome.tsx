@@ -247,6 +247,19 @@ export function CalendarHome({
             monthOpen={monthOpen}
             onToday={() => selectDate(today)}
             onToggleMonth={() => setMonthOpen((open) => !open)}
+            viewSwitch={
+              <Segmented
+                label="表示のしかた"
+                value={dayView}
+                onChange={changeView}
+                size="large"
+                options={[
+                  { value: "list", label: "一覧" },
+                  { value: "time", label: "時間" },
+                  ...(isOb ? [] : [{ value: "rooms" as const, label: "部屋" }]),
+                ]}
+              />
+            }
             filterButton={
               isOb ? null : (
                 <FilterButton filter={filter} otherGenres={otherGenres} onChange={changeFilter} />
@@ -258,53 +271,35 @@ export function CalendarHome({
             週の帯と月表示は、高さをなめらかに伸び縮みさせて切り替える
             (grid の 0fr ↔ 1fr。高さを数えずに中身なりで動かせる)
           */}
-          <Collapse open={!monthOpen}>
-            <WeekStrip
-              rangeStart={rangeStart}
-              rangeEnd={rangeEnd}
-              selectedDate={selectedDate}
-              today={today}
-              eventsByDate={eventsByDate}
-              onSelect={selectDate}
-            />
-          </Collapse>
-          <Collapse open={monthOpen}>
-            <LabelCalendar
-              basePath="/"
-              monthAnchor={startOfMonth(selectedDate)}
-              selectedDate={selectedDate}
-              today={today}
-              eventsByDate={eventsByDate}
-              onSelectDate={(date) => {
-                selectDate(date);
-                setMonthOpen(false);
-              }}
-            />
-          </Collapse>
+          {/* 2つの箱を1つにまとめる。閉じている方にも space-y の隙間が付き、帯と予定の間が空いた */}
+          <div>
+            <Collapse open={!monthOpen}>
+              <WeekStrip
+                rangeStart={rangeStart}
+                rangeEnd={rangeEnd}
+                selectedDate={selectedDate}
+                today={today}
+                eventsByDate={eventsByDate}
+                onSelect={selectDate}
+              />
+            </Collapse>
+            <Collapse open={monthOpen}>
+              <LabelCalendar
+                basePath="/"
+                monthAnchor={startOfMonth(selectedDate)}
+                selectedDate={selectedDate}
+                today={today}
+                eventsByDate={eventsByDate}
+                onSelectDate={(date) => {
+                  selectDate(date);
+                  setMonthOpen(false);
+                }}
+              />
+            </Collapse>
+          </div>
         </section>
 
-        <section className="space-y-2" data-tour="day">
-          <div className="flex items-center justify-between gap-3">
-            <h2 className="text-[20px] font-bold">
-              {formatDateLabel(selectedDate)}
-              {selectedDate === today ? (
-                <span className="ml-1.5 text-[15px] font-normal text-[var(--muted)]">今日</span>
-              ) : null}
-            </h2>
-            <div className={isOb ? "w-32" : "w-44"}>
-              <Segmented
-                label="表示のしかた"
-                value={dayView}
-                onChange={changeView}
-                options={[
-                  { value: "list", label: "一覧" },
-                  { value: "time", label: "時間" },
-                  ...(isOb ? [] : [{ value: "rooms" as const, label: "部屋" }]),
-                ]}
-              />
-            </div>
-          </div>
-
+        <section data-tour="day">
           {/* 日を変えたら、滑らせた向きに合わせて中身を少しずらして入れ替える */}
           <div
             key={`${selectedDate}-${dayView}`}
@@ -613,6 +608,7 @@ function CalendarHeader({
   monthOpen,
   onToday,
   onToggleMonth,
+  viewSwitch,
   filterButton,
 }: {
   selectedDate: DateString;
@@ -620,9 +616,14 @@ function CalendarHeader({
   monthOpen: boolean;
   onToday: () => void;
   onToggleMonth: () => void;
+  viewSwitch: React.ReactNode;
   filterButton: React.ReactNode;
 }) {
-  const { year, month } = parseDate(selectedDate);
+  /*
+   * **1行にまとめる** (v1.31.7)。以前は「年月」の行と「選んだ日 + 一覧/時間/部屋」の
+   * 行が分かれていて、週の帯と予定の間が空いていた。年月は月表示の中に出す。
+   * どれも高さ 36px 以上 (押しやすさ)
+   */
   return (
     <div className="flex items-center gap-2">
       <button
@@ -630,13 +631,13 @@ function CalendarHeader({
         onClick={onToggleMonth}
         aria-expanded={monthOpen}
         aria-label={monthOpen ? "週の表示に戻す" : "月の表示に広げる"}
-        className="flex items-center gap-1.5 text-[20px] font-bold"
+        className="flex h-9 shrink-0 items-center gap-1 text-[17px] font-bold tabular-nums"
       >
-        {year}年{month}月
+        {formatDateLabel(selectedDate)}
         <svg
           viewBox="0 0 14 8"
-          width="12"
-          height="8"
+          width="11"
+          height="7"
           aria-hidden
           className={`text-[var(--tint)] transition-transform duration-300 ${
             monthOpen ? "rotate-180" : ""
@@ -651,16 +652,17 @@ function CalendarHeader({
           />
         </svg>
       </button>
-      <div className="ml-auto flex items-center gap-1.5">
-        {selectedDate !== today ? (
-          <button
-            type="button"
-            onClick={onToday}
-            className="rounded-full bg-[var(--fill)] px-3 py-1 text-[13px] font-semibold text-[var(--tint)]"
-          >
-            今日
-          </button>
-        ) : null}
+      {selectedDate !== today ? (
+        <button
+          type="button"
+          onClick={onToday}
+          className="h-9 shrink-0 rounded-full bg-[var(--fill)] px-2.5 text-[14px] font-semibold text-[var(--tint)]"
+        >
+          今日
+        </button>
+      ) : null}
+      <div className="ml-auto flex min-w-0 items-center gap-1.5">
+        <div className="min-w-0 flex-1">{viewSwitch}</div>
         {filterButton}
       </div>
     </div>
@@ -885,7 +887,8 @@ function FilterButton({
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className={`flex items-center gap-1 rounded-full px-3 py-1 text-[13px] font-semibold ${
+        aria-label={added > 0 ? `表示するもの (${added}つ追加中)` : "表示するもの (自分の予定だけ)"}
+        className={`flex h-9 shrink-0 items-center gap-1 rounded-full px-3 text-[14px] font-semibold ${
           added > 0 ? "bg-[var(--tint)] text-white" : "bg-[var(--fill)] text-[var(--tint)]"
         }`}
       >
@@ -901,7 +904,8 @@ function FilterButton({
         >
           <path d="M4 6h16M7 12h10M10 18h4" />
         </svg>
-        {added > 0 ? `表示 +${added}` : "自分の予定"}
+        {/* 見出しの1行に収めるため短く (v1.31.7)。足しているときは色と数で分かる */}
+        {added > 0 ? `表示 +${added}` : "表示"}
       </button>
 
       {open ? (

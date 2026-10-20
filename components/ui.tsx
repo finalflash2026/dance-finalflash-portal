@@ -110,17 +110,20 @@ export function Segmented<T extends string>({
   options,
   onChange,
   label,
+  size = "regular",
 }: {
   value: T;
   options: readonly { value: T; label: string }[];
   onChange: (value: T) => void;
   label: string;
+  /** large = 高さ 36px・文字 14px (よく押す切り替え。v1.31.7) */
+  size?: "regular" | "large";
 }) {
   return (
     <div
       role="radiogroup"
       aria-label={label}
-      className="flex rounded-[9px] bg-[var(--fill)] p-0.5"
+      className={`flex rounded-[9px] bg-[var(--fill)] p-0.5 ${size === "large" ? "h-9" : ""}`}
     >
       {options.map((option) => {
         const selected = option.value === value;
@@ -131,7 +134,9 @@ export function Segmented<T extends string>({
             role="radio"
             aria-checked={selected}
             onClick={() => onChange(option.value)}
-            className={`flex-1 rounded-[7px] px-2 py-1.5 text-[13px] font-medium transition-colors ${
+            className={`flex-1 rounded-[7px] font-medium whitespace-nowrap transition-colors ${
+              size === "large" ? "px-2 text-[14px]" : "px-2 py-1.5 text-[13px]"
+            } ${
               selected
                 ? "bg-[var(--background)] font-semibold shadow-[0_1px_3px_rgba(0,0,0,0.12)]"
                 : "text-[var(--foreground)]"
