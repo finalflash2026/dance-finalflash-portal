@@ -123,7 +123,7 @@ export function Segmented<T extends string>({
     <div
       role="radiogroup"
       aria-label={label}
-      className={`flex rounded-[9px] bg-[var(--fill)] p-0.5 ${size === "large" ? "h-9" : ""}`}
+      className={`flex rounded-[9px] bg-[var(--fill)] p-0.5 ${size === "large" ? "h-10" : ""}`}
     >
       {options.map((option) => {
         const selected = option.value === value;

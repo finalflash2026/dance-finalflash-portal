@@ -262,7 +262,13 @@ export function CalendarHome({
             }
             filterButton={
               isOb ? null : (
-                <FilterButton filter={filter} otherGenres={otherGenres} onChange={changeFilter} />
+                <FilterButton
+                  filter={filter}
+                  otherGenres={otherGenres}
+                  onChange={changeFilter}
+                  // 「今日」ボタンが出ている間は1行に収まらないので、文字を畳んで絵だけにする
+                  compact={selectedDate !== today}
+                />
               )
             }
           />
@@ -631,13 +637,15 @@ function CalendarHeader({
         onClick={onToggleMonth}
         aria-expanded={monthOpen}
         aria-label={monthOpen ? "週の表示に戻す" : "月の表示に広げる"}
-        className="flex h-9 shrink-0 items-center gap-1 text-[17px] font-bold tabular-nums"
+        // 丸いボタンにして、日付ごと押せると分かるように (v1.31.9。⌄ だけを狙うと
+        // 押しにくかった)。押すと月表示に広がる
+        className="flex h-10 shrink-0 items-center gap-1.5 rounded-full bg-[var(--fill)] pl-3 pr-2.5 text-[17px] font-bold tabular-nums active:opacity-60"
       >
         {formatDateLabel(selectedDate)}
         <svg
           viewBox="0 0 14 8"
-          width="11"
-          height="7"
+          width="13"
+          height="8"
           aria-hidden
           className={`text-[var(--tint)] transition-transform duration-300 ${
             monthOpen ? "rotate-180" : ""
@@ -656,7 +664,7 @@ function CalendarHeader({
         <button
           type="button"
           onClick={onToday}
-          className="h-9 shrink-0 rounded-full bg-[var(--fill)] px-2.5 text-[14px] font-semibold text-[var(--tint)]"
+          className="h-10 shrink-0 rounded-full bg-[var(--fill)] px-2.5 text-[14px] font-semibold text-[var(--tint)]"
         >
           今日
         </button>
@@ -867,10 +875,12 @@ function FilterButton({
   filter,
   otherGenres,
   onChange,
+  compact = false,
 }: {
   filter: Filter;
   otherGenres: string[];
   onChange: (filter: Filter) => void;
+  compact?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const added = filter.genres.length + (filter.free ? 1 : 0);
@@ -888,7 +898,7 @@ function FilterButton({
         type="button"
         onClick={() => setOpen(true)}
         aria-label={added > 0 ? `表示するもの (${added}つ追加中)` : "表示するもの (自分の予定だけ)"}
-        className={`flex h-9 shrink-0 items-center gap-1 rounded-full px-3 text-[14px] font-semibold ${
+        className={`flex h-10 shrink-0 items-center gap-1 rounded-full ${compact ? "px-2.5" : "px-3"} text-[14px] font-semibold ${
           added > 0 ? "bg-[var(--tint)] text-white" : "bg-[var(--fill)] text-[var(--tint)]"
         }`}
       >
@@ -905,7 +915,7 @@ function FilterButton({
           <path d="M4 6h16M7 12h10M10 18h4" />
         </svg>
         {/* 見出しの1行に収めるため短く (v1.31.7)。足しているときは色と数で分かる */}
-        {added > 0 ? `表示 +${added}` : "表示"}
+        {compact ? (added > 0 ? `+${added}` : null) : added > 0 ? `表示 +${added}` : "表示"}
       </button>
 
       {open ? (
@@ -1211,14 +1221,20 @@ function ListRow({ row }: { row: Row }) {
         className="w-1 shrink-0 self-stretch rounded-full"
         style={{ backgroundColor: row.color.bg }}
       />
-      <span className="w-[52px] shrink-0 pt-px text-[13px] leading-tight tabular-nums text-[var(--muted)]">
+      {/*
+       * 開始と終了の間に「〜」と余白を入れる (v1.31.9)。詰めて2行に重ねると、
+       * どちらが開始か一目で分からなかった。開始を濃く、終了を薄く
+       */}
+      <span className="flex w-[52px] shrink-0 flex-col pt-px text-[13px] leading-none tabular-nums">
         {row.wholeDay ? (
-          "終日"
+          <span className="text-[var(--muted)]">終日</span>
         ) : (
           <>
-            {row.startTime}
-            <br />
-            {row.endTime}
+            <span className="font-semibold">{row.startTime}</span>
+            <span aria-hidden className="my-1 text-[10px] leading-none text-[var(--muted)]">
+              〜
+            </span>
+            <span className="text-[var(--muted)]">{row.endTime}</span>
           </>
         )}
       </span>
