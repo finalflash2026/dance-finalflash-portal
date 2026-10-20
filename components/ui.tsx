@@ -171,7 +171,8 @@ export function Switch({
     >
       <span
         aria-hidden
-        className={`absolute top-[2px] h-[27px] w-[27px] rounded-full bg-white shadow-[0_2px_6px_rgba(0,0,0,0.2)] transition-transform ${
+        // left-0 が無いと、つまみの基準がボタンの中央 (文字の位置) になり右へはみ出す
+        className={`absolute left-0 top-[2px] h-[27px] w-[27px] rounded-full bg-white shadow-[0_2px_6px_rgba(0,0,0,0.2)] transition-transform ${
           checked ? "translate-x-[22px]" : "translate-x-[2px]"
         }`}
       />
