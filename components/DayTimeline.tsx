@@ -1,5 +1,7 @@
 "use client";
 
+import { useState } from "react";
+
 import { packLanes, timelineAxis } from "@/lib/timeline";
 import { formatDateLabel, formatTimeRange, fromMinutes, toMinutes } from "@/lib/time";
 import type { DateString } from "@/lib/types";
@@ -28,9 +30,19 @@ export interface TimelineEvent {
    * 全体を見渡せるが、自分の予定を探す邪魔をしない濃さにする
    */
   pale?: boolean;
+  /**
+   * 時間を埋めるだけの予定 (「空き」)。**折りたたみの判断に使わない** (v1.31.5)。
+   * 空きは長い時間帯に広がるので、数えると1日がほぼ埋まって何も畳めない
+   */
+  filler?: boolean;
 }
 
-const PX_PER_MINUTE = 0.8;
+/** 1時間 32px (v1.31.5。48px では朝から晩までが何画面にもなった) */
+const PX_PER_MINUTE = 32 / 60;
+/** 折りたたんだ時間帯の1行の高さ */
+const FOLD_HEIGHT = 22;
+/** 練習の無い時間がこれだけ続いたら折りたたむ (分)。1時間だけの隙間は畳んでも短くならない */
+const MIN_FOLD_MINUTES = 120;
 const TIME_COLUMN_WIDTH = 44;
 /** これより低いブロックはタイトルだけにする (2行だと両方切れて読めない) */
 const COMPACT_BLOCK_HEIGHT = 30;
@@ -52,6 +64,8 @@ export function DayTimeline({
   emptyMessage?: string;
   onSelect?: (event: TimelineEvent) => void;
 }) {
+  // 開いた折りたたみ (日付ごと。日を変えたら畳み直す)
+  const [expanded, setExpanded] = useState<Set<string>>(() => new Set());
   const allDayRows =
     allDay.length > 0 ? (
       <ul className="space-y-1 border-b border-[var(--separator)] p-1.5">
@@ -87,7 +101,25 @@ export function DayTimeline({
   }
 
   const axis = timelineAxis(events);
-  const height = (axis.end - axis.start) * PX_PER_MINUTE;
+  const segments = foldSegments(axis, events).map((segment) => ({
+    ...segment,
+    folded: segment.foldable && !expanded.has(`${date}|${segment.start}`),
+  }));
+  // 分 → 上からの位置。畳んだ区間の中は FOLD_HEIGHT に縮めて比例で置く
+  const y = (minute: number): number => {
+    let top = 0;
+    for (const segment of segments) {
+      const length = segment.end - segment.start;
+      const segmentHeight = segment.folded ? FOLD_HEIGHT : length * PX_PER_MINUTE;
+      if (minute <= segment.end) {
+        const within = Math.max(0, minute - segment.start);
+        return top + (segment.folded ? (within / length) * FOLD_HEIGHT : within * PX_PER_MINUTE);
+      }
+      top += segmentHeight;
+    }
+    return top;
+  };
+  const height = y(axis.end);
   /*
    * **薄い予定 (他ジャンル・空き) は右側の別の列に並べる** (v1.30)。
    * 同じ時間に9ジャンルの練習があると、混ぜて横に割ったとき自分の予定が
@@ -104,8 +136,12 @@ export function DayTimeline({
     ...packLanes(pale).map((p) => ({ ...p, region: regions.pale })),
   ];
 
+  // 目盛は開いている区間だけ。畳んだ区間の両端も、1行の見出しが時刻を示すので描かない (重なる)
   const hours: number[] = [];
-  for (let m = axis.start; m <= axis.end; m += 60) hours.push(m);
+  for (let m = axis.start; m <= axis.end; m += 60) {
+    const inFold = segments.some((s) => s.folded && m >= s.start && m <= s.end);
+    if (!inFold) hours.push(m);
+  }
 
   return (
     <div className="rounded-xl bg-[var(--cell)]">
@@ -120,7 +156,7 @@ export function DayTimeline({
             <span
               key={m}
               className="absolute right-1 -translate-y-1/2 text-[10px] text-[var(--muted)] tabular-nums"
-              style={{ top: (m - axis.start) * PX_PER_MINUTE }}
+              style={{ top: y(m) }}
             >
               {fromMinutes(m)}
             </span>
@@ -132,17 +168,15 @@ export function DayTimeline({
             <div
               key={m}
               className="absolute inset-x-0 border-t border-[var(--border)]"
-              style={{ top: (m - axis.start) * PX_PER_MINUTE }}
+              style={{ top: y(m) }}
             />
           ))}
 
           {packed.map(({ item, lane, lanes, region }) => {
             const [from, to] = region;
             const laneWidth = (to - from) / lanes;
-            const top = (toMinutes(item.startTime) - axis.start) * PX_PER_MINUTE;
-            const blockHeight =
-              (toMinutes(item.endTime) - toMinutes(item.startTime)) *
-              PX_PER_MINUTE;
+            const top = y(toMinutes(item.startTime));
+            const blockHeight = y(toMinutes(item.endTime)) - top;
             const compact = blockHeight < COMPACT_BLOCK_HEIGHT;
             const range = formatTimeRange(item.startTime, item.endTime);
 
@@ -179,6 +213,30 @@ export function DayTimeline({
             );
           })}
         </div>
+
+        {/*
+         * 畳んだ時間帯。時間軸の列もまたいで全幅に置き、押すと開く。
+         * 中を通る「空き」は下に縮めて見えるよう、背景は少し透かす
+         */}
+        {segments
+          .filter((segment) => segment.folded)
+          .map((segment) => (
+            <button
+              key={segment.start}
+              type="button"
+              onClick={() =>
+                setExpanded((prev) => new Set(prev).add(`${date}|${segment.start}`))
+              }
+              aria-label={`${fromMinutes(segment.start)}〜${fromMinutes(segment.end)} を開く`}
+              className="absolute inset-x-0 z-10 flex items-center gap-1.5 border-y border-dashed border-[var(--border)] bg-[var(--cell)]/80 px-2 text-[10px] text-[var(--muted)] tabular-nums"
+              style={{ top: y(segment.start), height: FOLD_HEIGHT }}
+            >
+              <span>
+                {fromMinutes(segment.start)}〜{fromMinutes(segment.end)}
+              </span>
+              <span aria-hidden>⌄</span>
+            </button>
+          ))}
       </div>
 
       {/*
@@ -193,4 +251,42 @@ export function DayTimeline({
       ) : null}
     </div>
   );
+}
+
+/**
+ * 時間軸を「開いておく区間」と「畳める区間」に分ける (v1.31.5)。
+ *
+ * 1時間ごとに、空き以外の予定が掛かっているかを見る。掛かっていない時間が
+ * MIN_FOLD_MINUTES 以上続いたところを畳める区間にする。空き以外の予定が
+ * 1件も無い日は畳まない (空きしか無い日に全部畳むと何も見えない)。
+ */
+function foldSegments(
+  axis: { start: number; end: number },
+  events: TimelineEvent[],
+): { start: number; end: number; foldable: boolean }[] {
+  const busy = events.filter((event) => !event.filler);
+  if (busy.length === 0) return [{ start: axis.start, end: axis.end, foldable: false }];
+
+  const isBusy = (from: number, to: number) =>
+    busy.some((event) => toMinutes(event.startTime) < to && toMinutes(event.endTime) > from);
+
+  const segments: { start: number; end: number; foldable: boolean }[] = [];
+  let m = axis.start;
+  while (m < axis.end) {
+    const next = Math.min(m + 60, axis.end);
+    const free = !isBusy(m, next);
+    const last = segments[segments.length - 1];
+    if (last && last.foldable === free) last.end = next;
+    else segments.push({ start: m, end: next, foldable: free });
+    m = next;
+  }
+  // 短い隙間は畳まない (開いた区間に戻して隣とつなぐ)
+  const merged: typeof segments = [];
+  for (const segment of segments) {
+    const foldable = segment.foldable && segment.end - segment.start >= MIN_FOLD_MINUTES;
+    const last = merged[merged.length - 1];
+    if (last && !last.foldable && !foldable) last.end = segment.end;
+    else merged.push({ ...segment, foldable });
+  }
+  return merged;
 }

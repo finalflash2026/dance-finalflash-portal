@@ -1050,6 +1050,8 @@ interface Row {
   color: { bg: string; fg: string };
   pale: boolean;
   important?: boolean;
+  /** 「空き」。時間表の折りたたみの判断に使わない (DayTimeline の filler) */
+  filler?: boolean;
   onClick?: () => void;
 }
 
@@ -1134,6 +1136,7 @@ function DayContent({
             subtitle: roomById.get(block.roomId)?.name ?? "",
             color: { bg: "rgba(52, 199, 89, 0.35)", fg: "var(--foreground)" },
             pale: true,
+            filler: true,
             onClick: () => onClaim(block, range),
           })),
         )
@@ -1155,6 +1158,7 @@ function DayContent({
         subtitle: row.subtitle,
         color: row.color,
         pale: row.pale,
+        filler: row.filler,
       };
     };
     return (
