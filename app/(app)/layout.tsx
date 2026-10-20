@@ -60,9 +60,8 @@ export default async function AppLayout({
     <div className="min-h-dvh pb-24">
       <header className="flex items-center justify-between gap-2 px-4 py-2">
         <div className="min-w-0">
-          <p className="truncate text-sm font-bold">
-            {profile?.username ?? "ダンスサークル練習管理"}
-          </p>
+          {/* 未ログイン (セットアップ前・デモ) ではサイト名を出さない (v1.31.5。場所を取るだけ) */}
+          {profile ? <p className="truncate text-sm font-bold">{profile.username}</p> : null}
           {profile && profile.role !== "member" ? (
             <p className="text-xs text-[var(--muted)]">
               {ROLE_LABELS[profile.role]}
