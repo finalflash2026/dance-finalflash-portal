@@ -42,6 +42,9 @@ import { useRoomById } from "@/lib/rooms";
 import {
   CLAIM_STEP_MINUTES,
   addDays,
+  addMonths,
+  daysInMonth,
+  formatDate,
   formatDateLabel,
   fromMinutes,
   getWeekday,
@@ -296,9 +299,14 @@ export function CalendarHome({
                 selectedDate={selectedDate}
                 today={today}
                 eventsByDate={eventsByDate}
-                onSelectDate={(date) => {
-                  selectDate(date);
-                  setMonthOpen(false);
+                // 日を押しても月表示のまま (v1.31.10)。週に戻すのは日付のボタンで
+                onSelectDate={selectDate}
+                onChangeMonth={(diff) => {
+                  // 同じ日付の前後の月へ (月末を越える日は、その月の末日に寄せる)
+                  const { day } = parseDate(selectedDate);
+                  const first = addMonths(selectedDate, diff);
+                  const { year, month } = parseDate(first);
+                  selectDate(formatDate(year, month, Math.min(day, daysInMonth(year, month))));
                 }}
               />
             </Collapse>
