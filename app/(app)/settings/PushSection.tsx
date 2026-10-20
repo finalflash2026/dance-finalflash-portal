@@ -262,6 +262,7 @@ export function PushSection({ vapidPublicKey }: { vapidPublicKey: string }) {
   return (
     <SettingsGroup
       title="通知"
+      icon="bell"
       summary={status === "ready" && subscribed ? "オン" : "オフ"}
       hint="この端末だけの設定です。別の端末では別に登録が要ります。iPhone は、ホーム画面に追加したアイコンから開いたときだけ届きます。"
     >

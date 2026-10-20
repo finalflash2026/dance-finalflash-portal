@@ -45,6 +45,7 @@ export function HomeLayoutSection() {
   return (
     <SettingsGroup
       title="ホームの並び"
+      icon="layout"
       summary={`${HOME_SECTION_LABELS[layout.order[0]].split("・")[0]}が一番上`}
       hint="よく見るものを上に。使わない欄はオフにすると隠れます。この端末だけの設定です。"
     >

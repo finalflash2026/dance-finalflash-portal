@@ -99,8 +99,7 @@ export function SettingsClient({
   }
 
   return (
-    // ブロックは閉じた状態で並べ、押すと開く (v1.31.9)。1画面に全部の見出しが収まる
-    <main className="mx-auto max-w-2xl space-y-3 px-4 py-3">
+    <main className="mx-auto max-w-2xl space-y-4 px-4 py-3">
       <h1 className="text-[28px] font-bold leading-tight">設定</h1>
 
       <ErrorMessage>{error}</ErrorMessage>
@@ -110,8 +109,11 @@ export function SettingsClient({
         </p>
       ) : null}
 
+      {/* カードを2列に並べる (v1.31.11)。押すと下から窓が開く */}
+      <div className="grid grid-cols-2 gap-3">
       <SettingsGroup
         title="アカウント"
+        icon="account"
         summary={profile.username}
         hint="期・1ジャンを直したいときは、管理者に頼んでください。"
       >
@@ -151,6 +153,7 @@ export function SettingsClient({
       */}
       <SettingsGroup
         title="カレンダーに追加"
+        icon="calendar"
         summary="iPhone・Google"
         tour="subscribe"
         hint={
@@ -241,6 +244,8 @@ export function SettingsClient({
         />
       ) : null}
 
+      </div>
+
       {/* ログアウトは設定ではなく操作なので、すべての後ろに置く */}
       <div className="pt-4">
         <button
@@ -286,6 +291,7 @@ function ThemeSection() {
   return (
     <SettingsGroup
       title="画面の明るさ"
+      icon="theme"
       summary={theme ? THEME_LABELS[theme] : null}
       tour="theme"
       hint={
@@ -464,6 +470,7 @@ function RoleSection({
   return (
     <SettingsGroup
       title="権限"
+      icon="key"
       summary={ROLE_LABELS[role]}
       hint="折衝または3役の合言葉を入れると、その担当の画面が使えるようになります。いま持っている権限が減ることはありません。"
     >
@@ -587,6 +594,7 @@ function SubgenreSection({
   return (
     <SettingsGroup
       title="サブジャンル"
+      icon="genre"
       summary={[values[2], values[3]]
         .map((id) => (id ? GENRE_BY_ID.get(id)?.code : null))
         .filter(Boolean)
