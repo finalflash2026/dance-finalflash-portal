@@ -4,11 +4,10 @@ import { useMemo, useState } from "react";
 
 import { ErrorMessage, GroupHeader, Segmented, groupClass, primaryButtonClass } from "@/components/ui";
 import { GENRE_COLORS, ROOM_BY_ID, type GenreCode } from "@/lib/constants";
-import { BAND_LABELS, DEFAULT_SETTINGS, answerKey, bandOf, defaultPerGenre } from "@/lib/scheduling/plan";
+import { DEFAULT_SETTINGS, answerKey, defaultPerGenre } from "@/lib/scheduling/plan";
 import type {
   Answer,
   AnswerKey,
-  Band,
   Candidate,
   PlanInput,
   PlanResult,
@@ -73,18 +72,20 @@ const NEXT: Record<Answer | "none", Answer | undefined> = {
 };
 const WEEKDAY = ["日", "月", "火", "水", "木", "金", "土"];
 
-/** 回答する日と時間帯 (その日に練習場所を取っている時間帯だけ) */
-function answerSlots(candidates: Candidate[]): { date: string; bands: Band[] }[] {
-  const map = new Map<string, Set<Band>>();
+/** 回答する日とコマの時間 (その日に予約枠のあるコマの時間だけ。§6.8.2 / v1.32.1) */
+function answerSlots(candidates: Candidate[]): { date: string; ranges: { start: string; end: string }[] }[] {
+  const map = new Map<string, Map<string, { start: string; end: string }>>();
   for (const c of candidates) {
-    const set = map.get(c.date) ?? new Set<Band>();
-    set.add(bandOf(c.startTime));
-    map.set(c.date, set);
+    const ranges = map.get(c.date) ?? new Map();
+    ranges.set(`${c.startTime}-${c.endTime}`, { start: c.startTime, end: c.endTime });
+    map.set(c.date, ranges);
   }
-  const order: Band[] = ["day", "evening", "night"];
   return [...map]
     .sort(([a], [b]) => a.localeCompare(b))
-    .map(([date, set]) => ({ date, bands: order.filter((b) => set.has(b)) }));
+    .map(([date, ranges]) => ({
+      date,
+      ranges: [...ranges.values()].sort((x, y) => x.start.localeCompare(y.start)),
+    }));
 }
 
 function AnswerPanel({
@@ -99,6 +100,9 @@ function AnswerPanel({
   const mine = input.answers[me] ?? {};
   const slots = useMemo(() => answerSlots(input.candidates), [input.candidates]);
   const member = input.members.find((m) => m.id === me);
+  const keysOf = (list: typeof slots) =>
+    list.flatMap((s) => s.ranges.map((r) => answerKey(s.date, r.start, r.end)));
+  const answeredCount = keysOf(slots).filter((key) => mine[key]).length;
 
   function setMany(keys: AnswerKey[], value: Answer | undefined) {
     const next = { ...mine };
@@ -113,84 +117,135 @@ function AnswerPanel({
     <div className="space-y-4">
       <div className={`${groupClass} space-y-2 p-4`}>
         <p className="text-[15px]">
-          <b>{member?.name}</b> として回答します。押すたびに ○ → △ → × → 未回答 と変わります。
+          <b>{member?.name}</b> として回答します。コマを押すたびに ○ → △ → × → 未回答 と変わります。
         </p>
-        <ul className="space-y-1 text-[15px]">
+        <ul className="flex flex-wrap gap-x-4 gap-y-1 text-[14px]">
           <li><span className="font-bold text-[#34c759]">○</span> 出られる</li>
-          <li><span className="font-bold text-[#ff9f0a]">△</span> 出られるが、他の予定に響くのでできれば避けたい</li>
+          <li><span className="font-bold text-[#ff9f0a]">△</span> 出られるが、できれば避けたい</li>
           <li><span className="font-bold text-[var(--muted)]">×</span> 出られない</li>
         </ul>
-        <div className="flex flex-wrap gap-2 pt-1">
-          <button
-            type="button"
-            className="h-10 rounded-full bg-[var(--fill)] px-4 text-[15px] font-semibold text-[var(--tint)]"
-            onClick={() =>
-              setMany(slots.flatMap((s) => s.bands.map((b) => answerKey(s.date, b))), "ok")
-            }
-          >
-            全部○にする
-          </button>
-          {[1, 2, 3, 4, 5, 6, 0].map((wd) => (
-            <button
-              key={wd}
-              type="button"
-              className="h-10 rounded-full bg-[var(--fill)] px-3 text-[15px] text-[var(--tint)]"
-              onClick={() =>
-                setMany(
-                  slots
-                    .filter((s) => getWeekday(s.date) === wd)
-                    .flatMap((s) => s.bands.map((b) => answerKey(s.date, b))),
-                  "no",
-                )
-              }
-            >
-              {WEEKDAY[wd]}を×
-            </button>
-          ))}
-        </div>
+        <p className="text-[13px] text-[var(--muted)] tabular-nums">
+          {answeredCount} / {keysOf(slots).length}コマ 回答済み
+        </p>
       </div>
 
-      <ul className={groupClass}>
-        {slots.map(({ date, bands }) => (
-          <li key={date} className="flex items-center gap-3 px-4 py-2.5">
-            <span
-              className={`w-[88px] shrink-0 text-[16px] tabular-nums ${
-                getWeekday(date) === 0
-                  ? "text-[var(--accent)]"
-                  : getWeekday(date) === 6
-                    ? "text-[var(--info)]"
-                    : ""
-              }`}
-            >
-              {formatDateLabel(date)}
-            </span>
-            <span className="flex flex-1 flex-wrap justify-end gap-2">
-              {bands.map((band) => {
-                const key = answerKey(date, band);
-                const value = mine[key] ?? "none";
-                const style = ANSWER_STYLE[value];
-                return (
-                  <button
-                    key={band}
-                    type="button"
-                    onClick={() => setMany([key], NEXT[value])}
-                    aria-label={`${formatDateLabel(date)} ${BAND_LABELS[band]}`}
-                    className="flex h-11 items-center gap-1.5 rounded-full bg-[var(--fill)] pl-3 pr-1.5 text-[14px]"
-                  >
-                    {BAND_LABELS[band]}
-                    <span
-                      className={`grid h-8 w-8 place-items-center rounded-full text-[17px] font-bold ${style.className}`}
+      <BulkCard
+        onApply={(weekdays, value) =>
+          setMany(
+            keysOf(weekdays.length ? slots.filter((s) => weekdays.includes(getWeekday(s.date))) : slots),
+            value,
+          )
+        }
+      />
+
+      <ul className="space-y-2">
+        {slots.map(({ date, ranges }) => {
+          const wd = getWeekday(date);
+          return (
+            <li key={date} className="rounded-2xl bg-[var(--cell)] px-3 py-2.5">
+              <p
+                className={`mb-2 text-[15px] font-semibold tabular-nums ${
+                  wd === 0 ? "text-[var(--accent)]" : wd === 6 ? "text-[var(--info)]" : ""
+                }`}
+              >
+                {formatDateLabel(date)}
+              </p>
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                {ranges.map(({ start, end }) => {
+                  const key = answerKey(date, start, end);
+                  const value = mine[key] ?? "none";
+                  const style = ANSWER_STYLE[value];
+                  return (
+                    <button
+                      key={key}
+                      type="button"
+                      onClick={() => setMany([key], NEXT[value])}
+                      aria-label={`${formatDateLabel(date)} ${start}〜${end}`}
+                      className="flex h-12 items-center justify-between gap-2 rounded-xl bg-[var(--fill)] pl-3 pr-1.5 active:scale-[0.97] transition-transform"
                     >
-                      {style.label}
-                    </span>
-                  </button>
-                );
-              })}
-            </span>
-          </li>
-        ))}
+                      <span className="text-[14px] tabular-nums">
+                        {start}〜{end}
+                      </span>
+                      <span
+                        className={`grid h-9 w-9 shrink-0 place-items-center rounded-full text-[18px] font-bold transition-colors ${style.className}`}
+                      >
+                        {style.label}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </li>
+          );
+        })}
       </ul>
     </div>
+  );
+}
+
+/**
+ * まとめて付ける (§6.8.2 / v1.32.1)。曜日を選び (選ばなければ全部の日)、
+ * ○ か × を押す。曜日は丸いボタンで、選ぶと色が付く
+ */
+function BulkCard({ onApply }: { onApply: (weekdays: number[], value: Answer) => void }) {
+  const [weekdays, setWeekdays] = useState<number[]>([]);
+  const [done, setDone] = useState<string | null>(null);
+  const target = weekdays.length
+    ? `${[1, 2, 3, 4, 5, 6, 0].filter((d) => weekdays.includes(d)).map((d) => WEEKDAY[d]).join("・")}曜日`
+    : "全部の日";
+
+  function apply(value: Answer) {
+    onApply(weekdays, value);
+    setDone(`${target}を${value === "ok" ? "○" : "×"}にしました`);
+    window.setTimeout(() => setDone(null), 1800);
+  }
+
+  return (
+    <section className="space-y-3 rounded-2xl bg-[var(--cell)] p-4">
+      <div className="flex items-baseline justify-between">
+        <h2 className="text-[17px] font-bold">まとめて付ける</h2>
+        <span className="text-[13px] text-[var(--muted)]">{target}</span>
+      </div>
+      <div className="flex justify-between gap-1" role="group" aria-label="曜日">
+        {[1, 2, 3, 4, 5, 6, 0].map((d) => {
+          const on = weekdays.includes(d);
+          return (
+            <button
+              key={d}
+              type="button"
+              aria-pressed={on}
+              onClick={() => setWeekdays((prev) => (on ? prev.filter((x) => x !== d) : [...prev, d]))}
+              className={`grid h-11 w-11 place-items-center rounded-full text-[15px] font-semibold transition-colors active:scale-95 ${
+                on
+                  ? "bg-[var(--tint)] text-white"
+                  : `bg-[var(--fill)] ${d === 0 ? "text-[var(--accent)]" : d === 6 ? "text-[var(--info)]" : ""}`
+              }`}
+            >
+              {WEEKDAY[d]}
+            </button>
+          );
+        })}
+      </div>
+      <div className="grid grid-cols-2 gap-2">
+        <button
+          type="button"
+          onClick={() => apply("ok")}
+          className="flex h-12 items-center justify-center gap-2 rounded-xl bg-[#34c759] text-[16px] font-bold text-white active:opacity-80"
+        >
+          <span className="text-[20px]">○</span>にする
+        </button>
+        <button
+          type="button"
+          onClick={() => apply("no")}
+          className="flex h-12 items-center justify-center gap-2 rounded-xl bg-[var(--fill)] text-[16px] font-bold active:opacity-80"
+        >
+          <span className="text-[20px]">×</span>にする
+        </button>
+      </div>
+      <p className="h-5 text-center text-[14px] text-[var(--tint)]" aria-live="polite">
+        {done}
+      </p>
+    </section>
   );
 }
 
@@ -245,6 +300,15 @@ function PlanPanel({ input }: { input: PlanInput }) {
           min={0}
           max={Math.floor(input.candidates.length / input.genres.length)}
           onChange={(perGenre) => setSettings({ ...settings, perGenre })}
+        />
+        <NumberRow
+          label="同じジャンルの1日の上限"
+          hint="1日にこのコマ数まで (連続は可)"
+          value={settings.maxPerDay}
+          step={1}
+          min={1}
+          max={5}
+          onChange={(maxPerDay) => setSettings({ ...settings, maxPerDay })}
         />
         <NumberRow
           label="△ の重み"
