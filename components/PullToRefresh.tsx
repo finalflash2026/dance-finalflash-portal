@@ -126,7 +126,8 @@ export function PullToRefresh({ children }: { children: React.ReactNode }) {
     <>
       <div
         aria-hidden={!visible}
-        className="pointer-events-none fixed inset-x-0 top-0 z-50 flex justify-center"
+        // 上端はノッチ・ステータスバーを避ける (v1.32.7)
+        className="pointer-events-none fixed inset-x-0 top-[env(safe-area-inset-top,0px)] z-50 flex justify-center"
         style={{
           transform: `translateY(${offset - 44}px)`,
           opacity: visible ? Math.min(1, offset / THRESHOLD_PX) : 0,

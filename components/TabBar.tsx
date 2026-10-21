@@ -33,11 +33,42 @@ export function visibleTabs(role: Role) {
   return TABS;
 }
 
+/** デモの見本 (/demo/…) を直接開いたときも、どのタブの画面か分かるように */
+const DEMO_TAB_PATHS: Record<string, string> = {
+  "/demo/calendar": "/",
+  "/demo/numbers": "/number-cal",
+};
+
 export function TabBar({ role }: { role: Role }) {
   const pathname = usePathname();
   const tabs = visibleTabs(role);
-  const currentIndex = tabs.findIndex((tab) => tab.href === pathname);
+  const tabPath = DEMO_TAB_PATHS[pathname] ?? pathname;
+  const currentIndex = tabs.findIndex((tab) => tab.href === tabPath);
 
+  // **タブの画面でだけ出す** (v1.32.7 / iOS の Tab Bars の考え方)。設定・お知らせ・
+  // 折衝などの下の階層では、どのタブも選ばれていないバーが浮いて画面の下を
+  // ふさいでいた (鍵と連絡の入力欄・折衝の表の横スクロールと重なる)。
+  // 戻るのは左上の戻るボタン。下にはホームバーのぶんの余白だけ置く
+  if (currentIndex === -1) {
+    return <div aria-hidden className="h-[calc(env(safe-area-inset-bottom)+16px)]" />;
+  }
+
+  return (
+    <>
+      {/* 浮いたタブバーのぶん、本文の下に余白を置く (バーの高さ + 逃げ) */}
+      <div aria-hidden className="h-24" />
+      <TabNav tabs={tabs} currentIndex={currentIndex} />
+    </>
+  );
+}
+
+function TabNav({
+  tabs,
+  currentIndex,
+}: {
+  tabs: ReturnType<typeof visibleTabs>;
+  currentIndex: number;
+}) {
   return (
     <nav
       className="fixed inset-x-0 bottom-[calc(env(safe-area-inset-bottom)+10px)] z-40 flex justify-center px-4"

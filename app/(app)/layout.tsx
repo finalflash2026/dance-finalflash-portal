@@ -1,5 +1,6 @@
 import { BackButton } from "@/components/BackButton";
 import { BellButton } from "@/components/BellButton";
+import { HeaderIdentity } from "@/components/HeaderIdentity";
 import { HelpButton } from "@/components/HelpButton";
 import { LaunchPrompts } from "@/components/LaunchPrompts";
 import { PageTransition } from "@/components/PageTransition";
@@ -57,20 +58,20 @@ export default async function AppLayout({
   const role: Role = profile?.role ?? "member";
 
   return (
-    /* 浮いたタブバーのぶん、下に余白を置く (バーの高さ + 逃げ) */
-    <div className="min-h-dvh pb-24">
-      <header className="flex items-center justify-between gap-2 px-4 py-2">
+    /* 浮いたタブバーのぶんの下の余白は TabBar が置く (サブ画面ではバーを出さない。v1.32.7) */
+    <div className="min-h-dvh">
+      {/* 上端はノッチ・ステータスバーを避ける (v1.32.7。viewport-fit=cover のため) */}
+      <header className="flex items-center justify-between gap-2 px-4 pb-2 pt-[max(env(safe-area-inset-top),8px)]">
         <div className="flex min-w-0 items-center gap-2">
           {/* 設定・鍵・お知らせなどでは左上に戻るボタン (v1.31.9。どの画面でも同じ場所) */}
           <BackButton />
           {/* 未ログイン (セットアップ前・デモ) ではサイト名を出さない (v1.31.5。場所を取るだけ) */}
+          {/* 名前はタブの画面でだけ (v1.32.7。サブ画面では戻るボタンの隣に並べない) */}
           {profile ? (
-            <div className="min-w-0">
-              <p className="truncate text-sm font-bold">{profile.username}</p>
-              {profile.role !== "member" ? (
-                <p className="text-xs text-[var(--muted)]">{ROLE_LABELS[profile.role]}</p>
-              ) : null}
-            </div>
+            <HeaderIdentity
+              username={profile.username}
+              roleLabel={profile.role !== "member" ? ROLE_LABELS[profile.role] : null}
+            />
           ) : null}
         </div>
         {/* ? と歯車 (v1.30 §6.7.8)。どちらも同じ丸い浮いたボタン */}
