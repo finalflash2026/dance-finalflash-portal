@@ -32,6 +32,11 @@ interface Step {
 
 const HOME_STEPS: Step[] = [
   {
+    target: "schedule-round",
+    title: "日程調整",
+    body: "来月の練習日を決めるために、出られる日を聞いています。締切までに押して答えてください。",
+  },
+  {
     target: "deadlines",
     title: "近い締切",
     body: "集金やフォームなど、2週間以内の締切です。押すと提出先が開きます。",

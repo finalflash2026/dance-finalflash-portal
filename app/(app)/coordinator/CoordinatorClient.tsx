@@ -1,6 +1,9 @@
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
+
+import { hasSupabaseEnv } from "@/lib/env";
 
 import { ImportStep } from "./ImportStep";
 import { PublishStep } from "./PublishStep";
@@ -29,6 +32,19 @@ export function CoordinatorClient() {
   return (
     <main className="mx-auto w-full max-w-[1600px] space-y-4 px-4 py-4">
       <h1 className="text-xl font-bold">折衝ワークフロー</h1>
+      {/* 日程調整 (§6.8 / v1.32)。いまは手元の環境の見本だけ */}
+      {!hasSupabaseEnv() ? (
+        <Link
+          href="/schedule"
+          className="flex max-w-2xl items-center justify-between rounded-xl bg-[var(--cell)] px-4 py-3 text-[15px]"
+        >
+          <span>
+            <span className="block font-semibold">日程調整から割り振る</span>
+            <span className="block text-[13px] text-[var(--muted)]">メンバーの出られる日から、ジャンルの割り振り案を作る</span>
+          </span>
+          <span aria-hidden className="text-[var(--muted)]">›</span>
+        </Link>
+      ) : null}
 
       <nav
         className="flex max-w-2xl gap-1 rounded-xl border border-[var(--border)] p-1"

@@ -1,5 +1,6 @@
 import { CalendarHome } from "../../(calendar)/CalendarHome";
 import { DEMO_USER_ID, demoCalendar } from "../data";
+import { demoRound } from "@/lib/scheduling/round";
 import { addMonths, endOfMonth, startOfMonth } from "@/lib/time";
 
 export default async function DemoCalendar({
@@ -25,6 +26,7 @@ export default async function DemoCalendar({
         upcomingDeadlines={data.upcomingDeadlines}
         keysSummary={isOb ? null : { unlocked: 2, holder: "21HIPHOPじろう" }}
         keysHref="/demo/keys"
+        scheduleRound={isOb ? null : demoRound()}
       />
     </main>
   );

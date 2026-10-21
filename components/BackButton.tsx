@@ -22,9 +22,10 @@ function backTarget(pathname: string): { href: string; label: string } | null {
   if (path.startsWith("/numbers/") || path === "/number") {
     return { href: "/number-cal", label: "ナンバー" };
   }
+  // 日程調整はホーム (メンバー) からも設定 (折衝・3役) からも来るので、来た画面へ戻る
+  if (path === "/schedule") return { href: "/", label: "戻る" };
   if (
     path === "/manage" ||
-    path === "/schedule" ||
     path.startsWith("/admin") ||
     path.startsWith("/coordinator")
   ) {
@@ -59,6 +60,17 @@ export function BackButton() {
     </>
   );
 
+  if (pathname === "/schedule" || pathname === "/demo/schedule") {
+    return (
+      <button
+        type="button"
+        onClick={() => (window.history.length > 1 ? router.back() : router.push("/"))}
+        className={CLASS_NAME}
+      >
+        {content}
+      </button>
+    );
+  }
   // 設定はどこからでも開けるので、右上の ✕ と同じく入る前の画面へ戻る
   if (pathname === "/settings" || pathname === "/demo/settings") {
     return (

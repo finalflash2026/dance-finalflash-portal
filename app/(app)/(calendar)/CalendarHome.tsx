@@ -39,6 +39,7 @@ import {
   type HomeSection,
 } from "@/lib/home-layout";
 import { useRoomById } from "@/lib/rooms";
+import { roundTitle, type ScheduleRound } from "@/lib/scheduling/round";
 import {
   CLAIM_STEP_MINUTES,
   addDays,
@@ -114,6 +115,7 @@ export function CalendarHome({
   upcomingDeadlines,
   keysSummary,
   keysHref = "/keys",
+  scheduleRound = null,
 }: {
   /** 読み込んである範囲 (表示中の月の前後1か月) */
   rangeStart: DateString;
@@ -134,6 +136,8 @@ export function CalendarHome({
   keysSummary: KeysSummary | null;
   /** 鍵の入口の行き先。デモ画面 (/demo) だけ差し替える */
   keysHref?: string;
+  /** 受付中の日程調整 (§6.8 / v1.32.2)。あればホームの一番上にカードを出す */
+  scheduleRound?: ScheduleRound | null;
 }) {
   const router = useRouter();
   const [selectedDate, setSelectedDate] = useState(initialDate);
@@ -360,6 +364,10 @@ export function CalendarHome({
 
   return (
     <>
+      {/* 日程調整は期限のあるお願いなので、並びの設定に関係なく一番上に出す */}
+      {scheduleRound && scheduleRound.status === "open" ? (
+        <ScheduleRoundCard round={scheduleRound} today={today} />
+      ) : null}
       {layout.order
         .filter((key) => !layout.hidden.includes(key))
         .map((key) => <Fragment key={key}>{sections[key]}</Fragment>)}
@@ -432,6 +440,41 @@ function attendanceTarget(event: MyEvent): AttendanceTarget {
   return { kind: "info" };
 }
 
+// ---------- 日程調整のお願い (§6.8 / v1.32.2) ----------
+
+function ScheduleRoundCard({ round, today }: { round: ScheduleRound; today: DateString }) {
+  const days = daysBetween(today, round.deadline);
+  const due = days <= 0 ? "今日まで" : days === 1 ? "明日まで" : `あと${days}日`;
+  return (
+    <Link
+      href="/schedule?tab=answer"
+      prefetch
+      data-tour="schedule-round"
+      className="flex items-center gap-3 rounded-2xl bg-[var(--tint)] px-4 py-3.5 text-white active:opacity-80"
+    >
+      <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-white/20">
+        <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+          <rect x="3" y="5" width="18" height="16" rx="2" />
+          <path d="M3 10h18M8 3v4M16 3v4M8.5 15.5l2 2 4-4" />
+        </svg>
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="block text-[17px] font-bold">
+          {roundTitle(round)}
+          {round.answeredByMe ? " (回答済み)" : ""}
+        </span>
+        <span className="block text-[14px] opacity-90">
+          {round.answeredByMe
+            ? "出られる日を変えるときはここから"
+            : "出られる日を教えてください"}
+          ・締切 {formatDateLabel(round.deadline)} ({due})
+        </span>
+      </span>
+      <span aria-hidden className="text-[20px] opacity-80">›</span>
+    </Link>
+  );
+}
+
 // ---------- 近い締切 (§6.7.13 / v1.31.6) ----------
 
 /** 近い締切の欄に出す件数 */
@@ -488,7 +531,12 @@ function DeadlineRow({ deadline, today }: { deadline: UpcomingDeadline; today: D
   );
   return (
     <li>
-      {deadline.url ? (
+      {/* サイトの中 (日程調整など) は同じ画面で開く。外のフォームは別のタブで */}
+      {deadline.url?.startsWith("/") ? (
+        <Link href={deadline.url} className="flex items-center gap-3 px-4 py-2.5">
+          {inner}
+        </Link>
+      ) : deadline.url ? (
         <a
           href={deadline.url}
           target="_blank"

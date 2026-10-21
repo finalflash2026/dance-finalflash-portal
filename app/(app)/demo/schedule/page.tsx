@@ -3,6 +3,7 @@
 import { useMemo } from "react";
 
 import { demoInput } from "@/lib/scheduling/demo";
+import { demoRound } from "@/lib/scheduling/round";
 
 import { ScheduleClient } from "../../schedule/ScheduleClient";
 
@@ -12,5 +13,6 @@ import { ScheduleClient } from "../../schedule/ScheduleClient";
  */
 export default function DemoSchedule() {
   const input = useMemo(() => demoInput(), []);
-  return <ScheduleClient initialInput={input} me="m0" />;
+  const round = useMemo(() => demoRound(), []);
+  return <ScheduleClient initialInput={input} me="m0" round={round} />;
 }

@@ -7,6 +7,7 @@
  */
 import type { DayBlock } from "@/components/DayGrid";
 import { ROOMS } from "@/lib/constants";
+import { demoRound, roundTitle } from "@/lib/scheduling/round";
 import { addDays, todayInTokyo } from "@/lib/time";
 import type {
   Announcement,
@@ -153,7 +154,10 @@ export function demoCalendar(isOb: boolean) {
   }
 
   // ---- イベント・締切 (終日) ----
+  // 日程調整の締切 (§6.8 / v1.32.2)。カレンダーと近い締切にも出す
+  const round = demoRound();
   const deadlineEvents: MyEvent[] = [
+    ev({ kind: "deadline", sourceId: "dl-round", date: round.deadline, allDay: true, startTime: "00:00", endTime: "24:00", title: `締切: ${roundTitle(round)}`, important: true, dueTime: "23:59", url: "/schedule?tab=answer" }),
     ev({ kind: "deadline", sourceId: "dl1", date: d(4), allDay: true, startTime: "00:00", endTime: "24:00", title: "締切: 合宿費の集金", important: true, dueTime: "23:59", url: "https://example.com/form" }),
     ev({ kind: "deadline", sourceId: "dl2", date: d(9), allDay: true, startTime: "00:00", endTime: "24:00", title: "締切: 2ジャン登録フォーム", url: "https://example.com/form" }),
     ev({ kind: "deadline", sourceId: "dl3", date: d(1), allDay: true, startTime: "00:00", endTime: "24:00", title: "締切: 学祭の出演アンケート", url: "https://example.com/form" }),
@@ -180,6 +184,13 @@ export function demoCalendar(isOb: boolean) {
     blocksByDate: isOb ? {} : blocksByDate,
     notifications: [
       {
+        id: "nt-round",
+        type: "announcement" as const,
+        title: `${roundTitle(round)}が始まりました`,
+        body: `${round.deadline.slice(5).replace("-", "/")} までに、出られる日を答えてください。ホームの一番上から回答できます。`,
+        createdAt: new Date(Date.now() - 2 * 3600_000).toISOString(),
+      },
+      {
         id: "nt1",
         type: "announcement" as const,
         title: "合宿のしおりを配りました",
@@ -204,10 +215,11 @@ export function demoCalendar(isOb: boolean) {
     upcomingDeadlines: isOb
       ? []
       : [
+          { id: "dl-round", title: roundTitle(round), dueDate: round.deadline, dueTime: "23:59", url: "/schedule?tab=answer", important: true },
           { id: "dl3", title: "学祭の出演アンケート", dueDate: d(1), dueTime: null, url: "https://example.com/form", important: false },
           { id: "dl1", title: "合宿費の集金", dueDate: d(4), dueTime: "23:59", url: "https://example.com/form", important: true },
           { id: "dl2", title: "2ジャン登録フォーム", dueDate: d(9), dueTime: null, url: "https://example.com/form", important: false },
-        ],
+        ].sort((x, y) => x.dueDate.localeCompare(y.dueDate)),
     boards: isOb
       ? null
       : {
