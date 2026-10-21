@@ -251,6 +251,11 @@ export interface MyEvent {
   important?: boolean;
   /** 締切の時刻。null は「その日中」 */
   dueTime?: TimeString | null;
+  /**
+   * メモ (持ち物・集合場所など。v1.32.5)。イベント・締切・スタ練・ナンバー練だけ。
+   * 公式練のコマの note は折衝の作業用なので入れない
+   */
+  note?: string | null;
 }
 
 // ---------- v1.30: イベント・締切・告知 (§6.7) ----------

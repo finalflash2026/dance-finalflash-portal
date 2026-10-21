@@ -101,6 +101,10 @@ function buildEvent(event: MyEvent, host: string, dtstamp: string): string[] {
   if (event.url) {
     lines.push(`URL:${event.url}`);
   }
+  // メモ (v1.32.5)。改行は escapeText が \n にする
+  if (event.note?.trim()) {
+    lines.push(`DESCRIPTION:${escapeText(event.note.trim())}`);
+  }
   lines.push("END:VEVENT");
   return lines;
 }

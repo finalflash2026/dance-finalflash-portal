@@ -383,6 +383,7 @@ export function CalendarHome({
           startTime={selected.startTime}
           endTime={selected.endTime}
           location={selected.location}
+          note={selected.note}
           currentUserId={currentUserId}
           onClose={() => setSelected(null)}
         />
@@ -1353,6 +1354,12 @@ function EventDetailSheet({ event, onClose }: { event: MyEvent; onClose: () => v
             <div className="flex justify-between gap-3 px-4 py-2.5">
               <dt className="text-[var(--muted)]">場所</dt>
               <dd className="text-right">{event.location}</dd>
+            </div>
+          ) : null}
+          {event.note?.trim() ? (
+            <div className="px-4 py-2.5">
+              <dt className="text-[var(--muted)]">メモ</dt>
+              <dd className="mt-1 whitespace-pre-wrap break-words">{event.note.trim()}</dd>
             </div>
           ) : null}
         </dl>

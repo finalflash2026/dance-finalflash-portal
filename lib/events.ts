@@ -83,7 +83,7 @@ async function getCircleEventEvents(
 ): Promise<MyEvent[]> {
   let query = supabase
     .from("circle_events")
-    .select("id, title, date, end_date, start_time, end_time, place")
+    .select("id, title, date, end_date, start_time, end_time, place, note")
     .lte("date", to)
     .gte("end_date", from);
   if (profile.role === "ob") {
@@ -103,6 +103,7 @@ async function getCircleEventEvents(
     start_time: string | null;
     end_time: string | null;
     place: string;
+    note: string | null;
   }[]).map((row) => {
     const allDay = row.start_time === null || row.end_time === null;
     return {
@@ -117,6 +118,7 @@ async function getCircleEventEvents(
       numberId: null,
       genreCode: null,
       allDay,
+      note: row.note,
       ...(row.end_date > row.date ? { lastDate: row.end_date } : {}),
     };
   });
@@ -134,7 +136,7 @@ async function getDeadlineEvents(
 ): Promise<MyEvent[]> {
   const { data, error } = await supabase
     .from("deadlines")
-    .select("id, title, due_date, due_time, url, important")
+    .select("id, title, due_date, due_time, url, important, note")
     .gte("due_date", from)
     .lte("due_date", to);
 
@@ -149,6 +151,7 @@ async function getDeadlineEvents(
     due_time: string | null;
     url: string | null;
     important: boolean;
+    note: string | null;
   }[]).map((row) => ({
     kind: "deadline" as const,
     sourceId: row.id,
@@ -164,6 +167,7 @@ async function getDeadlineEvents(
     url: row.url,
     important: row.important,
     dueTime: row.due_time ? normalizeTime(row.due_time) : null,
+    note: row.note,
   }));
 }
 
@@ -363,7 +367,7 @@ async function getNumberEvents(
 
   const { data, error } = await supabase
     .from("number_events")
-    .select("id, number_id, date, start_time, end_time, place, numbers(name)")
+    .select("id, number_id, date, start_time, end_time, place, note, numbers(name)")
     .in("number_id", numberIds)
     // **前日ぶんも取る** (v1.21)。23:00〜翌06:00 のように前日から跨いできた
     // 予定は date が範囲の外にあり、そのままでは初日に何も出ない
@@ -381,6 +385,7 @@ async function getNumberEvents(
     start_time: string;
     end_time: string;
     place: string;
+    note: string | null;
     numbers: { name: string } | null;
   }[];
 
@@ -396,6 +401,7 @@ async function getNumberEvents(
     location: row.place,
     numberId: row.number_id,
     genreCode: null,
+    note: row.note,
   }));
 }
 
@@ -419,7 +425,7 @@ async function getStudioPracticeEvents(
 
   const { data, error } = await supabase
     .from("genre_practices")
-    .select("id, genre_id, date, start_time, end_time, place, target_generations")
+    .select("id, genre_id, date, start_time, end_time, place, note, target_generations")
     .in("genre_id", genres.ids)
     // 前日から跨いできた予定を拾う (v1.21 と同じ理由)
     .gte("date", addDays(from, -1))
@@ -436,6 +442,7 @@ async function getStudioPracticeEvents(
     start_time: string;
     end_time: string;
     place: string;
+    note: string | null;
     target_generations: number[] | null;
   }[])
     // その日に自分のジャンルだったか (v1.31.9。公式練と同じ)
@@ -462,6 +469,7 @@ async function getStudioPracticeEvents(
       location: row.place,
       numberId: null,
       genreCode: code,
+      note: row.note,
     };
   });
 }

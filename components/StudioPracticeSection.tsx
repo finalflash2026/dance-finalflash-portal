@@ -411,6 +411,7 @@ export function StudioPracticeSection({
           startTime={attending.startTime}
           endTime={attending.endTime}
           location={attending.place}
+          note={attending.note}
           currentUserId={currentUserId}
           onClose={() => setAttending(null)}
         />
