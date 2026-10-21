@@ -13,6 +13,9 @@ import type { PlanInput } from "@/lib/scheduling/types";
  * ソルバー (HiGHS の WASM) を端末に配らずに済み、DB を作ったあとは
  * 回答を DB から読んで計算の記録 (plan_runs) を残す場所になる。
  *
+ * **折衝・3役だけ** (§6.8.1 / v1.32.4)。DB を作る段階で requireRole("coordinator") を
+ * ここに置く (いまは本番で開けないので、下の 404 がその代わり)。
+ *
  * **いまはデモだけ**: Supabase 未設定の手元の環境でだけ、画面から送られた
  * 見本の回答で計算する。本番は回答の保存 (DB) を作るまで 404。
  * 本番では回答を画面から受け取らない (改ざんできてしまうため。DB から読む)。
@@ -51,6 +54,9 @@ const schema = z.object({
     maxPerDay: z.number().int().min(1).max(10),
     sameRoomBonus: z.number().min(0).max(20),
     roomWeights: z.record(z.string(), z.number().min(0.1).max(3)),
+    fairnessWeight: z.number().min(0).max(20),
+    fairnessTarget: z.number().min(0).max(1),
+    minBigPerGenre: z.number().int().min(0).max(10),
     minPeople: z.number().min(0).max(200),
     timeLimitSeconds: z.number().min(1).max(50),
   }),

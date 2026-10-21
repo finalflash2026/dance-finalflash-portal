@@ -51,6 +51,15 @@ export interface PlanSettings {
   sameRoomBonus: number;
   /** 部屋ごとの広さの重み (roomId → 0.8 / 1 / 1.2)。無い部屋は 1 (v1.32.3) */
   roomWeights: Record<number, number>;
+  /**
+   * 欠席の偏りの減点の強さ (v1.32.4)。0 で減点しない。人ごとに「出られる割合 ×
+   * fairnessTarget × 1ジャンのコマ数」を下回ったぶん × この値を減点する
+   */
+  fairnessWeight: number;
+  /** 欠席の偏りの目安 (0〜1) */
+  fairnessTarget: number;
+  /** 広い部屋 (roomWeights が 1 より大きい部屋) を各ジャンルに月これだけは入れる (v1.32.4) */
+  minBigPerGenre: number;
   /** この人数 (見込み) に届かないコマに印を付ける。0 なら付けない */
   minPeople: number;
   /** ソルバーの制限時間 (秒) */
@@ -74,6 +83,8 @@ export interface PlanResult {
   assignments: Assignment[];
   /** ジャンルごとのコマ数と見込み人数 (○ + △×重み) の合計 */
   perGenre: { genreId: number; slots: number; expected: number }[];
+  /** 実際に使った「1ジャンルあたりのコマ数」。入らなかったときは減らしてある */
+  perGenreUsed?: number;
   /** 計算にかかった時間 (ms) */
   elapsedMs: number;
   /** 変数と制約の数 (規模の確認用) */

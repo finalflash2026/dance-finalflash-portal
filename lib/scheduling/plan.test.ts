@@ -10,7 +10,9 @@ import highsLoader from "highs";
 import { toMinutes } from "@/lib/time";
 
 import { demoInput } from "./demo";
-import { DEFAULT_SETTINGS, defaultPerGenre, plan } from "./plan";
+import { measure } from "./metrics";
+import { DEFAULT_SETTINGS, defaultPerGenre, effectiveMinBig, isBigRoom, plan } from "./plan";
+import { scenario } from "./scenarios";
 import type { PlanSettings } from "./types";
 
 test("150人の見本を時間内に解き、決まりを守る", async () => {
@@ -98,6 +100,26 @@ test("連続するコマはできるだけ同じ部屋で、広い部屋は人�
   console.log(`同じ部屋で連続: 加点なし ${(off.rate * 100).toFixed(0)}% / 加点あり ${(on.rate * 100).toFixed(0)}% (${on.pairs}組)`);
   assert.ok(on.rate >= off.rate);
   assert.ok(on.rate >= 0.8);
+});
+
+test("どのジャンルも広い部屋に月 K 回、欠席の偏りを抑えると出にくい人が増えない", async () => {
+  const solver = await highsLoader();
+  const input = scenario("2026-11-01", "term", 1101);
+  const base: PlanSettings = { ...DEFAULT_SETTINGS, perGenre: defaultPerGenre(input) };
+  const r = plan(input, { ...base, minBigPerGenre: 1 }, solver);
+  const byId = new Map(input.candidates.map((c) => [c.id, c]));
+  for (const genre of input.genres) {
+    const big = r.assignments.filter(
+      (a) => a.genreId === genre.id && isBigRoom(base, byId.get(a.candidateId)!.roomId),
+    ).length;
+    assert.ok(big >= effectiveMinBig(input, { ...base, minBigPerGenre: 1 }), `${genre.code}: 広い部屋 ${big}回`);
+  }
+  const off = { ...base, fairnessWeight: 0 };
+  const on = { ...base, fairnessWeight: 4, fairnessTarget: 0.9 };
+  const mOff = measure(input, off, plan(input, off, solver));
+  const mOn = measure(input, on, plan(input, on, solver));
+  console.log(`下位1割: 偏りを気にしない ${(mOff.bottom10 * 100).toFixed(1)}% / 抑える ${(mOn.bottom10 * 100).toFixed(1)}%`);
+  assert.ok(mOn.bottom10 >= mOff.bottom10 - 0.005);
 });
 
 test("同じ入力からは同じ案が出る", async () => {

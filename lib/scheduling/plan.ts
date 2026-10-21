@@ -15,7 +15,10 @@
  *
  * ソルバーは外から渡す (HiGHS)。ここは LP の文字列を作って、答えを読むだけ。
  */
+import { DEFAULT_ROOM_SIZES, roomWeightsFor } from "@/lib/scheduling/rooms";
 import { toMinutes } from "@/lib/time";
+
+import learned from "./learned.json";
 
 import type {
   Answer,
@@ -58,15 +61,33 @@ const CONTIGUOUS_GAP_MINUTES = 30;
 /** 重なりの減点を測る長さの単位 (分)。おおよそ1コマの長さ */
 const OVERLAP_UNIT_MINUTES = 90;
 
+/**
+ * 既定の条件。重みと目安は見本のデータで学習した値 (learned.json。§6.8.6)。
+ * `npm run tune:schedule` で選び直す
+ */
 export const DEFAULT_SETTINGS: Omit<PlanSettings, "perGenre"> = {
   maybeWeight: 0.5,
   genreWeights: [1, 0.7, 0.5],
   maxPerDay: 2,
-  sameRoomBonus: 2,
-  roomWeights: {},
+  sameRoomBonus: learned.sameRoomBonus,
+  roomWeights: roomWeightsFor(DEFAULT_ROOM_SIZES, learned.roomStrength),
+  fairnessWeight: learned.fairnessWeight,
+  fairnessTarget: learned.fairnessTarget,
+  minBigPerGenre: learned.minBigPerGenre,
   minPeople: 0,
   timeLimitSeconds: 25,
 };
+
+/** 広い部屋か (広さの重みが 1 より大きい) */
+export function isBigRoom(settings: PlanSettings, roomId: number): boolean {
+  return (settings.roomWeights[roomId] ?? 1) > 1;
+}
+
+/** 実際に入れられる「広い部屋の回数」。広い部屋のコマが足りないときは減らす */
+export function effectiveMinBig(input: PlanInput, settings: PlanSettings): number {
+  const big = input.candidates.filter((c) => isBigRoom(settings, c.roomId)).length;
+  return Math.min(settings.minBigPerGenre, Math.floor(big / Math.max(1, input.genres.length)));
+}
 
 /** 既定の「1ジャンルあたりのコマ数」。全部のコマをほぼ均等に分ける */
 export function defaultPerGenre(input: PlanInput): number {
@@ -204,6 +225,43 @@ export function buildLp(input: PlanInput, settings: PlanSettings) {
     }
   }
 
+  // どのジャンルも広い部屋に月 K 回以上 (v1.32.4)。少ないジャンルも通し練習ができるように
+  const minBig = effectiveMinBig(input, settings);
+  if (minBig > 0) {
+    const big = input.candidates.filter((c) => isBigRoom(settings, c.roomId));
+    for (const g of genreIds) {
+      constraints.push(`big_${g}: ${big.map((c) => x(g, c.id)).join(" + ")} >= ${minBig}`);
+    }
+  }
+
+  /*
+   * 欠席が一部の人に偏らない (v1.32.4)。人ごとに、1ジャンの練習のうち出られる回
+   *   att_m = Σ (その人の回答の重さ) × x[1ジャン, コマ]
+   * が、その人の出られる割合から見た目安を下回ったぶん u_m を減点する。
+   *   u_m >= 目安_m - att_m,  u_m >= 0
+   */
+  let uCount = 0;
+  if (settings.fairnessWeight > 0) {
+    const keys = [...new Set(input.candidates.map(keyOf))];
+    for (const member of input.members) {
+      const g = member.genres[0];
+      if (!genreIds.includes(g)) continue;
+      const answers = input.answers[member.id];
+      if (!answers) continue; // 未回答の人は数えない
+      const avail =
+        keys.reduce((sum, key) => sum + answerValue(answers[key], settings.maybeWeight), 0) / keys.length;
+      const target = settings.fairnessTarget * avail * settings.perGenre;
+      if (target <= 0.01) continue;
+      const terms = input.candidates
+        .map((c) => [answerValue(answers[keyOf(c)], settings.maybeWeight), c] as const)
+        .filter(([a]) => a > 0)
+        .map(([a, c]) => `+ ${fmt(a)} ${x(g, c.id)}`);
+      const u = `u_${uCount++}`;
+      objective.push(`- ${fmt(settings.fairnessWeight)} ${u}`);
+      constraints.push(`fair_${uCount}: ${u} ${terms.join(" ")} >= ${fmt(target)}`);
+    }
+  }
+
   // 1つのコマには1ジャンルまで
   input.candidates.forEach((c, i) => {
     constraints.push(`one_${i}: ${genreIds.map((g) => x(g, c.id)).join(" + ")} <= 1`);
@@ -301,6 +359,7 @@ export function buildLp(input: PlanInput, settings: PlanSettings) {
     ...Array.from({ length: yCount }, (_, i) => `y_${i}`),
     ...Array.from({ length: startCount }, (_, i) => `s_${i}`),
   ];
+  const uNames = Array.from({ length: uCount }, (_, i) => `u_${i}`);
   const lp = [
     "Maximize",
     ` obj: ${objective.join(" ")}`,
@@ -308,6 +367,7 @@ export function buildLp(input: PlanInput, settings: PlanSettings) {
     ...constraints.map((line) => ` ${line}`),
     "Bounds",
     ...yNames.map((y) => ` 0 <= ${y} <= 1`),
+    ...uNames.map((u) => ` 0 <= ${u}`),
     "Binary",
     ` ${binaries.join(" ")}`,
     "End",
@@ -315,7 +375,7 @@ export function buildLp(input: PlanInput, settings: PlanSettings) {
 
   return {
     lp,
-    variables: binaries.length + yNames.length,
+    variables: binaries.length + yNames.length + uNames.length,
     constraints: constraints.length,
     read: (raw: object) => {
       const columns = raw as Record<string, { Primal?: number }>;
@@ -374,6 +434,19 @@ export function buildRoomLp(
     const users = jobs.flatMap((job, j) => (job.time === timeKey(c) ? [v(j, c)] : []));
     if (users.length > 1) constraints.push(`cap_${k}: ${users.join(" + ")} <= 1`);
   });
+  // 1段目で守った「広い部屋に月 K 回」を、部屋を決め直しても守る
+  const minBig = effectiveMinBig(input, settings);
+  if (minBig > 0) {
+    for (const g of new Set(jobs.map((job) => job.genreId))) {
+      const terms = jobs.flatMap((job, j) =>
+        job.genreId === g
+          ? (slotsAt.get(job.time) ?? []).filter((c) => isBigRoom(settings, c.roomId)).map((c) => v(j, c))
+          : [],
+      );
+      if (terms.length) constraints.push(`big_${g}: ${terms.join(" + ")} >= ${minBig}`);
+    }
+  }
+
   // 同じジャンルの隣り合う時間を同じ部屋で続けたら加点
   let w = 0;
   jobs.forEach((a, i) => {
@@ -488,7 +561,30 @@ export function validate(input: PlanInput, settings: PlanSettings): string | nul
   return null;
 }
 
+/**
+ * 案を作る。決まりを満たせない (同じ時間に入れられるジャンルの数・1日の上限などで
+ * コマ数が入りきらない) ときは、1ジャンルあたりのコマ数を1つずつ減らして作り直す (3回まで)
+ */
 export function plan(input: PlanInput, settings: PlanSettings, solver: Solver): PlanResult {
+  const started = Date.now();
+  let result = planOnce(input, settings, solver);
+  let perGenre = settings.perGenre;
+  for (let i = 0; i < 3 && result.status === "infeasible" && perGenre > 0; i++) {
+    perGenre--;
+    result = planOnce(input, { ...settings, perGenre }, solver);
+  }
+  return {
+    ...result,
+    perGenreUsed: perGenre,
+    message:
+      perGenre !== settings.perGenre && result.status !== "infeasible"
+        ? `${settings.perGenre}コマずつでは入りきらないので、${perGenre}コマずつにしました`
+        : result.message,
+    elapsedMs: Date.now() - started,
+  };
+}
+
+function planOnce(input: PlanInput, settings: PlanSettings, solver: Solver): PlanResult {
   const started = Date.now();
   const empty = (status: PlanResult["status"], message: string): PlanResult => ({
     status,
@@ -536,7 +632,7 @@ export function plan(input: PlanInput, settings: PlanSettings, solver: Solver): 
   let picked = model.read(solution.Columns);
 
   // 2段目: 部屋をそろえる。解けなかったときは1段目の部屋のまま
-  if (settings.sameRoomBonus > 0 && picked.length > 0) {
+  if ((settings.sameRoomBonus > 0 || effectiveMinBig(input, settings) > 0) && picked.length > 0) {
     try {
       const rooms = buildRoomLp(input, settings, picked);
       const second = solver.solve(rooms.lp, { time_limit: 10, random_seed: 0, output_flag: false });
