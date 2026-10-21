@@ -63,7 +63,8 @@ export function PullToRefresh({ children }: { children: React.ReactNode }) {
       }
       const touch = event.touches[0];
       const target = touch.target as Element | null;
-      if (target?.closest("[data-no-swipe]") != null) {
+      // 窓 (role="dialog") の上の操作は、印の付け忘れがあっても拾わない (v1.32.6)
+      if (target?.closest('[data-no-swipe], [role="dialog"]') != null) {
         start.current = null;
         return;
       }
