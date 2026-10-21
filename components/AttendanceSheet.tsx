@@ -61,6 +61,7 @@ export function AttendanceSheet({
   startTime,
   endTime,
   location,
+  note,
   currentUserId,
   onClose,
 }: {
@@ -70,6 +71,8 @@ export function AttendanceSheet({
   startTime: string;
   endTime: string;
   location: string;
+  /** メモ (持ち物・集合場所など。v1.32.5) */
+  note?: string | null;
   currentUserId: string;
   onClose: () => void;
 }) {
@@ -96,9 +99,9 @@ export function AttendanceSheet({
 
     const people =
       target.kind === "slot"
-        ? await loadSlotParticipants(supabase, target.id)
+        ? await loadSlotParticipants(supabase, target.id, date)
         : target.kind === "studioPractice"
-          ? await loadStudioParticipants(supabase, target.id, target.genreId)
+          ? await loadStudioParticipants(supabase, target.id, target.genreId, date)
           : await loadNumberParticipants(supabase, target.id);
 
     if (people.error) {
@@ -137,7 +140,7 @@ export function AttendanceSheet({
     }
 
     setParticipants(buildParticipants(people.people, [...unique.values()]));
-  }, [target]);
+  }, [target, date]);
 
   useEffect(() => {
     load();
@@ -241,6 +244,11 @@ export function AttendanceSheet({
             {formatDateLabel(date)} {formatSpanRange(startTime, endTime)}
             {location ? ` @${location}` : ""}
           </p>
+          {note?.trim() ? (
+            <p className="mt-2 whitespace-pre-wrap break-words rounded-lg bg-[var(--fill)] px-3 py-2 text-sm">
+              {note.trim()}
+            </p>
+          ) : null}
         </div>
 
         {error ? (
@@ -422,6 +430,7 @@ async function loadSlotParticipants(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   supabase: any,
   slotId: string,
+  date: DateString,
 ): Promise<People> {
   const { data: slot, error: slotError } = await supabase
     .from("slots")
@@ -437,7 +446,7 @@ async function loadSlotParticipants(
     .target_generations;
   if (genreId === null) return { people: [] };
 
-  return loadGenreParticipants(supabase, genreId, generations);
+  return loadGenreParticipants(supabase, genreId, generations, date);
 }
 
 /**
@@ -451,6 +460,7 @@ async function loadStudioParticipants(
   supabase: any,
   practiceId: string,
   genreId: number,
+  date: DateString,
 ): Promise<People> {
   const { data, error } = await supabase
     .from("genre_practices")
@@ -465,6 +475,7 @@ async function loadStudioParticipants(
     supabase,
     genreId,
     (data as { target_generations: number[] | null }).target_generations,
+    date,
   );
 }
 
@@ -479,13 +490,18 @@ async function loadGenreParticipants(
   supabase: any,
   genreId: number,
   generations: number[] | null,
+  date: DateString,
 ): Promise<People> {
   // 2/3ジャンでそのジャンルを持つ人を先に集める。
-  // profiles 側の or 条件に流し込むため
+  // profiles 側の or 条件に流し込むため。
+  // **練習の日のサブジャンルで見る** (v1.32.5)。カレンダー (v1.31.9) と
+  // 出欠の書き込み条件 (mod_att, 0021) と同じ判定にする
   const { data: subgenres } = await supabase
-    .from("user_subgenres")
+    .from("user_subgenre_periods")
     .select("user_id")
-    .eq("genre_id", genreId);
+    .eq("genre_id", genreId)
+    .lte("from_date", date)
+    .or(`to_date.is.null,to_date.gte.${date}`);
   const subIds = ((subgenres ?? []) as { user_id: string }[]).map(
     (row) => row.user_id,
   );
