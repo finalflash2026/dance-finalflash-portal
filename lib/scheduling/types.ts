@@ -47,6 +47,10 @@ export interface PlanSettings {
   perGenre: number;
   /** 同じジャンルの1日あたりの上限 (v1.32.1) */
   maxPerDay: number;
+  /** 連続するコマを同じ部屋で続けたときの加点 (何人ぶん)。0 で加点しない (v1.32.3) */
+  sameRoomBonus: number;
+  /** 部屋ごとの広さの重み (roomId → 0.8 / 1 / 1.2)。無い部屋は 1 (v1.32.3) */
+  roomWeights: Record<number, number>;
   /** この人数 (見込み) に届かないコマに印を付ける。0 なら付けない */
   minPeople: number;
   /** ソルバーの制限時間 (秒) */

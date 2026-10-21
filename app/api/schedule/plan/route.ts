@@ -49,6 +49,8 @@ const schema = z.object({
     genreWeights: z.tuple([z.number().min(0).max(2), z.number().min(0).max(2), z.number().min(0).max(2)]),
     perGenre: z.number().int().min(0).max(100),
     maxPerDay: z.number().int().min(1).max(10),
+    sameRoomBonus: z.number().min(0).max(20),
+    roomWeights: z.record(z.string(), z.number().min(0.1).max(3)),
     minPeople: z.number().min(0).max(200),
     timeLimitSeconds: z.number().min(1).max(50),
   }),

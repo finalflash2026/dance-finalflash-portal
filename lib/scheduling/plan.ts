@@ -52,6 +52,9 @@ export function keyOf(candidate: Candidate): AnswerKey {
   return answerKey(candidate.date, candidate.startTime, candidate.endTime);
 }
 
+/** これ以下の間 (分) なら「連続」とみなす (v1.32.3) */
+const CONTIGUOUS_GAP_MINUTES = 30;
+
 /** 重なりの減点を測る長さの単位 (分)。おおよそ1コマの長さ */
 const OVERLAP_UNIT_MINUTES = 90;
 
@@ -59,6 +62,8 @@ export const DEFAULT_SETTINGS: Omit<PlanSettings, "perGenre"> = {
   maybeWeight: 0.5,
   genreWeights: [1, 0.7, 0.5],
   maxPerDay: 2,
+  sameRoomBonus: 2,
+  roomWeights: {},
   minPeople: 0,
   timeLimitSeconds: 25,
 };
@@ -193,7 +198,9 @@ export function buildLp(input: PlanInput, settings: PlanSettings) {
       const name = x(g, c.id);
       binaries.push(name);
       // 点数が 0 でも入れられるように、ごく小さな正の値を足す (コマ数の下限を満たすため)
-      objective.push(`+ ${fmt((scores.get(g)?.get(c.id) ?? 0) + 0.001)} ${name}`);
+      // 広い部屋ほど点を大きくする (v1.32.3)。人の多いジャンルが広い部屋に回る
+      const room = settings.roomWeights[c.roomId] ?? 1;
+      objective.push(`+ ${fmt((scores.get(g)?.get(c.id) ?? 0) * room + 0.001)} ${name}`);
     }
   }
 
@@ -216,6 +223,47 @@ export function buildLp(input: PlanInput, settings: PlanSettings) {
     if (ofDay.length <= settings.maxPerDay) return;
     for (const g of genreIds) {
       constraints.push(`day_${g}_${d}: ${ofDay.map((c) => x(g, c.id)).join(" + ")} <= ${settings.maxPerDay}`);
+    }
+  });
+
+  /*
+   * 同じ日に複数コマ入れるときは連続させる (v1.32.3)。その日のコマの時間を早い順に
+   * 並べ、時間ごとに「そのジャンルが入っているか」z (= 部屋の合計。同じ時間は1部屋まで) を見る。
+   * 「入っていない → 入っている」に変わる所 (かたまりの始まり) を s で数え、1日1つまでにする:
+   *   s_t >= z_t - z_(t-1)      (前の時間との間が30分を超えるなら z_(t-1) = 0 とみなす)
+   *   Σ s_t <= 1
+   * 2つの時間の組を全部並べる書き方より制約がずっと少なく、速く解ける
+   */
+  let startCount = 0;
+  dates.forEach((date, d) => {
+    const ofDay = input.candidates.filter((c) => c.date === date);
+    const ranges = [...new Map(ofDay.map((c) => [`${c.startTime}-${c.endTime}`, c])).values()]
+      .map((c) => ({ start: c.startTime, end: c.endTime }))
+      .sort((a, b) => a.start.localeCompare(b.start) || a.end.localeCompare(b.end));
+    if (ranges.length < 2) return;
+    const at = (r: { start: string; end: string }) =>
+      ofDay.filter((c) => c.startTime === r.start && c.endTime === r.end);
+    const joined = (i: number) =>
+      i > 0 && toMinutes(ranges[i].start) - toMinutes(ranges[i - 1].end) <= CONTIGUOUS_GAP_MINUTES;
+    for (const g of genreIds) {
+      const z = (i: number) => at(ranges[i]).map((c) => x(g, c.id));
+      const starts: string[] = [];
+      ranges.forEach((_, i) => {
+        const sv = `s_${startCount++}`;
+        starts.push(sv);
+        const prev = joined(i) ? z(i - 1).map((v) => ` + ${v}`).join("") : "";
+        constraints.push(`st_${startCount}: ${sv} ${z(i).map((v) => `- ${v}`).join(" ")}${prev} >= 0`);
+      });
+      constraints.push(`blk_${g}_${d}: ${starts.join(" + ")} <= 1`);
+      // 締め付け: 1日 maxPerDay コマまでなので、離れすぎた2つ (間に maxPerDay 以上) と、
+      // 間に長い空きをはさむ2つは同時に取れない。上の式と同じ意味だが、ソルバーが早く絞り込める
+      for (let i = 0; i < ranges.length; i++) {
+        for (let j = i + 1; j < ranges.length; j++) {
+          let apart = j - i >= settings.maxPerDay;
+          for (let k = i + 1; k <= j && !apart; k++) if (!joined(k)) apart = true;
+          if (apart) constraints.push(`far_${g}_${d}_${i}_${j}: ${[...z(i), ...z(j)].join(" + ")} <= 1`);
+        }
+      }
     }
   });
 
@@ -249,7 +297,10 @@ export function buildLp(input: PlanInput, settings: PlanSettings) {
     }
   });
 
-  const yNames = Array.from({ length: yCount }, (_, i) => `y_${i}`);
+  const yNames = [
+    ...Array.from({ length: yCount }, (_, i) => `y_${i}`),
+    ...Array.from({ length: startCount }, (_, i) => `s_${i}`),
+  ];
   const lp = [
     "Maximize",
     ` obj: ${objective.join(" ")}`,
@@ -264,7 +315,7 @@ export function buildLp(input: PlanInput, settings: PlanSettings) {
 
   return {
     lp,
-    variables: binaries.length + yCount,
+    variables: binaries.length + yNames.length,
     constraints: constraints.length,
     read: (raw: object) => {
       const columns = raw as Record<string, { Primal?: number }>;
@@ -277,6 +328,92 @@ export function buildLp(input: PlanInput, settings: PlanSettings) {
         }
       }
       return picked;
+    },
+  };
+}
+
+/**
+ * 2段目: 部屋をそろえる (v1.32.3)。
+ *
+ * 1段目で「どのジャンルを、どの日のどの時間に」を決めたあと、その時間の中で
+ * **どの部屋に入れるか**だけを決め直す。連続するコマを同じ部屋で続けると加点し、
+ * 広い部屋 (重み) には人の多いジャンルを回す。1段目に部屋の加点まで入れると
+ * 解くのに時間がかかりすぎた (数十秒) ので、2段に分けている。
+ */
+export function buildRoomLp(
+  input: PlanInput,
+  settings: PlanSettings,
+  picked: { candidateId: string; genreId: number }[],
+) {
+  const byId = new Map(input.candidates.map((c) => [c.id, c]));
+  const scores = scoreTable(input, settings);
+  const timeKey = (c: Candidate) => `${c.date}|${c.startTime}-${c.endTime}`;
+  // その時間にあるコマ (部屋の候補)
+  const slotsAt = new Map<string, Candidate[]>();
+  for (const c of input.candidates) {
+    slotsAt.set(timeKey(c), [...(slotsAt.get(timeKey(c)) ?? []), c]);
+  }
+  // 1段目の結果: (ジャンル, 時間) の組
+  const jobs = picked.map((p) => ({ genreId: p.genreId, time: timeKey(byId.get(p.candidateId)!) }));
+  const v = (j: number, c: Candidate) => `r_${j}_${input.candidates.indexOf(c)}`;
+
+  const objective: string[] = [];
+  const constraints: string[] = [];
+  const binaries: string[] = [];
+  jobs.forEach((job, j) => {
+    const rooms = slotsAt.get(job.time) ?? [];
+    for (const c of rooms) {
+      binaries.push(v(j, c));
+      const score = scores.get(job.genreId)?.get(c.id) ?? 0;
+      objective.push(`+ ${fmt(score * (settings.roomWeights[c.roomId] ?? 1) + 0.001)} ${v(j, c)}`);
+    }
+    constraints.push(`job_${j}: ${rooms.map((c) => v(j, c)).join(" + ")} = 1`);
+  });
+  // 1つの部屋 (コマ) には1つまで
+  input.candidates.forEach((c, k) => {
+    const users = jobs.flatMap((job, j) => (job.time === timeKey(c) ? [v(j, c)] : []));
+    if (users.length > 1) constraints.push(`cap_${k}: ${users.join(" + ")} <= 1`);
+  });
+  // 同じジャンルの隣り合う時間を同じ部屋で続けたら加点
+  let w = 0;
+  jobs.forEach((a, i) => {
+    jobs.forEach((b, j) => {
+      if (i === j || a.genreId !== b.genreId) return;
+      const [da, ra] = a.time.split("|");
+      const [db, rb] = b.time.split("|");
+      if (da !== db) return;
+      const gap = toMinutes(rb.split("-")[0]) - toMinutes(ra.split("-")[1]);
+      if (gap < 0 || gap > CONTIGUOUS_GAP_MINUTES) return;
+      for (const ca of slotsAt.get(a.time) ?? []) {
+        const cb = (slotsAt.get(b.time) ?? []).find((c) => c.roomId === ca.roomId);
+        if (!cb) continue;
+        const name = `w_${w++}`;
+        objective.push(`+ ${fmt(settings.sameRoomBonus)} ${name}`);
+        constraints.push(`wa_${w}: ${name} - ${v(i, ca)} <= 0`);
+        constraints.push(`wb_${w}: ${name} - ${v(j, cb)} <= 0`);
+      }
+    });
+  });
+  const lp = [
+    "Maximize",
+    ` obj: ${objective.join(" ")}`,
+    "Subject To",
+    ...constraints.map((line) => ` ${line}`),
+    "Bounds",
+    ...Array.from({ length: w }, (_, i) => ` 0 <= w_${i} <= 1`),
+    "Binary",
+    ` ${binaries.join(" ")}`,
+    "End",
+  ].join("\n");
+  return {
+    lp,
+    read: (raw: object) => {
+      const columns = raw as Record<string, { Primal?: number }>;
+      return jobs.flatMap((job, j) =>
+        (slotsAt.get(job.time) ?? [])
+          .filter((c) => (columns[v(j, c)]?.Primal ?? 0) > 0.5)
+          .map((c) => ({ candidateId: c.id, genreId: job.genreId })),
+      );
     },
   };
 }
@@ -396,7 +533,21 @@ export function plan(input: PlanInput, settings: PlanSettings, solver: Solver): 
     };
   }
 
-  const picked = model.read(solution.Columns);
+  let picked = model.read(solution.Columns);
+
+  // 2段目: 部屋をそろえる。解けなかったときは1段目の部屋のまま
+  if (settings.sameRoomBonus > 0 && picked.length > 0) {
+    try {
+      const rooms = buildRoomLp(input, settings, picked);
+      const second = solver.solve(rooms.lp, { time_limit: 10, random_seed: 0, output_flag: false });
+      if (second.Status === "Optimal" || second.Status === "Time limit reached") {
+        const repicked = rooms.read(second.Columns);
+        if (repicked.length === picked.length) picked = repicked;
+      }
+    } catch {
+      // 1段目の結果を使う
+    }
+  }
   const assignments = evaluate(input, settings, picked);
   const perGenre = input.genres.map((genre) => {
     const mine = assignments.filter((a) => a.genreId === genre.id);
