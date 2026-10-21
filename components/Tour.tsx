@@ -3,6 +3,8 @@
 import { usePathname } from "next/navigation";
 import { useCallback, useEffect, useLayoutEffect, useState } from "react";
 
+import { SPLASH_DONE_EVENT, isSplashOver } from "@/components/Splash";
+
 /**
  * 初回ツアー (SPEC.md §6.7.9 / v1.30)
  *
@@ -200,10 +202,28 @@ export function Tour() {
     if (done && !requested) return;
     // デモの見本 (/demo/calendar) では頼まれたとき (?tour=1) だけ始める
     if (pathname === "/demo/calendar" && !requested) return;
-    // ホームは起動アニメーションが終わってから始める (重なると読めない)
-    const delay = requested ? 300 : pathname === "/" ? 2200 : 600;
-    const timer = window.setTimeout(start, delay);
-    return () => window.clearTimeout(timer);
+    // 起動アニメーションが出ているあいだは待ち、消えたらすぐ始める (重なると読めない)。
+    // 決め打ちの秒数で待つと、幕が出ない起動 (ログイン直後など) で
+    // 何も起きない間ができ、操作を始めたところで急に暗くなっていた (v1.32.6)
+    if (requested || isSplashOver()) {
+      const timer = window.setTimeout(start, 300);
+      return () => window.clearTimeout(timer);
+    }
+    let timer = 0;
+    let fallback = 0;
+    const onDone = () => {
+      window.removeEventListener(SPLASH_DONE_EVENT, onDone);
+      window.clearTimeout(fallback);
+      timer = window.setTimeout(start, 300);
+    };
+    window.addEventListener(SPLASH_DONE_EVENT, onDone);
+    // 合図が来なくても (幕の部品が無い画面など) いずれは始める
+    fallback = window.setTimeout(onDone, 8000);
+    return () => {
+      window.removeEventListener(SPLASH_DONE_EVENT, onDone);
+      window.clearTimeout(timer);
+      window.clearTimeout(fallback);
+    };
   }, [pathname, start, tour]);
 
   useEffect(() => {

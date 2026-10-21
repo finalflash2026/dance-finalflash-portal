@@ -28,6 +28,18 @@ import logoImage from "@/assets/splash-logo.webp";
 export const SPLASH_SESSION_KEY = "splash-shown";
 
 /**
+ * 幕が消えたときに window へ流す合図 (v1.32.6)。初回ツアーはこれを待って始める。
+ * 消えた後は `<html data-splash="done">` も立てるので、後から見る側も分かる
+ */
+export const SPLASH_DONE_EVENT = "splash-done";
+
+/** 起動の幕がもう出ていない (この起動では出さない / 出し終えた) か */
+export function isSplashOver(): boolean {
+  const state = document.documentElement.dataset.splash;
+  return state === "off" || state === "done";
+}
+
+/**
  * 最初のペイント前に走らせる (app/layout.tsx の head に埋め込む)。
  * この起動で既に出していたら `<html data-splash="off">` を立てて幕を消す。
  * sessionStorage が使えない環境では出さない (毎回出ると邪魔になるため)。
@@ -122,6 +134,8 @@ export function Splash() {
       finished = true;
       cancelAnimationFrame(raf);
       setGone(true);
+      document.documentElement.dataset.splash = "done";
+      window.dispatchEvent(new Event(SPLASH_DONE_EVENT));
     };
     root.addEventListener("pointerdown", finish);
 
