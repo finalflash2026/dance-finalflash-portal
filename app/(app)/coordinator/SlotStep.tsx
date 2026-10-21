@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { ErrorMessage, buttonClass, secondaryButtonClass } from "@/components/ui";
+import { dbErrorMessage } from "@/lib/error-message";
 import { useRoomById, useRooms } from "@/lib/rooms";
 import { GENRES, GENRE_BY_ID, PRACTICE_WEEKDAYS } from "@/lib/constants";
 import { findSplitReservations } from "@/lib/reservations";
@@ -31,9 +32,7 @@ import {
   formatTimeRange,
   getWeekday,
   normalizeTimeInput,
-  startOfMonth,
   toMinutes,
-  todayInTokyo,
 } from "@/lib/time";
 import type { DateString, SlotStatus } from "@/lib/types";
 
@@ -67,11 +66,14 @@ import { useSlotPeriods } from "./useSlotPeriods";
  * 許可しているため)。検証は lib/slots.ts と DB の制約の二段構え。
  */
 
-export function SlotStep() {
+export function SlotStep({
+  month,
+  onMonthChange: setMonth,
+}: {
+  month: DateString;
+  onMonthChange: (month: DateString) => void;
+}) {
   const roomById = useRoomById();
-  const [month, setMonth] = useState<DateString>(() =>
-    startOfMonth(todayInTokyo()),
-  );
   const {
     reservations,
     generations,
@@ -181,7 +183,7 @@ export function SlotStep() {
     setPending(false);
 
     if (writeError) {
-      setError(`対象期を保存できませんでした: ${writeError.message}`);
+      setError(dbErrorMessage("対象期を保存できませんでした", writeError));
       return;
     }
     reload();
@@ -218,7 +220,7 @@ export function SlotStep() {
 
     setPending(false);
     if (cancelError) {
-      setError(`予約枠を取り消せませんでした: ${cancelError.message}`);
+      setError(dbErrorMessage("予約枠を取り消せませんでした", cancelError));
       return;
     }
     reload();
@@ -295,7 +297,7 @@ export function SlotStep() {
     setPending(false);
 
     if (deleteError) {
-      setError(`コマを削除できませんでした: ${deleteError.message}`);
+      setError(dbErrorMessage("コマを削除できませんでした", deleteError));
       return;
     }
     setEditing(null);
@@ -346,7 +348,7 @@ export function SlotStep() {
       });
       if (mergeError) {
         setPending(false);
-        setError(`予約枠をつなげませんでした: ${mergeError.message}`);
+        setError(dbErrorMessage("予約枠をつなげませんでした", mergeError));
         reload();
         return;
       }
@@ -404,7 +406,7 @@ export function SlotStep() {
     painting.current.delete(key);
 
     if (deleteError) {
-      setError(`古いコマを消せませんでした: ${deleteError.message}`);
+      setError(dbErrorMessage("古いコマを消せませんでした", deleteError));
       reload();
       return false;
     }
@@ -436,7 +438,7 @@ export function SlotStep() {
       painting.current.delete(key);
 
       if (deleteError) {
-        setError(`コマを削除できませんでした: ${deleteError.message}`);
+        setError(dbErrorMessage("コマを削除できませんでした", deleteError));
         reload();
         return;
       }
@@ -950,7 +952,7 @@ function describeSlotError(error: { code?: string; message: string }): string {
   if (error.code === "23514") {
     return "コマの内容が不正です (時刻の前後、または公式練のジャンル未設定)";
   }
-  return `保存できませんでした: ${error.message}`;
+  return dbErrorMessage("保存できませんでした", error);
 }
 
 function SlotEditor({

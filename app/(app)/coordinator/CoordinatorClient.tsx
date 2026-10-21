@@ -4,6 +4,8 @@ import Link from "next/link";
 import { useState } from "react";
 
 import { hasSupabaseEnv } from "@/lib/env";
+import { startOfMonth, todayInTokyo } from "@/lib/time";
+import type { DateString } from "@/lib/types";
 
 import { ImportStep } from "./ImportStep";
 import { PublishStep } from "./PublishStep";
@@ -19,6 +21,9 @@ import { SlotStep } from "./SlotStep";
  * 折衝の作業は1か月ぶんの表を見渡しながら進めるもので、実際に折衝係も
  * PC で作業している。②のコマ割り表は画面幅をそのまま使う。
  * ①③は縦に読む画面なので、これまでどおり中央に寄せて幅を抑える。
+ *
+ * **対象の月は3つの Step で共有する** (v1.32.6)。①で来月の CSV を確定してから
+ * ②③を開くたびに今月へ戻っていた。①の確定で取り込んだ月に合わせる。
  */
 const STEPS = [
   { id: 1, label: "① CSV取込" },
@@ -28,6 +33,7 @@ const STEPS = [
 
 export function CoordinatorClient() {
   const [step, setStep] = useState<1 | 2 | 3>(1);
+  const [month, setMonth] = useState<DateString>(() => startOfMonth(todayInTokyo()));
 
   return (
     <main className="mx-auto w-full max-w-[1600px] space-y-4 px-4 py-4">
@@ -68,10 +74,17 @@ export function CoordinatorClient() {
       </nav>
 
       {step === 2 ? (
-        <SlotStep />
+        <SlotStep month={month} onMonthChange={setMonth} />
       ) : (
         <div className="max-w-2xl" data-tour="coord-body">
-          {step === 1 ? <ImportStep /> : <PublishStep />}
+          {step === 1 ? (
+            <ImportStep
+              onImported={setMonth}
+              onNext={() => setStep(2)}
+            />
+          ) : (
+            <PublishStep month={month} onMonthChange={setMonth} />
+          )}
         </div>
       )}
     </main>

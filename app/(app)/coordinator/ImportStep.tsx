@@ -11,6 +11,7 @@ import {
   normalizeDateInput,
   normalizeTimeInput,
 } from "@/lib/time";
+import type { DateString } from "@/lib/types";
 
 import { ImportTimeline } from "./ImportTimeline";
 import { effectiveRoomRaw, findConflicts, rowError, type Row } from "./rows";
@@ -41,7 +42,14 @@ interface ParseResponse {
   skipped: number;
 }
 
-export function ImportStep() {
+export function ImportStep({
+  onImported,
+  onNext,
+}: {
+  /** 確定した予約枠の月 (一番多い月)。②③の対象の月をこれに合わせる (v1.32.6) */
+  onImported: (month: DateString) => void;
+  onNext: () => void;
+}) {
   const roomById = useRoomById();
   const nextKey = useRef(0);
   const fileInput = useRef<HTMLInputElement>(null);
@@ -140,6 +148,8 @@ export function ImportStep() {
       setResult(
         `登録 ${body.inserted}件 / 重複スキップ ${body.skipped}件${merged}${learned}`,
       );
+      const month = mostCommonMonth(rows.map((row) => row.date.trim()));
+      if (month) onImported(month);
       setRows([]);
       setFileNotes([]);
       setSkipped(0);
@@ -222,9 +232,12 @@ export function ImportStep() {
 
       <ErrorMessage>{error}</ErrorMessage>
       {result ? (
-        <p className="rounded-lg bg-[var(--surface)] px-3 py-2 text-sm">
-          {result}
-        </p>
+        <div className="space-y-2 rounded-lg bg-[var(--surface)] px-3 py-2 text-sm">
+          <p>{result}</p>
+          <button type="button" onClick={onNext} className={buttonClass}>
+            ② コマ割りへ進む →
+          </button>
+        </div>
       ) : null}
 
       {rows.length > 0 ? (
@@ -682,4 +695,19 @@ function NewRoomForm({
       </div>
     </div>
   );
+}
+
+/** 'YYYY-MM-DD' の並びから、一番多い月の月初を返す。月をまたぐ CSV でも主な月に合わせる */
+function mostCommonMonth(dates: string[]): DateString | null {
+  const counts = new Map<string, number>();
+  for (const date of dates) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) continue;
+    const month = `${date.slice(0, 7)}-01`;
+    counts.set(month, (counts.get(month) ?? 0) + 1);
+  }
+  let best: string | null = null;
+  for (const [month, count] of counts) {
+    if (best === null || count > counts.get(best)!) best = month;
+  }
+  return best as DateString | null;
 }

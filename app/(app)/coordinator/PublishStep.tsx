@@ -5,7 +5,7 @@ import { useState } from "react";
 import { ErrorMessage, buttonClass } from "@/components/ui";
 import { useRoomById } from "@/lib/rooms";
 import { SLOT_STATUS_LABELS, unassignedRanges } from "@/lib/slots";
-import { formatDateLabel, formatTimeRange, startOfMonth, todayInTokyo } from "@/lib/time";
+import { formatDateLabel, formatTimeRange } from "@/lib/time";
 import type { DateString } from "@/lib/types";
 
 import { MonthNav } from "./MonthNav";
@@ -20,11 +20,14 @@ import { useMonthReservations } from "./useMonthReservations";
  * 公開は**取り消せない操作ではない**が (Step2 で個別に戻せる)、
  * お知らせは配ってしまうと戻せないので、押す前に件数を必ず出す。
  */
-export function PublishStep() {
+export function PublishStep({
+  month,
+  onMonthChange: setMonth,
+}: {
+  month: DateString;
+  onMonthChange: (month: DateString) => void;
+}) {
   const roomById = useRoomById();
-  const [month, setMonth] = useState<DateString>(() =>
-    startOfMonth(todayInTokyo()),
-  );
   const { reservations, loading, error, reload, setError } =
     useMonthReservations(month);
   const [pending, setPending] = useState(false);
