@@ -148,7 +148,8 @@ export function SlotTimeline({
                     onClick={() => onCancelReservation(reservation)}
                     aria-label={`${formatDateLabel(reservation.date)} ${roomById.get(reservation.roomId)?.name} の予約枠を取り消す`}
                     title="この予約枠を取り消す"
-                    className="ml-auto mr-1 shrink-0 rounded px-1 text-xs text-[var(--muted)]"
+                    // 押せる大きさを 32px 角に (v1.32.7。以前は文字の大きさだけで押し損ねた)
+                    className="ml-auto mr-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded text-xs text-[var(--muted)]"
                   >
                     ✕
                   </button>

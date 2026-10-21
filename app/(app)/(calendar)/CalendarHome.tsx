@@ -616,7 +616,7 @@ function FreeRoomsToday({
               type="button"
               onClick={() => onClaim(block, range)}
               aria-label={`${roomById.get(block.roomId)?.name ?? "?"} ${range.startTime}〜${range.endTime} を申請`}
-              className="flex items-center gap-1.5 rounded-full bg-[var(--cell)] py-1.5 pl-2.5 pr-3 text-left active:opacity-60"
+              className="flex min-h-10 items-center gap-1.5 rounded-full bg-[var(--cell)] py-2 pl-2.5 pr-3 text-left active:opacity-60"
             >
               <span
                 aria-hidden

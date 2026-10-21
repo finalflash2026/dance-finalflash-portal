@@ -54,8 +54,9 @@ export function HomeLayoutSection() {
           const required = REQUIRED_SECTIONS.includes(key);
           const shown = !layout.hidden.includes(key);
           return (
-            <li key={key} className="flex items-center gap-2 px-3 py-2">
-              <div className="flex shrink-0 flex-col">
+            <li key={key} className="flex items-center gap-2 px-2 py-1">
+              {/* 上へ・下へは横に並べて 44px 角に (v1.32.7。縦に詰めると押し損ねる) */}
+              <div className="flex shrink-0">
                 <ArrowButton
                   label={`${HOME_SECTION_LABELS[key]}を上へ`}
                   disabled={index === 0}
@@ -124,7 +125,7 @@ function ArrowButton({
       aria-label={label}
       disabled={disabled}
       onClick={onClick}
-      className="flex h-7 w-9 items-center justify-center text-[var(--tint)] disabled:text-[var(--muted)] disabled:opacity-30"
+      className="flex h-11 w-11 items-center justify-center text-[var(--tint)] disabled:text-[var(--muted)] disabled:opacity-30"
     >
       <svg viewBox="0 0 14 8" width="13" height="8" aria-hidden className={up ? "rotate-180" : ""}>
         <path

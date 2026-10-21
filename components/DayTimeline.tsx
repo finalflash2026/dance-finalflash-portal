@@ -228,7 +228,8 @@ export function DayTimeline({
                 setExpanded((prev) => new Set(prev).add(`${date}|${segment.start}`))
               }
               aria-label={`${fromMinutes(segment.start)}〜${fromMinutes(segment.end)} を開く`}
-              className="absolute inset-x-0 z-10 flex items-center gap-1.5 border-y border-dashed border-[var(--border)] bg-[var(--cell)]/80 px-2 text-[10px] text-[var(--muted)] tabular-nums"
+              // 帯は細いままにし、押せる範囲だけ上下に広げる (v1.32.7)
+              className="absolute inset-x-0 z-10 flex items-center gap-1.5 border-y border-dashed border-[var(--border)] bg-[var(--cell)]/80 px-2 text-[11px] text-[var(--muted)] tabular-nums before:absolute before:inset-x-0 before:-inset-y-2.5 before:content-['']"
               style={{ top: y(segment.start), height: FOLD_HEIGHT }}
             >
               <span>
@@ -256,7 +257,7 @@ export function DayTimeline({
                 })
               }
               aria-label={`${fromMinutes(segment.start)}〜${fromMinutes(segment.end)} を折りたたむ`}
-              className="absolute z-10 flex items-center gap-1 rounded-full border border-[var(--border)] bg-[var(--cell)] px-2 py-0.5 text-[10px] text-[var(--tint)] tabular-nums"
+              className="absolute z-10 flex min-h-8 items-center gap-1 rounded-full border border-[var(--border)] bg-[var(--cell)] px-3 py-1 text-[12px] text-[var(--tint)] tabular-nums"
               style={{ top: y(segment.start) + 4, left: TIME_COLUMN_WIDTH + 6 }}
             >
               <span aria-hidden>⌃</span>
