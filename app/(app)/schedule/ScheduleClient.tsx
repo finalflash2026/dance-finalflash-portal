@@ -4,7 +4,10 @@ import { useEffect, useMemo, useRef, useState } from "react";
 
 import { ErrorMessage, GroupHeader, Segmented, groupClass, primaryButtonClass } from "@/components/ui";
 import { GENRE_COLORS, ROOM_BY_ID, type GenreCode } from "@/lib/constants";
-import { DEFAULT_SETTINGS, answerKey, defaultPerGenre } from "@/lib/scheduling/plan";
+import learned from "@/lib/scheduling/learned.json";
+import { measure, type PlanMetrics } from "@/lib/scheduling/metrics";
+import { DEFAULT_SETTINGS, answerKey, defaultPerGenre, isBigRoom } from "@/lib/scheduling/plan";
+import { sizeWeight } from "@/lib/scheduling/rooms";
 import type {
   Answer,
   AnswerKey,
@@ -26,12 +29,18 @@ export function ScheduleClient({
   initialInput,
   me,
   round,
+  canPlan,
 }: {
   initialInput: PlanInput;
   me: string;
   round: ScheduleRound;
+  /**
+   * 集計と割り振りを使えるか (折衝・3役だけ。§6.8.1 / v1.32.4)。
+   * メンバーには回答の画面だけを出す。計算の API 側でも同じ権限を確かめる
+   */
+  canPlan: boolean;
 }) {
-  const [tab, setTab] = useState<"answer" | "plan">("plan");
+  const [tab, setTab] = useState<"answer" | "plan">(canPlan ? "plan" : "answer");
   const [input, setInput] = useState(initialInput);
   // ホームのカード・締切・お知らせからは ?tab=answer で来る (メンバーの回答)
   useEffect(() => {
@@ -58,18 +67,21 @@ export function ScheduleClient({
       </div>
       <p className="rounded-xl bg-[var(--fill)] px-3 py-2 text-[14px] text-[var(--muted)]">
         見本のデータ (150人・来月の予約枠) で動くお試し版です。保存はされません。
+        {canPlan ? " 折衝・3役として表示しています。" : " メンバーとして表示しています。"}
       </p>
-      <Segmented
-        label="画面"
-        value={tab}
-        onChange={setTab}
-        size="large"
-        options={[
-          { value: "answer", label: "回答する (メンバー)" },
-          { value: "plan", label: "集計と割り振り" },
-        ]}
-      />
-      {tab === "answer" ? (
+      {canPlan ? (
+        <Segmented
+          label="画面"
+          value={tab}
+          onChange={setTab}
+          size="large"
+          options={[
+            { value: "answer", label: "自分の回答" },
+            { value: "plan", label: "集計と割り振り" },
+          ]}
+        />
+      ) : null}
+      {tab === "answer" || !canPlan ? (
         <AnswerPanel
           input={input}
           me={me}
@@ -396,6 +408,28 @@ function PlanPanel({ input }: { input: PlanInput }) {
               ]}
               onChange={(sameRoomBonus) => setSettings({ ...settings, sameRoomBonus })}
             />
+            <Choice
+              label="欠席の偏り"
+              hint="特定の曜日しか空いていない人が、毎回出られない案にならないように"
+              value={settings.fairnessWeight}
+              options={[
+                { value: 0, label: "気にしない" },
+                { value: learned.fairnessWeight || 1, label: "ふつう" },
+                { value: Math.max(4, (learned.fairnessWeight || 1) * 3), label: "強く" },
+              ]}
+              onChange={(fairnessWeight) => setSettings({ ...settings, fairnessWeight })}
+            />
+            <Choice
+              label="広い部屋での通し練習"
+              hint="どのジャンルにも、月にこの回数は広い部屋を入れます"
+              value={settings.minBigPerGenre}
+              options={[
+                { value: 0, label: "決めない" },
+                { value: 1, label: "月1回" },
+                { value: 2, label: "月2回" },
+              ]}
+              onChange={(minBigPerGenre) => setSettings({ ...settings, minBigPerGenre })}
+            />
             <RoomSizes
               roomIds={[...new Set(input.candidates.map((c) => c.roomId))].sort((a, b) => a - b)}
               value={settings.roomWeights}
@@ -456,7 +490,9 @@ function summaryOf(settings: PlanSettings): string {
   const maybe = settings.maybeWeight === 0 ? "△数えない" : settings.maybeWeight === 1 ? "△=○" : "△半分";
   const sub = settings.genreWeights[1] === 1 ? "2ジャン同じ" : settings.genreWeights[1] === 0.7 ? "2ジャン少し軽く" : "2ジャンかなり軽く";
   const room = settings.sameRoomBonus === 0 ? "部屋気にしない" : "部屋そろえる";
-  return `1日${settings.maxPerDay}コマまで・${room}・${maybe}・${sub}`;
+  const fair = settings.fairnessWeight === 0 ? "" : "・偏りを抑える";
+  const big = settings.minBigPerGenre ? `・広い部屋 月${settings.minBigPerGenre}回` : "";
+  return `1日${settings.maxPerDay}コマまで・${room}${fair}${big}・${maybe}・${sub}`;
 }
 
 /**
@@ -472,11 +508,10 @@ function RoomSizes({
   value: Record<number, number>;
   onChange: (value: Record<number, number>) => void;
 }) {
-  const options = [
-    { value: 0.8, label: "狭い" },
-    { value: 1, label: "普通" },
-    { value: 1.2, label: "広い" },
-  ];
+  const options = (["small", "normal", "large"] as const).map((size) => ({
+    value: sizeWeight(size, learned.roomStrength),
+    label: size === "small" ? "狭い" : size === "large" ? "広い" : "普通",
+  }));
   return (
     <div className="space-y-1.5">
       <p className="text-[15px] font-semibold">練習場所の広さ</p>
@@ -614,6 +649,12 @@ function ResultView({
   const below = result.assignments.filter((a) => a.belowMin).length;
   const overlaps = result.assignments.filter((a) => a.lostToOverlap > 0).length;
 
+  const byIdAll = new Map(input.candidates.map((c) => [c.id, c]));
+  const bigCount = (genreId: number) =>
+    result.assignments.filter(
+      (a) => a.genreId === genreId && isBigRoom(settings, byIdAll.get(a.candidateId)!.roomId),
+    ).length;
+
   if (result.status === "infeasible" || result.status === "error") {
     return <ErrorMessage>{result.message ?? "計算できませんでした"}</ErrorMessage>;
   }
@@ -637,10 +678,17 @@ function ResultView({
                 <span className="block text-[12px] opacity-90 tabular-nums">
                   {g.slots}コマ・平均{g.slots ? (g.expected / g.slots).toFixed(1) : "0"}人
                 </span>
+                <span className="block text-[11px] opacity-90 tabular-nums">
+                  広い部屋 {bigCount(g.genreId)}回
+                </span>
               </li>
             );
           })}
         </ul>
+        {result.message ? (
+          <p className="rounded-lg bg-[var(--fill)] px-3 py-2 text-[14px]">{result.message}</p>
+        ) : null}
+        <Scorecard metrics={measure(input, settings, result)} />
         <p className="text-[14px] text-[var(--muted)]">
           {below > 0 ? `人数の基準に届かないコマ ${below}件 (赤い枠)。` : ""}
           {overlaps > 0 ? `1ジャンと2・3ジャンが重なったコマ ${overlaps}件 (「重なり」)。` : "1ジャンと2・3ジャンの重なりはありません。"}
@@ -661,6 +709,26 @@ function ResultView({
         />
       ))}
     </div>
+  );
+}
+
+/** 案の採点 (§6.8.6)。条件の学習と同じ物差しで、この案がどうだったかを出す */
+function Scorecard({ metrics }: { metrics: PlanMetrics }) {
+  const items = [
+    { label: "参加率", value: `${(metrics.participation * 100).toFixed(0)}%`, hint: "1ジャンの練習に出られる割合の平均" },
+    { label: "出にくい人", value: `${(metrics.bottom10 * 100).toFixed(0)}%`, hint: "下位1割の人の参加率" },
+    { label: "広い部屋", value: `最少${metrics.minBigRooms}回`, hint: "一番少ないジャンルの回数" },
+  ];
+  return (
+    <ul className="grid grid-cols-3 gap-2">
+      {items.map((item) => (
+        <li key={item.label} className="rounded-lg bg-[var(--fill)] px-2.5 py-2">
+          <span className="block text-[12px] text-[var(--muted)]">{item.label}</span>
+          <span className="block text-[18px] font-bold tabular-nums">{item.value}</span>
+          <span className="block text-[11px] leading-tight text-[var(--muted)]">{item.hint}</span>
+        </li>
+      ))}
+    </ul>
   );
 }
 
