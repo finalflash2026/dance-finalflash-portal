@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
+import { useEffect } from "react";
 
 import { closeSettings } from "@/components/SettingsButton";
 
@@ -15,7 +16,7 @@ import { closeSettings } from "@/components/SettingsButton";
  *
  * どこへ戻るかは画面で決まる。タブの画面 (ホーム・ナンバー) では出さない。
  */
-function backTarget(pathname: string): { href: string; label: string } | null {
+export function backTarget(pathname: string): { href: string; label: string } | null {
   const path = pathname.replace(/^\/demo(?=\/)/, "");
   if (path === "/settings") return { href: "/", label: "戻る" };
   if (path === "/keys" || path === "/notifications") return { href: "/", label: "戻る" };
@@ -34,12 +35,29 @@ function backTarget(pathname: string): { href: string; label: string } | null {
   return null;
 }
 
+/**
+ * 来た画面へ戻す画面 (v1.32.7)。お知らせ・鍵と連絡はホームのベルや欄からだけでなく、
+ * ナンバーの画面などからも開くので、ホームへ決め打ちで戻すと来た画面を見失う。
+ * 日程調整はホーム (メンバー) からも設定 (折衝・3役) からも来る
+ */
+const BACK_TO_PREVIOUS = ["/keys", "/notifications", "/schedule"];
+
+/**
+ * このアプリの中で画面を移った回数。0 のとき (通知・URL直打ちで直接開いた) は
+ * `router.back()` を使わない — **サイトの外へ出てしまう**。レイアウトは
+ * 作り直されないので、モジュールに持てば移動をまたいで残る
+ */
+let inAppNavigations = -1;
+
 const CLASS_NAME =
   "inline-flex h-11 items-center justify-center gap-1 rounded-full bg-[var(--fill)] px-3.5 text-[16px] font-semibold leading-none text-[var(--tint)] active:opacity-60";
 
 export function BackButton() {
   const pathname = usePathname();
   const router = useRouter();
+  useEffect(() => {
+    inAppNavigations += 1;
+  }, [pathname]);
   const target = backTarget(pathname);
   if (!target) return null;
 
@@ -60,11 +78,11 @@ export function BackButton() {
     </>
   );
 
-  if (pathname === "/schedule" || pathname === "/demo/schedule") {
+  if (BACK_TO_PREVIOUS.includes(pathname.replace(/^\/demo(?=\/)/, ""))) {
     return (
       <button
         type="button"
-        onClick={() => (window.history.length > 1 ? router.back() : router.push("/"))}
+        onClick={() => (inAppNavigations > 0 ? router.back() : router.push(target.href))}
         className={CLASS_NAME}
       >
         {content}

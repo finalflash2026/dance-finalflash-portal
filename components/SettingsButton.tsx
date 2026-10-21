@@ -37,9 +37,8 @@ const ABOVE_TABS = [
   "/coordinator",
   "/manage",
   "/schedule",
-  // v1.31 (§6.7.13)。ホームから入る画面。閉じたらホームへ戻る
-  "/keys",
-  "/notifications",
+  // お知らせ・鍵と連絡 (v1.31) は入れない (v1.32.7)。そこから設定を開いて
+  // 閉じたら、お知らせ・鍵と連絡へ戻る
 ];
 
 function isAboveTabs(pathname: string): boolean {
