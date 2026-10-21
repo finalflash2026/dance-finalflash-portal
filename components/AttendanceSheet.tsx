@@ -13,6 +13,7 @@ import {
   type Participant,
 } from "@/lib/attendance";
 import { formatSpanRange } from "@/lib/day-span";
+import { dbErrorMessage } from "@/lib/error-message";
 import { createClient } from "@/lib/supabase/client";
 import {
   finalizeTimeInput,
@@ -119,7 +120,7 @@ export function AttendanceSheet({
           : await query.eq("number_event_id", target.id);
 
     if (attendanceError) {
-      setError(`出欠を取得できませんでした: ${attendanceError.message}`);
+      setError(dbErrorMessage("出欠を取得できませんでした", attendanceError));
       setParticipants([]);
       return;
     }
@@ -215,7 +216,7 @@ export function AttendanceSheet({
     setPending(false);
 
     if (deleteError) {
-      setError(`取り消せませんでした: ${deleteError.message}`);
+      setError(dbErrorMessage("取り消せませんでした", deleteError));
       return;
     }
     setDraftStatus(null);
@@ -413,7 +414,7 @@ function describeError(error: { code?: string; message: string }): string {
   if (error.code === "23514") {
     return "遅刻・早退には時刻が必要です";
   }
-  return `登録できませんでした: ${error.message}`;
+  return dbErrorMessage("登録できませんでした", error);
 }
 
 type People = { people: { userId: string; username: string }[]; error?: string };
@@ -517,7 +518,7 @@ async function loadGenreParticipants(
     .or(filter);
 
   if (error) {
-    return { people: [], error: `参加者を取得できませんでした: ${error.message}` };
+    return { people: [], error: dbErrorMessage("参加者を取得できませんでした", error) };
   }
 
   return {
@@ -552,7 +553,7 @@ async function loadNumberParticipants(
     .eq("number_id", (event as { number_id: string }).number_id);
 
   if (error) {
-    return { people: [], error: `メンバーを取得できませんでした: ${error.message}` };
+    return { people: [], error: dbErrorMessage("メンバーを取得できませんでした", error) };
   }
 
   return {

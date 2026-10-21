@@ -7,6 +7,7 @@ import {
   toBoardMessages,
   type BoardMessage,
 } from "@/lib/board-messages";
+import { dbErrorMessage } from "@/lib/error-message";
 import { createClient } from "@/lib/supabase/client";
 import { formatAsTokyoDateTime, formatAsTokyoTime } from "@/lib/time";
 import { useLiveRefresh } from "@/lib/use-live-refresh";
@@ -108,7 +109,7 @@ export function BoardMessages({
 
     const { data, error: fetchError } = await query;
     if (fetchError) {
-      setError(`連絡を取得できませんでした: ${fetchError.message}`);
+      setError(dbErrorMessage("連絡を取得できませんでした", fetchError));
       return;
     }
     setError(null);
@@ -176,7 +177,7 @@ export function BoardMessages({
       .eq("id", message.id);
     setPending(false);
     if (deleteError) {
-      setError(`削除できませんでした: ${deleteError.message}`);
+      setError(dbErrorMessage("削除できませんでした", deleteError));
       return;
     }
     await refresh();

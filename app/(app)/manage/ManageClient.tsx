@@ -17,6 +17,7 @@ import {
   primaryButtonClass,
   tintTextClass,
 } from "@/components/ui";
+import { dbErrorMessage } from "@/lib/error-message";
 import { createClient } from "@/lib/supabase/client";
 import {
   formatAsTokyoDateTime,
@@ -265,7 +266,7 @@ function EventSheet({
           .insert({ ...row, created_by: currentUserId });
     setPending(false);
     if (saveError) {
-      setError(`保存できませんでした: ${saveError.message}`);
+      setError(dbErrorMessage("保存できませんでした", saveError));
       return;
     }
     onClose();
@@ -284,7 +285,7 @@ function EventSheet({
       .eq("id", draft.id);
     setPending(false);
     if (deleteError) {
-      setError(`削除できませんでした: ${deleteError.message}`);
+      setError(dbErrorMessage("削除できませんでした", deleteError));
       return;
     }
     onClose();
@@ -558,7 +559,7 @@ function DeadlineSheet({
       : await supabase.from("deadlines").insert({ ...row, created_by: currentUserId });
     setPending(false);
     if (saveError) {
-      setError(`保存できませんでした: ${saveError.message}`);
+      setError(dbErrorMessage("保存できませんでした", saveError));
       return;
     }
     onClose();
@@ -575,7 +576,7 @@ function DeadlineSheet({
       .eq("id", draft.id);
     setPending(false);
     if (deleteError) {
-      setError(`削除できませんでした: ${deleteError.message}`);
+      setError(dbErrorMessage("削除できませんでした", deleteError));
       return;
     }
     onClose();
@@ -690,6 +691,8 @@ function AnnouncementsPanel({ announcements }: { announcements: Announcement[] }
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  /** 取り消し中の告知。連打で削除が何度も飛ばないように押せなくする (v1.32.6) */
+  const [removingId, setRemovingId] = useState<string | null>(null);
 
   async function send() {
     if (!title.trim() || !body.trim()) {
@@ -732,12 +735,14 @@ function AnnouncementsPanel({ announcements }: { announcements: Announcement[] }
     ) {
       return;
     }
+    setRemovingId(announcement.id);
     const { error: deleteError } = await createClient()
       .from("announcements")
       .delete()
       .eq("id", announcement.id);
+    setRemovingId(null);
     if (deleteError) {
-      setError(`取り消せませんでした: ${deleteError.message}`);
+      setError(dbErrorMessage("取り消せませんでした", deleteError));
       return;
     }
     router.refresh();
@@ -811,9 +816,10 @@ function AnnouncementsPanel({ announcements }: { announcements: Announcement[] }
                 <button
                   type="button"
                   onClick={() => remove(announcement)}
-                  className="shrink-0 text-[15px] text-[var(--danger-solid)]"
+                  disabled={removingId !== null}
+                  className="shrink-0 text-[15px] text-[var(--danger-solid)] disabled:opacity-40"
                 >
-                  取り消す
+                  {removingId === announcement.id ? "取り消し中…" : "取り消す"}
                 </button>
               </li>
             ))}

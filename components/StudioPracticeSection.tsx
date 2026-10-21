@@ -6,6 +6,7 @@ import { useState } from "react";
 import { AttendanceSheet } from "@/components/AttendanceSheet";
 import { ErrorMessage, buttonClass, inputClass } from "@/components/ui";
 import { formatSpanRange, spansMidnight } from "@/lib/day-span";
+import { dbErrorMessage } from "@/lib/error-message";
 import { createClient } from "@/lib/supabase/client";
 import {
   finalizeTimeInput,
@@ -151,7 +152,7 @@ export function StudioPracticeSection({
     setPending(false);
     if (writeError) {
       setError(
-        `${editing ? "変更" : "登録"}できませんでした: ${writeError.message}`,
+        dbErrorMessage(`${editing ? "変更" : "登録"}できませんでした`, writeError),
       );
       return;
     }
@@ -179,7 +180,7 @@ export function StudioPracticeSection({
       .eq("id", practice.id);
     setPending(false);
     if (deleteError) {
-      setError(`削除できませんでした: ${deleteError.message}`);
+      setError(dbErrorMessage("削除できませんでした", deleteError));
       return;
     }
     router.refresh();

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 
 import { ErrorMessage, buttonClass, inputClass } from "@/components/ui";
+import { dbErrorMessage } from "@/lib/error-message";
 import { numberColor } from "@/lib/numbers";
 import { createClient } from "@/lib/supabase/client";
 
@@ -61,7 +62,7 @@ export function NumberList({
 
     setPending(false);
     if (insertError) {
-      setError(`作成できませんでした: ${insertError.message}`);
+      setError(dbErrorMessage("作成できませんでした", insertError));
       return;
     }
     setName("");

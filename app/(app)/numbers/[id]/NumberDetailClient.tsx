@@ -12,6 +12,7 @@ import {
 } from "@/components/ui";
 import { GENRES, GENRE_BY_ID } from "@/lib/constants";
 import { formatSpanRange, spansMidnight } from "@/lib/day-span";
+import { dbErrorMessage } from "@/lib/error-message";
 import { numberColor } from "@/lib/numbers";
 import { createClient } from "@/lib/supabase/client";
 import {
@@ -183,7 +184,7 @@ function DeleteSection({
     const { error } = await supabase.from("numbers").delete().eq("id", number.id);
     setPending(false);
     if (error) {
-      onError(`削除できませんでした: ${error.message}`);
+      onError(dbErrorMessage("削除できませんでした", error));
       return;
     }
     router.push("/number-cal");
@@ -284,7 +285,7 @@ function EventsTab({
       .eq("id", event.id);
     setPending(false);
     if (error) {
-      onError(`削除できませんでした: ${error.message}`);
+      onError(dbErrorMessage("削除できませんでした", error));
       return;
     }
     router.refresh();
@@ -465,7 +466,7 @@ function EventEditor({
 
     setPending(false);
     if (error) {
-      onError(`保存できませんでした: ${error.message}`);
+      onError(dbErrorMessage("保存できませんでした", error));
       return;
     }
     onClose();
@@ -633,7 +634,7 @@ function MembersTab({
         .order("generation", { ascending: false });
       if (cancelled) return;
       if (error) {
-        onError(`名簿を取得できませんでした: ${error.message}`);
+        onError(dbErrorMessage("名簿を取得できませんでした", error));
         setCandidates([]);
         return;
       }
@@ -681,7 +682,7 @@ function MembersTab({
       .insert({ number_id: number.id, user_id: userId });
     setPending(false);
     if (error) {
-      onError(`追加できませんでした: ${error.message}`);
+      onError(dbErrorMessage("追加できませんでした", error));
       return;
     }
     router.refresh();
@@ -708,7 +709,7 @@ function MembersTab({
       .eq("user_id", member.userId);
     setPending(false);
     if (error) {
-      onError(`外せませんでした: ${error.message}`);
+      onError(dbErrorMessage("外せませんでした", error));
       return;
     }
     if (self) {

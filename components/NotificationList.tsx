@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 
+import { dbErrorMessage } from "@/lib/error-message";
 import { createClient } from "@/lib/supabase/client";
 import { formatAsTokyoTime } from "@/lib/time";
 import type { NotificationType } from "@/lib/types";
@@ -57,7 +58,7 @@ export function NotificationList({
 
     if (updateError) {
       // 失敗したら戻す。消えたまま既読になっていない状態が一番たちが悪い
-      setError(`既読にできませんでした: ${updateError.message}`);
+      setError(dbErrorMessage("既読にできませんでした", updateError));
       setRows((prev) =>
         [...prev, row].sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
       );

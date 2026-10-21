@@ -6,6 +6,7 @@ import { BoardMessages } from "@/components/BoardMessages";
 import { Sheet } from "@/components/Sheet";
 import { fillButtonClass, primaryButtonClass } from "@/components/ui";
 import type { BoardMessage } from "@/lib/board-messages";
+import { dbErrorMessage } from "@/lib/error-message";
 import { useRooms } from "@/lib/rooms";
 import { createClient } from "@/lib/supabase/client";
 import { useLiveRefresh } from "@/lib/use-live-refresh";
@@ -80,7 +81,7 @@ export function RoomStatusBoard({
       .eq("date", today);
 
     if (fetchError) {
-      setError(`最新の状態を取得できませんでした: ${fetchError.message}`);
+      setError(dbErrorMessage("最新の状態を取得できませんでした", fetchError));
       return;
     }
     setError(null);

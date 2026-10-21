@@ -20,6 +20,7 @@ import {
   isCoordinatorOrAbove,
 } from "@/lib/constants";
 import { hasSupabaseEnv } from "@/lib/env";
+import { dbErrorMessage } from "@/lib/error-message";
 import { createClient } from "@/lib/supabase/client";
 import {
   THEME_HINTS,
@@ -590,7 +591,7 @@ function SubgenreSection({
     setPending(false);
 
     if (error) {
-      onError(`保存に失敗しました: ${error.message}`);
+      onError(dbErrorMessage("保存に失敗しました", error));
       return;
     }
 

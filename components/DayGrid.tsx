@@ -12,6 +12,7 @@ import {
   type GenreCode,
 } from "@/lib/constants";
 import { splitOpenSlot, type ClaimInfo, type OpenSegment } from "@/lib/claims";
+import { dbErrorMessage } from "@/lib/error-message";
 import { useRoomById, useRoomSections } from "@/lib/rooms";
 import { createClient } from "@/lib/supabase/client";
 import {
@@ -421,7 +422,7 @@ function DetailModal({
 
     setPending(false);
     if (deleteError) {
-      setError(`取消に失敗しました: ${deleteError.message}`);
+      setError(dbErrorMessage("取消に失敗しました", deleteError));
       return;
     }
     onClose();

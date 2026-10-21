@@ -13,6 +13,7 @@ import {
   GENRE_COLORS,
   type GenreCode,
 } from "@/lib/constants";
+import { dbErrorMessage } from "@/lib/error-message";
 import { useRoomById } from "@/lib/rooms";
 import { createClient } from "@/lib/supabase/client";
 import {
@@ -135,7 +136,7 @@ export function ClaimSheet({
         setError(`時刻は${CLAIM_STEP_MINUTES}分刻みで選んでください`);
         return;
       }
-      setError(`申請に失敗しました: ${insertError.message}`);
+      setError(dbErrorMessage("申請に失敗しました", insertError));
       return;
     }
 

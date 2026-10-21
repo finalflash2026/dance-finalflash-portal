@@ -9,6 +9,7 @@ import {
 } from "@/lib/club-key";
 import { BoardMessages } from "@/components/BoardMessages";
 import type { BoardMessage } from "@/lib/board-messages";
+import { dbErrorMessage } from "@/lib/error-message";
 import { createClient } from "@/lib/supabase/client";
 import { useLiveRefresh } from "@/lib/use-live-refresh";
 import { formatAsTokyoDateTime } from "@/lib/time";
@@ -53,7 +54,7 @@ export function ClubKeyBoard({
       .limit(KEY_HISTORY_LIMIT);
 
     if (fetchError) {
-      setError(`最新の状態を取得できませんでした: ${fetchError.message}`);
+      setError(dbErrorMessage("最新の状態を取得できませんでした", fetchError));
       return;
     }
     setError(null);
