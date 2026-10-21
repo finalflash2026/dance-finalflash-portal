@@ -1,5 +1,28 @@
 import type { NextConfig } from "next";
 
+/**
+ * セキュリティ用の応答ヘッダー (SPEC.md §13.2 / v1.31.4)。全ページに付ける。
+ *
+ * - X-Frame-Options / frame-ancestors … 他のサイトに埋め込ませない。見えない枠の上で
+ *   「開けましたと報告する」などを押させる誤操作 (クリックジャッキング) を防ぐ
+ * - nosniff … 画像などを勝手にスクリプトとして解釈させない
+ * - Referrer-Policy … 外へ出るリンクに、こちらの URL (日付など) を渡しすぎない
+ * - Permissions-Policy … 使わない端末機能は最初から閉じておく
+ *
+ * CSP の他の項目 (読み込んでよいスクリプトの制限) は、テーマと起動アニメーションの
+ * インラインスクリプトや Next の動作と両立させる手間が大きいので、本版では付けない。
+ */
+const SECURITY_HEADERS = [
+  { key: "X-Frame-Options", value: "DENY" },
+  { key: "Content-Security-Policy", value: "frame-ancestors 'none'" },
+  { key: "X-Content-Type-Options", value: "nosniff" },
+  { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+  {
+    key: "Permissions-Policy",
+    value: "camera=(), microphone=(), geolocation=(), payment=(), usb=()",
+  },
+];
+
 const nextConfig: NextConfig = {
   /*
    * 日程調整の計算 (SPEC §6.8.3) で使うソルバー。WASM のファイルを実行時に
@@ -8,6 +31,9 @@ const nextConfig: NextConfig = {
   serverExternalPackages: ["highs"],
   outputFileTracingIncludes: {
     "/api/schedule/plan": ["./node_modules/highs/build/**"],
+  },
+  async headers() {
+    return [{ source: "/:path*", headers: SECURITY_HEADERS }];
   },
   experimental: {
     /*

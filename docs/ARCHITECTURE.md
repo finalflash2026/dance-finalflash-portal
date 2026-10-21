@@ -142,7 +142,7 @@ Next.js の決まりで、**フォルダの並びがそのまま URL になる**
 | `constants.ts`・`rooms.tsx`・`rooms-server.ts` | ジャンル・色・役職名などの定数、練習場所の一覧 |
 | `theme.ts` | 明暗テーマの切り替え |
 | `home-layout.ts` | ホームの欄の並びと表示/非表示 (端末に保存) |
-| `rate-limit.ts` | ログインなどの試行回数の制限 |
+| `rate-limit.ts` | ログイン・登録・権限追加の試行回数の制限。DB (`rate_limits` テーブル) で数えるので、サーバーが複数あっても効く |
 | `cron-auth.ts` | Cron からの呼び出しかどうかの確認 |
 | `use-live-refresh.ts`・`refresh-signal.ts`・`nav-direction.ts` | 鍵のボードの自動更新、引っぱって更新の合図、タブ移動の向き |
 
@@ -150,7 +150,7 @@ Next.js の決まりで、**フォルダの並びがそのまま URL になる**
 
 | 場所 | 役割 |
 |---|---|
-| `supabase/migrations/0001〜0020_*.sql` (0019 は fix/security-hardening 側) | **データベースの設計図**。テーブル・権限(RLS)を番号順に積み重ねる。本番には Supabase の画面か CLI で番号順に流す |
+| `supabase/migrations/0001〜0020_*.sql` | **データベースの設計図**。テーブル・権限(RLS)を番号順に積み重ねる。本番には Supabase の画面か CLI で番号順に流す |
 | `public/sw.js` | Service Worker。通知の表示と、`/_next/static/`(アプリの部品ファイル)の端末保存 |
 | `public/` のアイコン類 | ホーム画面のアイコンなど |
 | `assets/` | 起動アニメーションのロゴ、ロゴの元データ(`assets/logo/`) |

@@ -4,7 +4,7 @@ import { z } from "zod";
 import { getCurrentProfile } from "@/lib/auth/session";
 import { ROLE_LABELS } from "@/lib/constants";
 import { hasSupabaseEnv } from "@/lib/env";
-import { checkRateLimit, clientIp } from "@/lib/rate-limit";
+import { clientIp, hitRateLimit } from "@/lib/rate-limit";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { Role } from "@/lib/types";
 
@@ -38,7 +38,8 @@ const CANDIDATES = [
 ];
 
 export async function POST(request: Request) {
-  if (!checkRateLimit(`elevate:${clientIp(request)}`)) {
+  // 試行回数の制限は DB で数える (§13.2 / v1.31.4)。IP ごと 5回/分
+  if (!(await hitRateLimit(`elevate:ip:${clientIp(request)}`, 5, 60_000))) {
     return Response.json(
       { error: "試行回数が多すぎます。1分ほど待ってからやり直してください" },
       { status: 429 },

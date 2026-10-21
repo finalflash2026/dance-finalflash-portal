@@ -18,7 +18,7 @@
     "bcryptjs": "^3.0.3",
     "date-fns": "^4.4.0",
     "highs": "1.15.3",
-    "next": "15.5.23",
+    "next": "15.5.27",
     "papaparse": "^5.5.4",
     "react": "19.1.0",
     "react-dom": "19.1.0",
@@ -35,9 +35,14 @@
     "@types/react-dom": "^19",
     "@types/web-push": "^3.6.4",
     "eslint": "^9",
-    "eslint-config-next": "15.5.23",
+    "eslint-config-next": "15.5.27",
     "tailwindcss": "^4",
     "tsx": "^4.23.12",
     "typescript": "^5"
+  },
+  "overrides": {
+    "next": {
+      "postcss": "^8.5.23"
+    }
   }
 }
