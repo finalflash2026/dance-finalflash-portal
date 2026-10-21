@@ -66,7 +66,7 @@ export const DEFAULT_SETTINGS: Omit<PlanSettings, "perGenre"> = {
   maybeWeight: 0.5,
   genreWeights: [1, 0.7, 0.5],
   minPeople: 0,
-  timeLimitSeconds: 10,
+  timeLimitSeconds: 25,
 };
 
 /** 既定の「1ジャンルあたりのコマ数」。全部のコマをほぼ均等に分ける */
@@ -360,6 +360,9 @@ export function plan(input: PlanInput, settings: PlanSettings, solver: Solver): 
   try {
     solution = solver.solve(model.lp, {
       time_limit: settings.timeLimitSeconds,
+      // 最適との差 0.5% までで止める。150人の見本で最適の 99.8% の案が 3割ほど早く出る
+      // (Vercel では最適まで解くと 10秒近くかかった)
+      mip_rel_gap: 0.005,
       // 同じ入力からは同じ答えを出す
       random_seed: 0,
       output_flag: false,

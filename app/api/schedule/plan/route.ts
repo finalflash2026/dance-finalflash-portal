@@ -18,6 +18,8 @@ import type { PlanInput } from "@/lib/scheduling/types";
  * 本番では回答を画面から受け取らない (改ざんできてしまうため。DB から読む)。
  */
 export const runtime = "nodejs";
+/** 計算は数秒〜十数秒かかる (Vercel の CPU では手元の 3〜5倍)。余裕を持たせる */
+export const maxDuration = 60;
 
 const time = z.string().regex(/^\d{2}:\d{2}$/);
 const answer = z.enum(["ok", "maybe", "no"]);
@@ -47,7 +49,7 @@ const schema = z.object({
     genreWeights: z.tuple([z.number().min(0).max(2), z.number().min(0).max(2), z.number().min(0).max(2)]),
     perGenre: z.number().int().min(0).max(100),
     minPeople: z.number().min(0).max(200),
-    timeLimitSeconds: z.number().min(1).max(20),
+    timeLimitSeconds: z.number().min(1).max(50),
   }),
 });
 

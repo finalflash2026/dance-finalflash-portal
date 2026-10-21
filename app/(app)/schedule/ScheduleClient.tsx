@@ -377,7 +377,7 @@ function ResultView({
         <div className="flex items-baseline justify-between gap-2">
           <h2 className="text-[17px] font-bold">案</h2>
           <span className="text-[13px] text-[var(--muted)] tabular-nums">
-            {result.status === "optimal" ? "最適" : "制限時間内で一番良い案"} ・ {(result.elapsedMs / 1000).toFixed(1)}秒
+            {result.status === "optimal" ? "最適 (差 0.5% 以内)" : "制限時間内で一番良い案"} ・ {(result.elapsedMs / 1000).toFixed(1)}秒
           </span>
         </div>
         <ul className="grid grid-cols-3 gap-2">
