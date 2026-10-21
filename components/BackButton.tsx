@@ -22,7 +22,12 @@ function backTarget(pathname: string): { href: string; label: string } | null {
   if (path.startsWith("/numbers/") || path === "/number") {
     return { href: "/number-cal", label: "ナンバー" };
   }
-  if (path === "/manage" || path.startsWith("/admin") || path.startsWith("/coordinator")) {
+  if (
+    path === "/manage" ||
+    path === "/schedule" ||
+    path.startsWith("/admin") ||
+    path.startsWith("/coordinator")
+  ) {
     return { href: "/settings", label: "設定" };
   }
   return null;

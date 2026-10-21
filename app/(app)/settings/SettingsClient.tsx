@@ -19,6 +19,7 @@ import {
   ROLE_LABELS,
   isCoordinatorOrAbove,
 } from "@/lib/constants";
+import { hasSupabaseEnv } from "@/lib/env";
 import { createClient } from "@/lib/supabase/client";
 import {
   THEME_HINTS,
@@ -483,6 +484,12 @@ function RoleSection({
           >
             折衝ワークフローを開く
           </Link>
+          {/* 日程調整 (§6.8 / v1.32)。いまは手元の環境の見本だけ。本番は DB を作るまで出さない */}
+          {!hasSupabaseEnv() ? (
+            <Link href="/schedule" className={`${secondaryButtonClass} block text-center`}>
+              日程調整 (お試し)
+            </Link>
+          ) : null}
           {/* イベント・締切・告知 (§6.7.11 / v1.30)。告知の欄は 3役にだけ出る */}
           <Link
             href="/manage"

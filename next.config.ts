@@ -1,6 +1,14 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  /*
+   * 日程調整の計算 (SPEC §6.8.3) で使うソルバー。WASM のファイルを実行時に
+   * 読むので、まとめずに node_modules から読ませ、デプロイにも含める
+   */
+  serverExternalPackages: ["highs"],
+  outputFileTracingIncludes: {
+    "/api/schedule/plan": ["./node_modules/highs/build/**"],
+  },
   experimental: {
     /*
      * クライアント側ルーターキャッシュの保持時間 (SPEC.md §12 / v1.14)

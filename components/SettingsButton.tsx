@@ -36,6 +36,7 @@ const ABOVE_TABS = [
   "/admin",
   "/coordinator",
   "/manage",
+  "/schedule",
   // v1.31 (§6.7.13)。ホームから入る画面。閉じたらホームへ戻る
   "/keys",
   "/notifications",
