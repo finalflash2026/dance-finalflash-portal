@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import { ErrorMessage, GroupHeader, Segmented, groupClass, primaryButtonClass } from "@/components/ui";
 import { GENRE_COLORS, ROOM_BY_ID, type GenreCode } from "@/lib/constants";
@@ -13,7 +13,8 @@ import type {
   PlanResult,
   PlanSettings,
 } from "@/lib/scheduling/types";
-import { formatDateLabel, getWeekday } from "@/lib/time";
+import { roundTitle, type ScheduleRound } from "@/lib/scheduling/round";
+import { formatDateLabel, getWeekday, parseDate, todayInTokyo } from "@/lib/time";
 
 /**
  * 日程調整からのコマ割り (SPEC.md §6.8.4 / v1.32 デモ)
@@ -21,13 +22,40 @@ import { formatDateLabel, getWeekday } from "@/lib/time";
  * 「回答する」はメンバーの画面の見本、「集計と割り振り」は折衝・3役の画面。
  * いまは見本のデータ (150人・来月の予約枠) で動き、保存はされない。
  */
-export function ScheduleClient({ initialInput, me }: { initialInput: PlanInput; me: string }) {
+export function ScheduleClient({
+  initialInput,
+  me,
+  round,
+}: {
+  initialInput: PlanInput;
+  me: string;
+  round: ScheduleRound;
+}) {
   const [tab, setTab] = useState<"answer" | "plan">("plan");
   const [input, setInput] = useState(initialInput);
+  // ホームのカード・締切・お知らせからは ?tab=answer で来る (メンバーの回答)
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get("tab") === "answer") setTab("answer");
+  }, []);
+  const days = daysBetween(todayInTokyo(), round.deadline);
+  // 回答した人数は回答そのものから数える (自分が答えると増える)
+  const answeredCount = input.members.filter(
+    (m) => Object.keys(input.answers[m.id] ?? {}).length > 0,
+  ).length;
 
   return (
     <main className="mx-auto max-w-3xl space-y-4 px-4 py-3">
-      <h1 className="text-[28px] font-bold leading-tight">日程調整</h1>
+      <h1 className="text-[28px] font-bold leading-tight">{roundTitle(round)}</h1>
+      {/* 回の状態 (§6.8.4)。締切と回答した人数 */}
+      <div className="flex flex-wrap items-center gap-2 text-[14px]">
+        <span className="rounded-full bg-[#34c759] px-2.5 py-1 font-semibold text-white">受付中</span>
+        <span className="rounded-full bg-[var(--fill)] px-2.5 py-1 tabular-nums">
+          締切 {formatDateLabel(round.deadline)} 23:59 ({days <= 0 ? "今日" : `あと${days}日`})
+        </span>
+        <span className="rounded-full bg-[var(--fill)] px-2.5 py-1 tabular-nums">
+          回答 {answeredCount}/{input.members.length}人
+        </span>
+      </div>
       <p className="rounded-xl bg-[var(--fill)] px-3 py-2 text-[14px] text-[var(--muted)]">
         見本のデータ (150人・来月の予約枠) で動くお試し版です。保存はされません。
       </p>
@@ -258,13 +286,22 @@ function PlanPanel({ input }: { input: PlanInput }) {
   }));
   const [result, setResult] = useState<PlanResult | null>(null);
   const [pending, setPending] = useState(false);
+  const [elapsed, setElapsed] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  const [advanced, setAdvanced] = useState(false);
 
   const answered = input.members.filter((m) => Object.keys(input.answers[m.id] ?? {}).length > 0).length;
+  const total = input.candidates.length;
+  const genres = input.genres.length;
+  const maxPerGenre = Math.floor(total / genres);
+  const used = Math.min(total, settings.perGenre * genres);
 
   async function run() {
     setPending(true);
     setError(null);
+    setElapsed(0);
+    const started = Date.now();
+    const timer = window.setInterval(() => setElapsed((Date.now() - started) / 1000), 200);
     try {
       const res = await fetch("/api/schedule/plan", {
         method: "POST",
@@ -277,7 +314,10 @@ function PlanPanel({ input }: { input: PlanInput }) {
         return;
       }
       setResult(body as PlanResult);
+    } catch {
+      setError("通信できませんでした。電波の良いところでもう一度押してください");
     } finally {
+      window.clearInterval(timer);
       setPending(false);
     }
   }
@@ -286,77 +326,181 @@ function PlanPanel({ input }: { input: PlanInput }) {
     <div className="space-y-4">
       <div className="grid grid-cols-3 gap-2">
         <Stat label="回答した人" value={`${answered}/${input.members.length}`} />
-        <Stat label="候補のコマ" value={`${input.candidates.length}コマ`} />
-        <Stat label="ジャンル" value={`${input.genres.length}`} />
+        <Stat label="予約したコマ" value={`${total}`} />
+        <Stat label="ジャンル" value={`${genres}`} />
       </div>
 
       <section className={`${groupClass} space-y-4 p-4`}>
-        <h2 className="text-[17px] font-bold">条件</h2>
-        <NumberRow
-          label="1ジャンルあたりのコマ数"
-          hint={`各ジャンルはこの数か +1。最大 ${Math.floor(input.candidates.length / input.genres.length)}`}
-          value={settings.perGenre}
-          step={1}
-          min={0}
-          max={Math.floor(input.candidates.length / input.genres.length)}
-          onChange={(perGenre) => setSettings({ ...settings, perGenre })}
-        />
-        <NumberRow
-          label="同じジャンルの1日の上限"
-          hint="1日にこのコマ数まで (連続は可)"
-          value={settings.maxPerDay}
-          step={1}
-          min={1}
-          max={5}
-          onChange={(maxPerDay) => setSettings({ ...settings, maxPerDay })}
-        />
-        <NumberRow
-          label="△ の重み"
-          hint="○ を 1 としたとき"
-          value={settings.maybeWeight}
-          step={0.1}
-          min={0}
-          max={1}
-          onChange={(maybeWeight) => setSettings({ ...settings, maybeWeight })}
-        />
-        <NumberRow
-          label="2ジャンの重み"
-          hint="1ジャン = 1"
-          value={settings.genreWeights[1]}
-          step={0.1}
-          min={0}
-          max={1}
-          onChange={(w) =>
-            setSettings({ ...settings, genreWeights: [settings.genreWeights[0], w, settings.genreWeights[2]] })
-          }
-        />
-        <NumberRow
-          label="3ジャンの重み"
-          hint="1ジャン = 1"
-          value={settings.genreWeights[2]}
-          step={0.1}
-          min={0}
-          max={1}
-          onChange={(w) =>
-            setSettings({ ...settings, genreWeights: [settings.genreWeights[0], settings.genreWeights[1], w] })
-          }
-        />
-        <NumberRow
-          label="人数の基準"
-          hint="これに届かないコマに印を付ける (0 で付けない)"
-          value={settings.minPeople}
-          step={1}
-          min={0}
-          max={100}
-          onChange={(minPeople) => setSettings({ ...settings, minPeople })}
-        />
-        <button type="button" onClick={run} disabled={pending} className={primaryButtonClass}>
-          {pending ? "計算しています…" : "案を作る"}
+        <div>
+          <h2 className="text-[17px] font-bold">各ジャンルのコマ数</h2>
+          <p className="text-[14px] text-[var(--muted)]">
+            全部のジャンルに同じ数ずつ入れます (端数は +1)。余ったコマは「空き」になります。
+          </p>
+        </div>
+        <div className="flex items-center justify-center gap-4">
+          <StepButton label="減らす" onClick={() => setSettings({ ...settings, perGenre: Math.max(0, settings.perGenre - 1) })}>−</StepButton>
+          <p className="min-w-[96px] text-center">
+            <span className="text-[34px] font-bold tabular-nums">{settings.perGenre}</span>
+            <span className="text-[16px]"> コマ</span>
+          </p>
+          <StepButton label="増やす" onClick={() => setSettings({ ...settings, perGenre: Math.min(maxPerGenre, settings.perGenre + 1) })}>＋</StepButton>
+        </div>
+        {/* 使うコマ / 予約したコマ を棒で見せる */}
+        <div>
+          <div className="h-2.5 overflow-hidden rounded-full bg-[var(--fill)]">
+            <div
+              className="h-full rounded-full bg-[var(--tint)] transition-[width] duration-300"
+              style={{ width: `${(used / total) * 100}%` }}
+            />
+          </div>
+          <p className="mt-1 text-[13px] text-[var(--muted)] tabular-nums">
+            {genres}ジャンル × {settings.perGenre} = {used}コマを使う / 予約 {total}コマ ・ 空き {total - used}コマ
+          </p>
+        </div>
+
+        <button
+          type="button"
+          onClick={() => setAdvanced((v) => !v)}
+          aria-expanded={advanced}
+          className="flex h-11 w-full items-center justify-between rounded-xl bg-[var(--fill)] px-3 text-[15px]"
+        >
+          <span>詳細設定</span>
+          <span className="flex items-center gap-2 text-[13px] text-[var(--muted)]">
+            {advanced ? null : summaryOf(settings)}
+            <svg viewBox="0 0 14 8" width="12" height="8" aria-hidden className={`transition-transform ${advanced ? "rotate-180" : ""}`}>
+              <path d="M1 1l6 6 6-6" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />
+            </svg>
+          </span>
         </button>
+        {advanced ? (
+          <div className="space-y-4">
+            <Choice
+              label="同じジャンルの1日の上限"
+              hint="連続は可。多いと1つのジャンルが同じ日に固まります"
+              value={settings.maxPerDay}
+              options={[
+                { value: 1, label: "1コマ" },
+                { value: 2, label: "2コマ" },
+                { value: 3, label: "3コマ" },
+              ]}
+              onChange={(maxPerDay) => setSettings({ ...settings, maxPerDay })}
+            />
+            <Choice
+              label="△ (できれば避けたい) の数え方"
+              hint="△ の人を何人ぶんとして数えるか"
+              value={settings.maybeWeight}
+              options={[
+                { value: 0, label: "数えない" },
+                { value: 0.5, label: "半分" },
+                { value: 1, label: "○と同じ" },
+              ]}
+              onChange={(maybeWeight) => setSettings({ ...settings, maybeWeight })}
+            />
+            <Choice
+              label="2・3ジャンの人の数え方"
+              hint="1ジャンの人を 1人としたとき"
+              value={settings.genreWeights[1]}
+              options={[
+                { value: 1, label: "同じ" },
+                { value: 0.7, label: "少し軽く" },
+                { value: 0.5, label: "かなり軽く" },
+              ]}
+              onChange={(w) =>
+                setSettings({ ...settings, genreWeights: [1, w, w === 1 ? 1 : w === 0.7 ? 0.5 : 0.3] })
+              }
+            />
+            <Choice
+              label="人が少ないコマに印を付ける"
+              hint="見込みがこの人数に届かないコマを赤い枠で示します"
+              value={settings.minPeople}
+              options={[
+                { value: 0, label: "付けない" },
+                { value: 5, label: "5人未満" },
+                { value: 8, label: "8人未満" },
+                { value: 10, label: "10人未満" },
+              ]}
+              onChange={(minPeople) => setSettings({ ...settings, minPeople })}
+            />
+          </div>
+        ) : null}
+
+        <button type="button" onClick={run} disabled={pending} className={primaryButtonClass}>
+          {pending ? "計算しています…" : result ? "条件を変えて作り直す" : "案を作る"}
+        </button>
+        {pending ? <Progress elapsed={elapsed} limit={settings.timeLimitSeconds} /> : null}
         <ErrorMessage>{error}</ErrorMessage>
       </section>
 
-      {result ? <ResultView input={input} result={result} settings={settings} /> : null}
+      {result && !pending ? <ResultView input={input} result={result} settings={settings} /> : null}
+    </div>
+  );
+}
+
+function summaryOf(settings: PlanSettings): string {
+  const maybe = settings.maybeWeight === 0 ? "△数えない" : settings.maybeWeight === 1 ? "△=○" : "△半分";
+  const sub = settings.genreWeights[1] === 1 ? "2ジャン同じ" : settings.genreWeights[1] === 0.7 ? "2ジャン少し軽く" : "2ジャンかなり軽く";
+  return `1日${settings.maxPerDay}コマまで・${maybe}・${sub}`;
+}
+
+/** 選択肢のボタン (Segmented) に見出しと説明を付けたもの */
+function Choice<T extends number>({
+  label,
+  hint,
+  value,
+  options,
+  onChange,
+}: {
+  label: string;
+  hint: string;
+  value: T;
+  options: { value: T; label: string }[];
+  onChange: (value: T) => void;
+}) {
+  return (
+    <div className="space-y-1.5">
+      <p className="text-[15px] font-semibold">{label}</p>
+      <Segmented
+        label={label}
+        value={String(value)}
+        size="large"
+        options={options.map((o) => ({ value: String(o.value), label: o.label }))}
+        onChange={(v) => onChange(Number(v) as T)}
+      />
+      <p className="text-[13px] text-[var(--muted)]">{hint}</p>
+    </div>
+  );
+}
+
+/**
+ * 計算中の表示 (v1.32.2)。1回の問い合わせなので本当の進み具合は分からないが、
+ * 経過秒数と、時間に応じた段階を出して「動いている」ことを見せる
+ */
+function Progress({ elapsed, limit }: { elapsed: number; limit: number }) {
+  const ref = useRef<HTMLDivElement>(null);
+  // 下のタブバーに隠れないよう、出たときに画面の中ほどへ送る
+  useEffect(() => {
+    ref.current?.scrollIntoView({ block: "center", behavior: "smooth" });
+  }, []);
+  const steps = ["回答を集計しています", "割り振りを計算しています", "結果をまとめています"];
+  const step = elapsed < 0.8 ? 0 : elapsed < limit * 0.8 ? 1 : 2;
+  return (
+    <div ref={ref} className="space-y-2 rounded-xl bg-[var(--fill)] p-3" role="status" aria-live="polite">
+      <div className="h-1.5 overflow-hidden rounded-full bg-[var(--cell)]">
+        <div className="progress-indeterminate h-full w-1/3 rounded-full bg-[var(--tint)]" />
+      </div>
+      <ol className="space-y-1 text-[14px]">
+        {steps.map((text, i) => (
+          <li key={text} className={`flex items-center gap-2 ${i > step ? "text-[var(--muted)]" : ""}`}>
+            <span aria-hidden className="w-4 text-center">
+              {i < step ? "✓" : i === step ? "●" : "○"}
+            </span>
+            {text}
+          </li>
+        ))}
+      </ol>
+      <p className="text-[13px] text-[var(--muted)] tabular-nums">
+        {elapsed.toFixed(0)}秒経過 ・ ふつう5〜20秒ほどかかります (最大{limit}秒)
+      </p>
     </div>
   );
 }
@@ -370,46 +514,13 @@ function Stat({ label, value }: { label: string; value: string }) {
   );
 }
 
-function NumberRow({
-  label,
-  hint,
-  value,
-  step,
-  min,
-  max,
-  onChange,
-}: {
-  label: string;
-  hint: string;
-  value: number;
-  step: number;
-  min: number;
-  max: number;
-  onChange: (value: number) => void;
-}) {
-  const clamp = (v: number) => Math.min(max, Math.max(min, Math.round(v * 10) / 10));
-  return (
-    <div className="flex items-center gap-3">
-      <span className="min-w-0 flex-1">
-        <span className="block text-[16px]">{label}</span>
-        <span className="block text-[13px] text-[var(--muted)]">{hint}</span>
-      </span>
-      <span className="flex shrink-0 items-center gap-1">
-        <StepButton label={`${label}を減らす`} onClick={() => onChange(clamp(value - step))}>−</StepButton>
-        <span className="w-12 text-center text-[17px] font-semibold tabular-nums">{value}</span>
-        <StepButton label={`${label}を増やす`} onClick={() => onChange(clamp(value + step))}>＋</StepButton>
-      </span>
-    </div>
-  );
-}
-
 function StepButton({ label, onClick, children }: { label: string; onClick: () => void; children: React.ReactNode }) {
   return (
     <button
       type="button"
       aria-label={label}
       onClick={onClick}
-      className="grid h-10 w-10 place-items-center rounded-full bg-[var(--fill)] text-[18px] text-[var(--tint)] active:opacity-60"
+      className="grid h-12 w-12 place-items-center rounded-full bg-[var(--fill)] text-[22px] text-[var(--tint)] active:opacity-60"
     >
       {children}
     </button>
@@ -560,5 +671,13 @@ function DateGrid({
         })}
       </div>
     </section>
+  );
+}
+
+function daysBetween(from: string, to: string): number {
+  const a = parseDate(from);
+  const b = parseDate(to);
+  return Math.round(
+    (Date.UTC(b.year, b.month - 1, b.day) - Date.UTC(a.year, a.month - 1, a.day)) / 86_400_000,
   );
 }
