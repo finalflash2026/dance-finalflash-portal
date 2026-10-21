@@ -8,6 +8,7 @@
     "start": "next start",
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
+    "test": "tsx --test \"lib/**/*.test.ts\"",
     "set-passphrase": "tsx --env-file-if-exists=.env.local scripts/set-passphrase.ts"
   },
   "dependencies": {
@@ -15,6 +16,7 @@
     "@supabase/supabase-js": "^2.112.2",
     "bcryptjs": "^3.0.3",
     "date-fns": "^4.4.0",
+    "highs": "1.15.3",
     "next": "15.5.23",
     "papaparse": "^5.5.4",
     "react": "19.1.0",
