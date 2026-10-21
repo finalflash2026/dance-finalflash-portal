@@ -188,12 +188,10 @@ export function SlotStep() {
   }
 
   /**
-   * 予約枠の取消 (SPEC §6.2 Step2-6 / v1.8.1)
+   * 予約枠の取消 (SPEC §6.2 Step2-8 / v1.8.1)
    *
-   * **コマを先に消してから status を変える。** 逆順だと、途中で失敗したときに
-   * 「取消済なのに公開コマが残っている」= カレンダーに幽霊の練習が出続ける
-   * 状態になる。コマを先に消せば、最悪でも「枠が active のまま」で済み、
-   * もう一度取り消せば回復できる。
+   * コマの削除と取消を **DB の関数1回** で行う (v1.32.5)。別々に書くと、
+   * 途中で失敗したときに「コマだけ消えて枠は残る」状態になる。
    */
   async function cancelReservation(reservation: ReservationInfo) {
     const claims = reservation.slots.flatMap((slot) => slot.claims);
@@ -214,26 +212,13 @@ export function SlotStep() {
     setPending(true);
     setError(null);
 
-    const { error: slotsError } = await supabase
-      .from("slots")
-      .delete()
-      .eq("reservation_id", reservation.id);
-    if (slotsError) {
-      setPending(false);
-      setError(`コマを削除できませんでした: ${slotsError.message}`);
-      return;
-    }
-
-    const { error: resvError } = await supabase
-      .from("reservations")
-      .update({ status: "cancelled" })
-      .eq("id", reservation.id);
+    const { error: cancelError } = await supabase.rpc("cancel_reservation", {
+      p_id: reservation.id,
+    });
 
     setPending(false);
-    if (resvError) {
-      setError(
-        `予約枠を取り消せませんでした (コマは削除済みです): ${resvError.message}`,
-      );
+    if (cancelError) {
+      setError(`予約枠を取り消せませんでした: ${cancelError.message}`);
       return;
     }
     reload();
@@ -320,9 +305,8 @@ export function SlotStep() {
   /**
    * 分かれている予約枠を1本につなげる (v1.29.1)。
    *
-   * **コマを先に移してから枠を消す。** `slots.reservation_id` は
-   * `on delete cascade` なので、先に枠を消すとぶら下がっているコマと
-   * 空き申請まで消える。
+   * 1グループごとに DB の関数 `merge_reservations` を1回呼ぶ (v1.32.5)。
+   * コマの付け替え・枠の延長・残りの枠の削除がまとめて成功するか、まとめて戻る。
    */
   async function mergeSplitReservations() {
     const lines = splitGroups.map((group) => {
@@ -355,39 +339,14 @@ export function SlotStep() {
           toMinutes(r.endTime) > toMinutes(latest) ? r.endTime : latest,
         survivor.endTime,
       );
-      const otherIds = others.map((r) => r.id);
-
-      const { error: moveError } = await supabase
-        .from("slots")
-        .update({ reservation_id: survivor.id })
-        .in("reservation_id", otherIds);
-      if (moveError) {
+      const { error: mergeError } = await supabase.rpc("merge_reservations", {
+        p_survivor: survivor.id,
+        p_others: others.map((r) => r.id),
+        p_end_time: endTime,
+      });
+      if (mergeError) {
         setPending(false);
-        setError(`コマを移せませんでした: ${moveError.message}`);
-        reload();
-        return;
-      }
-
-      const { error: growError } = await supabase
-        .from("reservations")
-        .update({ end_time: endTime })
-        .eq("id", survivor.id);
-      if (growError) {
-        setPending(false);
-        setError(`予約枠を伸ばせませんでした: ${growError.message}`);
-        reload();
-        return;
-      }
-
-      const { error: dropError } = await supabase
-        .from("reservations")
-        .delete()
-        .in("id", otherIds);
-      if (dropError) {
-        setPending(false);
-        setError(
-          `分かれていた枠を消せませんでした (つなぎ自体は済んでいます): ${dropError.message}`,
-        );
+        setError(`予約枠をつなげませんでした: ${mergeError.message}`);
         reload();
         return;
       }

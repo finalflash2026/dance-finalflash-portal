@@ -61,6 +61,8 @@ function builder(table: string, single = false, filters: Filter[] = [], write = 
 export function createDemoClient() {
   return {
     from: (table: string) => builder(table),
+    // DB の関数 (予約枠の取消・つなぎ。v1.32.5) も何もせず成功で答える
+    rpc: async () => ({ data: null, error: null }),
     auth: {
       getUser: async () => ({ data: { user: null }, error: null }),
       updateUser: async () => ({ data: { user: null }, error: null }),
