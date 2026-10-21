@@ -362,12 +362,12 @@ function PlanPanel({ input }: { input: PlanInput }) {
           type="button"
           onClick={() => setAdvanced((v) => !v)}
           aria-expanded={advanced}
-          className="flex h-11 w-full items-center justify-between rounded-xl bg-[var(--fill)] px-3 text-[15px]"
+          className="flex h-11 w-full items-center justify-between gap-3 rounded-xl bg-[var(--fill)] px-3 text-[15px]"
         >
-          <span>詳細設定</span>
-          <span className="flex items-center gap-2 text-[13px] text-[var(--muted)]">
-            {advanced ? null : summaryOf(settings)}
-            <svg viewBox="0 0 14 8" width="12" height="8" aria-hidden className={`transition-transform ${advanced ? "rotate-180" : ""}`}>
+          <span className="shrink-0">詳細設定</span>
+          <span className="flex min-w-0 items-center gap-2 text-[13px] text-[var(--muted)]">
+            <span className="truncate">{advanced ? null : summaryOf(settings)}</span>
+            <svg viewBox="0 0 14 8" width="12" height="8" aria-hidden className={`shrink-0 transition-transform ${advanced ? "rotate-180" : ""}`}>
               <path d="M1 1l6 6 6-6" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />
             </svg>
           </span>
@@ -376,7 +376,7 @@ function PlanPanel({ input }: { input: PlanInput }) {
           <div className="space-y-4">
             <Choice
               label="同じジャンルの1日の上限"
-              hint="連続は可。多いと1つのジャンルが同じ日に固まります"
+              hint="2コマ以上入れるときは、必ず続けた時間にします"
               value={settings.maxPerDay}
               options={[
                 { value: 1, label: "1コマ" },
@@ -384,6 +384,22 @@ function PlanPanel({ input }: { input: PlanInput }) {
                 { value: 3, label: "3コマ" },
               ]}
               onChange={(maxPerDay) => setSettings({ ...settings, maxPerDay })}
+            />
+            <Choice
+              label="続けて入れるときの部屋"
+              hint="同じ日に連続して入れるとき、部屋をそろえるか (時間の連続は必ず守ります)"
+              value={settings.sameRoomBonus}
+              options={[
+                { value: 0, label: "気にしない" },
+                { value: 2, label: "できれば同じ" },
+                { value: 5, label: "なるべく同じ" },
+              ]}
+              onChange={(sameRoomBonus) => setSettings({ ...settings, sameRoomBonus })}
+            />
+            <RoomSizes
+              roomIds={[...new Set(input.candidates.map((c) => c.roomId))].sort((a, b) => a - b)}
+              value={settings.roomWeights}
+              onChange={(roomWeights) => setSettings({ ...settings, roomWeights })}
             />
             <Choice
               label="△ (できれば避けたい) の数え方"
@@ -439,7 +455,63 @@ function PlanPanel({ input }: { input: PlanInput }) {
 function summaryOf(settings: PlanSettings): string {
   const maybe = settings.maybeWeight === 0 ? "△数えない" : settings.maybeWeight === 1 ? "△=○" : "△半分";
   const sub = settings.genreWeights[1] === 1 ? "2ジャン同じ" : settings.genreWeights[1] === 0.7 ? "2ジャン少し軽く" : "2ジャンかなり軽く";
-  return `1日${settings.maxPerDay}コマまで・${maybe}・${sub}`;
+  const room = settings.sameRoomBonus === 0 ? "部屋気にしない" : "部屋そろえる";
+  return `1日${settings.maxPerDay}コマまで・${room}・${maybe}・${sub}`;
+}
+
+/**
+ * 練習場所の広さ (v1.32.3)。広い部屋ほど、人が多く集まるジャンルに回りやすくなる。
+ * 部屋ごとに 狭い / 普通 / 広い を選ぶ
+ */
+function RoomSizes({
+  roomIds,
+  value,
+  onChange,
+}: {
+  roomIds: number[];
+  value: Record<number, number>;
+  onChange: (value: Record<number, number>) => void;
+}) {
+  const options = [
+    { value: 0.8, label: "狭い" },
+    { value: 1, label: "普通" },
+    { value: 1.2, label: "広い" },
+  ];
+  return (
+    <div className="space-y-1.5">
+      <p className="text-[15px] font-semibold">練習場所の広さ</p>
+      <ul className="divide-y divide-[var(--separator)] rounded-xl bg-[var(--fill)]">
+        {roomIds.map((roomId) => {
+          const current = value[roomId] ?? 1;
+          return (
+            <li key={roomId} className="flex items-center gap-2 py-1.5 pl-3 pr-1.5">
+              <span className="min-w-0 flex-1 truncate text-[15px]">
+                {(ROOM_BY_ID.get(roomId)?.name ?? "?").replace(/[(（][^)）]*[)）]$/, "")}
+              </span>
+              <span className="flex shrink-0 gap-1">
+                {options.map((o) => (
+                  <button
+                    key={o.value}
+                    type="button"
+                    aria-pressed={current === o.value}
+                    onClick={() => onChange({ ...value, [roomId]: o.value })}
+                    className={`h-9 rounded-full px-3 text-[14px] transition-colors ${
+                      current === o.value
+                        ? "bg-[var(--tint)] font-semibold text-white"
+                        : "text-[var(--foreground)]"
+                    }`}
+                  >
+                    {o.label}
+                  </button>
+                ))}
+              </span>
+            </li>
+          );
+        })}
+      </ul>
+      <p className="text-[13px] text-[var(--muted)]">広い部屋ほど、人が多く集まるジャンルに回りやすくなります</p>
+    </div>
+  );
 }
 
 /** 選択肢のボタン (Segmented) に見出しと説明を付けたもの */
