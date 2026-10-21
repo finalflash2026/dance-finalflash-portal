@@ -9,6 +9,7 @@ import {
 } from "@/lib/club-key";
 import { BoardMessages } from "@/components/BoardMessages";
 import type { BoardMessage } from "@/lib/board-messages";
+import { confirmAction } from "@/lib/confirm";
 import { dbErrorMessage } from "@/lib/error-message";
 import { createClient } from "@/lib/supabase/client";
 import { useLiveRefresh } from "@/lib/use-live-refresh";
@@ -68,7 +69,7 @@ export function ClubKeyBoard({
 
   async function claim() {
     if (
-      !window.confirm(
+      !await confirmAction(
         "あなたが部室の鍵を持っていることにします。\n全員の画面に所持者として表示されます。",
       )
     ) {

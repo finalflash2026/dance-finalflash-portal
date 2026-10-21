@@ -10,6 +10,7 @@ import {
   inputClass,
   secondaryButtonClass,
 } from "@/components/ui";
+import { confirmAction } from "@/lib/confirm";
 import { GENRES, GENRE_BY_ID } from "@/lib/constants";
 import { formatSpanRange, spansMidnight } from "@/lib/day-span";
 import { dbErrorMessage } from "@/lib/error-message";
@@ -270,7 +271,7 @@ function EventsTab({
 
   async function remove(event: NumberEvent) {
     if (
-      !window.confirm(
+      !await confirmAction(
         `${formatDateLabel(event.date)} ${formatSpanRange(event.startTime, event.endTime)} の予定を削除しますか?`,
       )
     ) {
@@ -691,7 +692,7 @@ function MembersTab({
   async function remove(member: Member) {
     const self = member.userId === currentUserId;
     if (
-      !window.confirm(
+      !await confirmAction(
         self
           ? `「${number.name}」から脱退しますか?\n自分の予定からも消えます`
           : `${member.username} をメンバーから外しますか?`,

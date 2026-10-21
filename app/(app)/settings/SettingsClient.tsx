@@ -13,6 +13,7 @@ import {
   primaryButtonClass,
   secondaryButtonClass,
 } from "@/components/ui";
+import { confirmAction } from "@/lib/confirm";
 import {
   GENRES,
   GENRE_BY_ID,
@@ -70,7 +71,7 @@ export function SettingsClient({
 
   async function regenerate() {
     if (
-      !window.confirm(
+      !await confirmAction(
         "購読URLを再発行しますか?\n古いURLは即座に使えなくなるため、カレンダーアプリへの再登録が必要です。",
       )
     ) {

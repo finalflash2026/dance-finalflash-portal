@@ -16,12 +16,15 @@ export function Sheet({
   onClose,
   children,
   footer,
+  layerClassName = "z-50",
 }: {
   title: string;
   onClose: () => void;
   children: React.ReactNode;
   /** 一番下に固定して置くボタン (スクロールしても見える) */
   footer?: React.ReactNode;
+  /** 重なりの順。確認の窓 (ConfirmHost) は他の窓より上に出す */
+  layerClassName?: string;
 }) {
   const titleId = useId();
 
@@ -34,7 +37,9 @@ export function Sheet({
   }, [onClose]);
 
   return (
-    <div className="backdrop-in fixed inset-0 z-50 flex items-end justify-center bg-black/40 sm:items-center">
+    <div
+      className={`backdrop-in fixed inset-0 ${layerClassName} flex items-end justify-center bg-black/40 sm:items-center`}
+    >
       <button
         type="button"
         aria-label="閉じる"

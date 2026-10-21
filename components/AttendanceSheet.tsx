@@ -12,6 +12,7 @@ import {
   type AttendanceRow,
   type Participant,
 } from "@/lib/attendance";
+import { confirmAction } from "@/lib/confirm";
 import { formatSpanRange } from "@/lib/day-span";
 import { dbErrorMessage } from "@/lib/error-message";
 import { createClient } from "@/lib/supabase/client";
@@ -152,7 +153,7 @@ export function AttendanceSheet({
 
   async function save(status: AttendanceStatus, timeValue: string | null) {
     if (target.kind === "info") return;
-    if (status === "absent" && !window.confirm(`${title} を欠席にしますか?`)) {
+    if (status === "absent" && !await confirmAction(`${title} を欠席にしますか?`)) {
       return;
     }
 

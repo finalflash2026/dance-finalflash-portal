@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { ErrorMessage, buttonClass, secondaryButtonClass } from "@/components/ui";
+import { confirmAction } from "@/lib/confirm";
 import { dbErrorMessage } from "@/lib/error-message";
 import { useRoomById, useRooms } from "@/lib/rooms";
 import { GENRES, GENRE_BY_ID, PRACTICE_WEEKDAYS } from "@/lib/constants";
@@ -209,7 +210,7 @@ export function SlotStep({
         `\n以下の空き申請も取り消されます。本人に連絡してください:\n${formatClaimList(claims)}`,
       );
     }
-    if (!window.confirm(lines.join("\n"))) return;
+    if (!await confirmAction(lines.join("\n"))) return;
 
     setPending(true);
     setError(null);
@@ -242,7 +243,7 @@ export function SlotStep({
           endTime: draft.endTime,
         })
       : [];
-    if (doomed.length > 0 && !confirmClaimLoss(doomed)) return;
+    if (doomed.length > 0 && !(await confirmClaimLoss(doomed))) return;
 
     setPending(true);
     setError(null);
@@ -278,10 +279,10 @@ export function SlotStep({
 
   async function deleteSlot(slot: SlotInfo) {
     const doomed = invalidatedClaims(slot, null);
-    if (doomed.length > 0 && !confirmClaimLoss(doomed)) return;
+    if (doomed.length > 0 && !(await confirmClaimLoss(doomed))) return;
     if (
       doomed.length === 0 &&
-      !window.confirm(
+      !await confirmAction(
         `${formatTimeRange(slot.startTime, slot.endTime)} のコマを削除しますか?`,
       )
     ) {
@@ -320,7 +321,7 @@ export function SlotStep({
       return `・${formatDateLabel(group[0].date)} ${roomById.get(group[0].roomId)?.name ?? ""} ${formatTimeRange(group[0].startTime, last)}`;
     });
     if (
-      !window.confirm(
+      !await confirmAction(
         `次の予約枠を1本につなげます。\n\n${lines.join("\n")}\n\n入っているコマと空き申請はそのまま残ります。`,
       )
     ) {
@@ -393,7 +394,7 @@ export function SlotStep({
       claims.length > 0
         ? `この時間には区切りの合わない古いコマが${leftovers.length}件あります。\n\n${lines}\n\n置き換えると次の空き申請も取り消されます。本人に連絡してください:\n${formatClaimList(claims)}`
         : `この時間には区切りの合わない古いコマが${leftovers.length}件あります。\n\n${lines}\n\n消して置き換えますか?`;
-    if (!window.confirm(message)) return false;
+    if (!await confirmAction(message)) return false;
 
     painting.current.add(key);
     const { error: deleteError } = await supabase
@@ -428,7 +429,7 @@ export function SlotStep({
         return;
       }
       const doomed = invalidatedClaims(cell.slot, null);
-      if (doomed.length > 0 && !confirmClaimLoss(doomed)) return;
+      if (doomed.length > 0 && !(await confirmClaimLoss(doomed))) return;
 
       painting.current.add(key);
       const { error: deleteError } = await supabase
@@ -474,7 +475,7 @@ export function SlotStep({
         startTime: period.startTime,
         endTime: period.endTime,
       });
-      if (doomed.length > 0 && !confirmClaimLoss(doomed)) return;
+      if (doomed.length > 0 && !(await confirmClaimLoss(doomed))) return;
 
       const slotId = cell.slot.id;
       const reservationId = reservations.find((r) =>
@@ -938,8 +939,8 @@ function formatClaimList(claims: SlotClaimInfo[]): string {
 }
 
 /** SPEC §6.2 Step3: 続行時は申請者名を表示して手動連絡を促す */
-function confirmClaimLoss(claims: SlotClaimInfo[]): boolean {
-  return window.confirm(
+function confirmClaimLoss(claims: SlotClaimInfo[]): Promise<boolean> {
+  return confirmAction(
     `この変更で次の空き申請が取り消されます。本人に連絡してください:\n\n${formatClaimList(claims)}`,
   );
 }

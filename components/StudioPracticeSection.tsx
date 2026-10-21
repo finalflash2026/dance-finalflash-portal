@@ -5,6 +5,7 @@ import { useState } from "react";
 
 import { AttendanceSheet } from "@/components/AttendanceSheet";
 import { ErrorMessage, buttonClass, inputClass } from "@/components/ui";
+import { confirmAction } from "@/lib/confirm";
 import { formatSpanRange, spansMidnight } from "@/lib/day-span";
 import { dbErrorMessage } from "@/lib/error-message";
 import { createClient } from "@/lib/supabase/client";
@@ -162,7 +163,7 @@ export function StudioPracticeSection({
 
   async function remove(practice: StudioPractice) {
     if (
-      !window.confirm(
+      !await confirmAction(
         `${formatDateLabel(practice.date)} ${formatSpanRange(
           practice.startTime,
           practice.endTime,

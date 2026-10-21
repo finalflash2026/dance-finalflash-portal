@@ -383,3 +383,25 @@ html[data-splash="off"] #app-splash {
 .no-scrollbar::-webkit-scrollbar {
   display: none;
 }
+
+/*
+ * 入力欄の文字は指で操作する端末では 16px 以上にする (SPEC §12 / v1.32.7)。
+ *
+ * ピンチでの拡大を許した (viewport の maximumScale をやめた) ので、iOS は
+ * 16px 未満の入力欄に触れると画面を勝手に拡大する。小さい文字の指定が
+ * 付いた入力欄だけを 16px に戻す (17px など大きいものはそのまま)。
+ */
+@media (pointer: coarse) {
+  :is(input, select, textarea):is(
+      .text-xs,
+      .text-sm,
+      [class*="text-[10px]"],
+      [class*="text-[11px]"],
+      [class*="text-[12px]"],
+      [class*="text-[13px]"],
+      [class*="text-[14px]"],
+      [class*="text-[15px]"]
+    ) {
+    font-size: 16px !important;
+  }
+}

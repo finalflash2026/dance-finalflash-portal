@@ -5,6 +5,7 @@ import { useState } from "react";
 
 import { ErrorMessage, Field, inputClass, secondaryButtonClass } from "@/components/ui";
 import { buildUsernameFromGenreId } from "@/lib/auth/username";
+import { confirmAction } from "@/lib/confirm";
 import { GENRES, GENRE_BY_ID, ROLE_LABELS } from "@/lib/constants";
 import type { Role } from "@/lib/types";
 
@@ -266,7 +267,7 @@ function PassphraseSection({
 
   async function save() {
     if (
-      !window.confirm(
+      !await confirmAction(
         `${filled.map((e) => e.label).join("・")} を変更します。\n` +
           "変更後は、新しい合言葉を知っている人しか登録・権限の追加ができません。",
       )
@@ -462,7 +463,7 @@ function EditPanel({
           "削除済みの申請・出欠は戻りません。",
       );
     }
-    if (!window.confirm(lines.join("\n"))) return;
+    if (!await confirmAction(lines.join("\n"))) return;
 
     setPending(true);
     onError(null);
@@ -505,7 +506,7 @@ function EditPanel({
 
   async function resetPassword() {
     if (
-      !window.confirm(
+      !await confirmAction(
         `${user.username} の仮パスワードを発行します。\n` +
           "今のパスワードは使えなくなります。発行した文字列は本人へ伝えてください。",
       )
@@ -537,7 +538,7 @@ function EditPanel({
   async function removeUser() {
     // 確認を2段にする。ロールの変更と違って元に戻せないため
     if (
-      !window.confirm(
+      !await confirmAction(
         `${user.username} を削除します。\n` +
           "この人の申請・出欠・ナンバー所属・購読URLもすべて消え、元に戻せません。\n\n" +
           "卒業する人ならOB/OGへの移行を使ってください。",
@@ -721,7 +722,7 @@ function BulkGraduateSection({
   async function graduate() {
     const names = targets.map((t) => t.username).join("\n");
     if (
-      !window.confirm(
+      !await confirmAction(
         `${generation}期の${targets.length}人をOB/OGへ移行します。\n\n${names}\n\n` +
           "全員の未来の空き申請と公式練の出欠が削除され、サブジャンルの設定が消えます。\n" +
           "ナンバー所属・過去の履歴・購読URLは残ります。",

@@ -7,6 +7,7 @@ import {
   toBoardMessages,
   type BoardMessage,
 } from "@/lib/board-messages";
+import { confirmAction } from "@/lib/confirm";
 import { dbErrorMessage } from "@/lib/error-message";
 import { createClient } from "@/lib/supabase/client";
 import { formatAsTokyoDateTime, formatAsTokyoTime } from "@/lib/time";
@@ -166,7 +167,7 @@ export function BoardMessages({
   }
 
   async function remove(message: BoardMessage) {
-    if (!window.confirm("この連絡を削除しますか?")) return;
+    if (!await confirmAction("この連絡を削除しますか?")) return;
     setPending(true);
     setError(null);
     const supabase = createClient();
@@ -301,7 +302,8 @@ export function BoardMessages({
                             type="button"
                             disabled={pending}
                             onClick={() => remove(message)}
-                            className="shrink-0 pb-0.5 text-[10px] text-[var(--danger-fg)] underline"
+                            // 文字は小さいままにし、押せる範囲だけ上下左右に広げる (v1.32.7。44pt に近づける)
+                            className="relative before:absolute before:-inset-x-2 before:-inset-y-3 before:content-[''] shrink-0 pb-0.5 text-[11px] text-[var(--danger-fg)] underline"
                           >
                             削除
                           </button>

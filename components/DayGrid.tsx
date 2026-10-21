@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
 import { ClaimSheet } from "@/components/ClaimSheet";
+import { confirmAction } from "@/lib/confirm";
 import {
   GENRE_COLORS,
   SLOT_CLAIMED_COLOR,
@@ -405,7 +406,7 @@ function DetailModal({
   async function cancelClaim() {
     if (!claim) return;
     if (
-      !window.confirm(
+      !await confirmAction(
         `${formatTimeRange(claim.startTime, claim.endTime)} の申請を取り消しますか?`,
       )
     ) {

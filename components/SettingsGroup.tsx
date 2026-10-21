@@ -38,6 +38,7 @@ export function SettingsGroup({
   const [rect, setRect] = useState<DOMRect | null>(null);
   const [showHint, setShowHint] = useState(false);
   const cardRef = useRef<HTMLButtonElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
 
   function open() {
     if (!cardRef.current) return;
@@ -64,6 +65,24 @@ export function SettingsGroup({
       setShowHint(false);
     }, DURATION);
     return () => window.clearTimeout(timer);
+  }, [phase]);
+
+  // Esc でも閉じる (v1.32.7。下から出る窓と同じ)。確認の窓が上に出ているときは
+  // そちらが先に閉じるので、ここでは閉じない
+  useEffect(() => {
+    if (phase !== "open") return;
+    function onKey(event: KeyboardEvent) {
+      if (event.key !== "Escape") return;
+      // 自分以外の窓 (確認・出欠など) が開いていたら、そちらに任せる
+      const panel = panelRef.current;
+      const others = [...document.querySelectorAll('[role="dialog"][aria-modal="true"]')].filter(
+        (el) => el !== panel,
+      );
+      if (others.length > 0) return;
+      close();
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
   }, [phase]);
 
   // 開いている間は後ろの画面を動かさない
@@ -98,6 +117,7 @@ export function SettingsGroup({
 
       {phase !== "closed" ? (
         <div
+          ref={panelRef}
           role="dialog"
           aria-modal="true"
           aria-label={title}

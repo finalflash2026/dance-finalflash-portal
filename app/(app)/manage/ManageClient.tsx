@@ -17,6 +17,7 @@ import {
   primaryButtonClass,
   tintTextClass,
 } from "@/components/ui";
+import { confirmAction } from "@/lib/confirm";
 import { dbErrorMessage } from "@/lib/error-message";
 import { createClient } from "@/lib/supabase/client";
 import {
@@ -275,7 +276,7 @@ function EventSheet({
 
   async function remove() {
     if (!draft.id) return;
-    if (!window.confirm(`「${draft.title}」を削除しますか?\n全員のカレンダーから消えます。`)) {
+    if (!await confirmAction(`「${draft.title}」を削除しますか?\n全員のカレンダーから消えます。`)) {
       return;
     }
     setPending(true);
@@ -568,7 +569,7 @@ function DeadlineSheet({
 
   async function remove() {
     if (!draft.id) return;
-    if (!window.confirm(`「${draft.title}」を削除しますか?`)) return;
+    if (!await confirmAction(`「${draft.title}」を削除しますか?`)) return;
     setPending(true);
     const { error: deleteError } = await createClient()
       .from("deadlines")
@@ -700,7 +701,7 @@ function AnnouncementsPanel({ announcements }: { announcements: Announcement[] }
       return;
     }
     const who = includeOb ? "現役と OB/OG の全員" : "現役全員";
-    if (!window.confirm(`${who}に告知を送り、通知も届けます。よろしいですか?`)) {
+    if (!await confirmAction(`${who}に告知を送り、通知も届けます。よろしいですか?`)) {
       return;
     }
     setPending(true);
@@ -729,7 +730,7 @@ function AnnouncementsPanel({ announcements }: { announcements: Announcement[] }
 
   async function remove(announcement: Announcement) {
     if (
-      !window.confirm(
+      !await confirmAction(
         `「${announcement.title}」を取り消しますか?\nまだ読んでいない人のお知らせからも消えます (届いた通知は消せません)。`,
       )
     ) {

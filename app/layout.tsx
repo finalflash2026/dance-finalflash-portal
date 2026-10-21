@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 
+import { ConfirmHost } from "@/components/ConfirmHost";
 import { SPLASH_INIT_SCRIPT, Splash } from "@/components/Splash";
 import { THEME_INIT_SCRIPT } from "@/lib/theme";
 
@@ -22,11 +23,12 @@ export const metadata: Metadata = {
   },
 };
 
-// スマホ最優先 (SPEC §12)。下部固定タブバーのため viewport-fit も指定する
+// スマホ最優先 (SPEC §12)。下部固定タブバーのため viewport-fit も指定する。
+// **ピンチでの拡大は止めない** (v1.32.7)。小さい文字を拡大して読みたい人がいる。
+// 入力欄に触れたときの自動拡大は、入力欄の文字を 16px 以上にして防ぐ (globals.css)
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
-  maximumScale: 1,
   viewportFit: "cover",
   /*
    * 画面上端(ステータスバー周り)の色。**必ず静的に出しておくこと。**
@@ -58,6 +60,8 @@ export default function RootLayout({
       <body className="antialiased">
         <Splash />
         {children}
+        {/* 確認の窓 (window.confirm の代わり。v1.32.7) */}
+        <ConfirmHost />
       </body>
     </html>
   );

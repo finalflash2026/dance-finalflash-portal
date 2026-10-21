@@ -3,6 +3,7 @@
 import { useState } from "react";
 
 import { ErrorMessage, buttonClass } from "@/components/ui";
+import { confirmAction } from "@/lib/confirm";
 import { useRoomById } from "@/lib/rooms";
 import { SLOT_STATUS_LABELS, unassignedRanges } from "@/lib/slots";
 import { formatDateLabel, formatTimeRange } from "@/lib/time";
@@ -52,7 +53,7 @@ export function PublishStep({
       );
     }
     lines.push("OB以外の全員にお知らせが配られます。よろしいですか?");
-    if (!window.confirm(lines.join("\n\n"))) return;
+    if (!await confirmAction(lines.join("\n\n"))) return;
 
     setPending(true);
     setError(null);
