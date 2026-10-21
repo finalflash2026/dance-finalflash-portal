@@ -17,9 +17,6 @@ export interface Candidate {
   endTime: TimeString;
 }
 
-/** 回答の時間帯 (§6.8.2)。コマの開始時刻で決まる */
-export type Band = "day" | "evening" | "night";
-
 /** ○ 出られる / △ できれば避けたい / × 出られない */
 export type Answer = "ok" | "maybe" | "no";
 
@@ -30,8 +27,8 @@ export interface Member {
   genres: number[];
 }
 
-/** 回答の鍵。`日付|時間帯` */
-export type AnswerKey = `${string}|${Band}`;
+/** 回答の鍵。`日付|開始-終了` (実際のコマの時間。§6.8.2 / v1.32.1) */
+export type AnswerKey = `${string}|${string}-${string}`;
 
 export interface PlanInput {
   genres: { id: number; code: string }[];
@@ -48,6 +45,8 @@ export interface PlanSettings {
   genreWeights: [number, number, number];
   /** 1ジャンルあたりのコマ数。各ジャンルはこれか、これ +1 */
   perGenre: number;
+  /** 同じジャンルの1日あたりの上限 (v1.32.1) */
+  maxPerDay: number;
   /** この人数 (見込み) に届かないコマに印を付ける。0 なら付けない */
   minPeople: number;
   /** ソルバーの制限時間 (秒) */

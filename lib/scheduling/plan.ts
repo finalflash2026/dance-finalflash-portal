@@ -15,13 +15,12 @@
  *
  * ソルバーは外から渡す (HiGHS)。ここは LP の文字列を作って、答えを読むだけ。
  */
-import { fromMinutes, toMinutes } from "@/lib/time";
+import { toMinutes } from "@/lib/time";
 
 import type {
   Answer,
   AnswerKey,
   Assignment,
-  Band,
   Candidate,
   Member,
   PlanInput,
@@ -41,22 +40,16 @@ export interface Solver {
   };
 }
 
-/** コマの開始時刻から回答の時間帯を決める (§6.8.2) */
-export function bandOf(startTime: string): Band {
-  const minutes = toMinutes(startTime);
-  if (minutes < 16 * 60) return "day";
-  if (minutes < 19 * 60) return "evening";
-  return "night";
+/**
+ * 回答の鍵。**実際のコマの時間**で答える (§6.8.2 / v1.32.1)。
+ * 同じ日・同じ時間のコマは、部屋が違っても同じ回答を使う
+ */
+export function answerKey(date: string, startTime: string, endTime: string): AnswerKey {
+  return `${date}|${startTime}-${endTime}`;
 }
 
-export const BAND_LABELS: Record<Band, string> = {
-  day: "昼",
-  evening: "夕方",
-  night: "夜",
-};
-
-export function answerKey(date: string, band: Band): AnswerKey {
-  return `${date}|${band}`;
+export function keyOf(candidate: Candidate): AnswerKey {
+  return answerKey(candidate.date, candidate.startTime, candidate.endTime);
 }
 
 /** 重なりの減点を測る長さの単位 (分)。おおよそ1コマの長さ */
@@ -65,6 +58,7 @@ const OVERLAP_UNIT_MINUTES = 90;
 export const DEFAULT_SETTINGS: Omit<PlanSettings, "perGenre"> = {
   maybeWeight: 0.5,
   genreWeights: [1, 0.7, 0.5],
+  maxPerDay: 2,
   minPeople: 0,
   timeLimitSeconds: 25,
 };
@@ -91,7 +85,8 @@ interface Piece {
   date: string;
   start: number;
   end: number;
-  band: Band;
+  /** この区間にかかっているコマの回答の鍵 (重なりの減点を数えるのに使う) */
+  keys: AnswerKey[];
   candidateIds: string[];
 }
 
@@ -117,7 +112,7 @@ export function piecesOf(candidates: Candidate[]): Piece[] {
         date,
         start,
         end,
-        band: bandOf(fromMinutes(start)),
+        keys: [...new Set(covering.map(keyOf))],
         candidateIds: covering.map((c) => c.id).sort(),
       });
     }
@@ -133,7 +128,7 @@ export function scoreTable(
   const table = new Map<number, Map<string, number>>();
   for (const genre of input.genres) table.set(genre.id, new Map());
   for (const candidate of input.candidates) {
-    const key = answerKey(candidate.date, bandOf(candidate.startTime));
+    const key = keyOf(candidate);
     for (const member of input.members) {
       const value = answerValue(input.answers[member.id]?.[key], settings.maybeWeight);
       if (value === 0) continue;
@@ -214,6 +209,16 @@ export function buildLp(input: PlanInput, settings: PlanSettings) {
     constraints.push(`max_${g}: ${sum} <= ${settings.perGenre + 1}`);
   }
 
+  // 同じジャンルは1日 maxPerDay コマまで (v1.32.1)
+  const dates = [...new Set(input.candidates.map((c) => c.date))].sort();
+  dates.forEach((date, d) => {
+    const ofDay = input.candidates.filter((c) => c.date === date);
+    if (ofDay.length <= settings.maxPerDay) return;
+    for (const g of genreIds) {
+      constraints.push(`day_${g}_${d}: ${ofDay.map((c) => x(g, c.id)).join(" + ")} <= ${settings.maxPerDay}`);
+    }
+  });
+
   // 同じジャンルを同じ時間に2部屋に入れない。区間ごとに見る
   pieces.forEach((piece, p) => {
     if (piece.candidateIds.length < 2) return;
@@ -227,10 +232,10 @@ export function buildLp(input: PlanInput, settings: PlanSettings) {
   // 重なりの減点。y ≥ (g がこの区間にある) + (h がこの区間にある) − 1
   pieces.forEach((piece) => {
     if (piece.candidateIds.length < 2) return;
-    const key = answerKey(piece.date, piece.band);
     const length = (piece.end - piece.start) / OVERLAP_UNIT_MINUTES;
     for (const [pair, row] of loss) {
-      const weight = (row.get(key) ?? 0) * length;
+      // 区間にかかるコマの時間が複数あるとき (建物で区切りが違う) は、一番大きいものを使う
+      const weight = Math.max(0, ...piece.keys.map((key) => row.get(key) ?? 0)) * length;
       if (weight < 0.01) continue;
       const [g, h] = pair.split("|").map(Number);
       if (!genreIds.includes(g) || !genreIds.includes(h)) continue;
@@ -293,7 +298,7 @@ export function evaluate(
 
   return picked.map(({ candidateId, genreId }) => {
     const candidate = byId.get(candidateId)!;
-    const key = answerKey(candidate.date, bandOf(candidate.startTime));
+    const key = keyOf(candidate);
     // 同じ時間に入っている他のジャンル
     const concurrent = new Set(
       picked
@@ -337,6 +342,11 @@ export function validate(input: PlanInput, settings: PlanSettings): string | nul
     return `コマが足りません (${input.genres.length}ジャンル × ${settings.perGenre} = ${
       input.genres.length * settings.perGenre
     } > ${input.candidates.length}コマ)`;
+  }
+  if (settings.maxPerDay < 1) return "1日あたりの上限は 1 以上にしてください";
+  const days = new Set(input.candidates.map((c) => c.date)).size;
+  if (settings.perGenre > days * settings.maxPerDay) {
+    return `1日${settings.maxPerDay}コマまででは、${days}日で ${days * settings.maxPerDay}コマしか入りません`;
   }
   return null;
 }

@@ -32,6 +32,14 @@ test("150人の見本を時間内に解き、決まりを守る", async () => {
     assert.ok(g.slots === settings.perGenre || g.slots === settings.perGenre + 1, `genre ${g.genreId}: ${g.slots}`);
   }
 
+  // 同じジャンルは1日 maxPerDay コマまで
+  const perDay = new Map<string, number>();
+  for (const a of result.assignments) {
+    const k = `${a.genreId}|${input.candidates.find((c) => c.id === a.candidateId)!.date}`;
+    perDay.set(k, (perDay.get(k) ?? 0) + 1);
+  }
+  for (const [k, n] of perDay) assert.ok(n <= settings.maxPerDay, `${k}: ${n}コマ`);
+
   // 同じジャンルを同じ時間に2部屋に入れない
   const byId = new Map(input.candidates.map((c) => [c.id, c]));
   for (const a of result.assignments) {

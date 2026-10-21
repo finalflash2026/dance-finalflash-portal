@@ -1,14 +1,15 @@
 /**
  * 日程調整のデモ用の見本 (SPEC.md §6.8.4)。**実在の登録者の名前は使わない。**
  *
- * 来月の予約枠 (画像のコマ割り表と同じ形: 7号館・講堂は平日 90分×2、
- * フレスコは平日 70分×3・土日 90分×5) と、150人ぶんの回答を作る。
+ * 来月の予約枠と、150人ぶんの回答を作る。平日は 18:00〜19:30 / 19:40〜21:10 の2コマ、
+ * 土日はフレスコで 90分×5コマ。**見本では同じ日のコマの区切りを建物でそろえる**
+ * (v1.32.1。回答をコマの時間で付けるので、区切りがばらばらだと同じような時間が並ぶ)。
  * 種を決めた乱数で作るので、いつ開いても同じ見本になる。
  */
 import { GENRES, ROOMS } from "@/lib/constants";
 import { addDays, addMonths, getWeekday, startOfMonth, todayInTokyo } from "@/lib/time";
 
-import { answerKey, bandOf } from "./plan";
+import { keyOf } from "./plan";
 import type { Answer, AnswerKey, Candidate, Member, PlanInput } from "./types";
 
 /** 決まった種から 0〜1 を返す乱数 (mulberry32) */
@@ -26,11 +27,6 @@ function random(seed: number) {
 const WEEKDAY_90 = [
   ["18:00", "19:30"],
   ["19:40", "21:10"],
-] as const;
-const WEEKDAY_70 = [
-  ["18:00", "19:10"],
-  ["19:15", "20:25"],
-  ["20:30", "21:40"],
 ] as const;
 const WEEKEND_90 = [
   ["13:00", "14:30"],
@@ -73,7 +69,7 @@ export function demoCandidates(month = demoMonth()): Candidate[] {
     }
     if (rand() < 0.15) continue; // 予約が取れなかった日
     if (rand() < 0.5) push(date, 1, WEEKDAY_90); // 7号館 スタジオ101
-    for (const roomId of [2, 3]) if (rand() < 0.4) push(date, roomId, WEEKDAY_70);
+    for (const roomId of [2, 3]) if (rand() < 0.4) push(date, roomId, WEEKDAY_90);
     if (rand() < 0.6) push(date, 5, WEEKDAY_90); // 講堂 リハーサル室
   }
   return candidates;
@@ -107,9 +103,7 @@ export function demoMembers(): Member[] {
  */
 export function demoAnswers(members: Member[], candidates: Candidate[]): PlanInput["answers"] {
   const rand = random(7);
-  const keys = [
-    ...new Set(candidates.map((c) => answerKey(c.date, bandOf(c.startTime)))),
-  ] as AnswerKey[];
+  const keys = [...new Set(candidates.map(keyOf))] as AnswerKey[];
   const answers: PlanInput["answers"] = {};
   for (const member of members) {
     if (rand() < 0.1) continue;
@@ -119,11 +113,12 @@ export function demoAnswers(members: Member[], candidates: Candidate[]): PlanInp
     const weekendFan = member.genres[0] % 2 === 0 ? 0.25 : -0.1;
     const mine: Partial<Record<AnswerKey, Answer>> = {};
     for (const key of keys) {
-      const [date, band] = key.split("|");
+      const [date, range] = key.split("|");
+      const late = range.startsWith("19") || range.startsWith("2");
       const wd = getWeekday(date);
       let p = 0.62;
       if (busyDays.has(wd)) p -= 0.45;
-      if (band === "night") p += (nightOwl - 0.5) * 0.4;
+      if (late) p += (nightOwl - 0.5) * 0.4;
       if (wd === 0 || wd === 6) p += weekendFan;
       const r = rand();
       mine[key] = r < p ? "ok" : r < p + 0.15 ? "maybe" : "no";
