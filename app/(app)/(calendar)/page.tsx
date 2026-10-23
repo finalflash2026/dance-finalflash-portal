@@ -132,7 +132,7 @@ export default async function HomePage({
       ? none
       : supabase
           .from("deadlines")
-          .select("id, title, due_date, due_time, url, important")
+          .select("id, title, due_date, due_time, url, important, note")
           .gte("due_date", today)
           .lte("due_date", addDays(today, UPCOMING_DEADLINE_DAYS))
           .order("due_date", { ascending: true }),
@@ -159,6 +159,7 @@ export default async function HomePage({
       due_time: string | null;
       url: string | null;
       important: boolean;
+      note: string | null;
     }[]
   ).map((row) => ({
     id: row.id,
@@ -167,6 +168,7 @@ export default async function HomePage({
     dueTime: row.due_time ? normalizeTime(row.due_time) : null,
     url: row.url,
     important: row.important,
+    note: row.note,
   }));
 
   const keysSummary: KeysSummary | null = isOb

@@ -82,6 +82,8 @@ export interface UpcomingDeadline {
   dueTime: string | null;
   url: string | null;
   important: boolean;
+  /** メモ (金額・払い方など。v1.35)。押すと詳細に出る */
+  note?: string | null;
 }
 
 export interface KeysSummary {
@@ -262,7 +264,13 @@ export function CalendarHome({
 
   // 欄の中身。並びと表示/非表示は設定の「ホームの並び」で変える (v1.31.6)
   const sections: Record<HomeSection, React.ReactNode> = {
-    deadlines: isOb ? null : <DeadlinesSection today={today} deadlines={upcomingDeadlines} />,
+    deadlines: isOb ? null : (
+      <DeadlinesSection
+        today={today}
+        deadlines={upcomingDeadlines}
+        onOpen={(deadline) => setSelected(deadlineEvent(deadline))}
+      />
+    ),
     freeRooms: isOb ? null : (
       <FreeRoomsToday
         blocks={todayBlocks}
@@ -505,9 +513,11 @@ const DEADLINES_VISIBLE = 3;
 function DeadlinesSection({
   today,
   deadlines,
+  onOpen,
 }: {
   today: DateString;
   deadlines: UpcomingDeadline[];
+  onOpen: (deadline: UpcomingDeadline) => void;
 }) {
   if (deadlines.length === 0) return null;
   return (
@@ -515,14 +525,43 @@ function DeadlinesSection({
       <GroupHeader>近い締切</GroupHeader>
       <ul className={groupClass}>
         {deadlines.slice(0, DEADLINES_VISIBLE).map((deadline) => (
-          <DeadlineRow key={deadline.id} deadline={deadline} today={today} />
+          <DeadlineRow key={deadline.id} deadline={deadline} today={today} onOpen={onOpen} />
         ))}
       </ul>
     </section>
   );
 }
 
-function DeadlineRow({ deadline, today }: { deadline: UpcomingDeadline; today: DateString }) {
+/** 締切の欄の1行を、カレンダーの詳細の窓で開ける形にする */
+function deadlineEvent(deadline: UpcomingDeadline): MyEvent {
+  return {
+    kind: "deadline",
+    sourceId: deadline.id,
+    sourceIds: [deadline.id],
+    date: deadline.dueDate,
+    startTime: "00:00",
+    endTime: "24:00",
+    title: `締切: ${deadline.title}`,
+    location: "",
+    numberId: null,
+    genreCode: null,
+    allDay: true,
+    url: deadline.url,
+    important: deadline.important,
+    dueTime: deadline.dueTime,
+    note: deadline.note ?? null,
+  };
+}
+
+function DeadlineRow({
+  deadline,
+  today,
+  onOpen,
+}: {
+  deadline: UpcomingDeadline;
+  today: DateString;
+  onOpen: (deadline: UpcomingDeadline) => void;
+}) {
   const days = daysBetween(today, deadline.dueDate);
   const inner = (
     <>
@@ -544,27 +583,28 @@ function DeadlineRow({ deadline, today }: { deadline: UpcomingDeadline; today: D
           {deadline.dueTime ? ` ${deadline.dueTime}まで` : ""}
         </span>
       </span>
-      {deadline.url ? <span className="shrink-0 text-[15px] text-[var(--tint)]">開く</span> : null}
+      <span aria-hidden className="shrink-0 text-[17px] text-[var(--muted)]">›</span>
     </>
   );
   return (
     <li>
-      {/* サイトの中 (日程調整など) は同じ画面で開く。外のフォームは別のタブで */}
+      {/*
+        サイトの中 (日程調整など) は同じ画面で開く。それ以外は**詳細を開く** (v1.35)。
+        メモ (金額・払い方など) とリンクは詳細に出す。以前はリンクの無い集金などは
+        押せず、中身を見る手段が無かった
+      */}
       {deadline.url?.startsWith("/") ? (
         <Link href={deadline.url} className="flex items-center gap-3 px-4 py-2.5">
           {inner}
         </Link>
-      ) : deadline.url ? (
-        <a
-          href={deadline.url}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="flex items-center gap-3 px-4 py-2.5"
+      ) : (
+        <button
+          type="button"
+          onClick={() => onOpen(deadline)}
+          className="flex w-full items-center gap-3 px-4 py-2.5 text-left active:bg-[var(--fill)]"
         >
           {inner}
-        </a>
-      ) : (
-        <div className="flex items-center gap-3 px-4 py-2.5">{inner}</div>
+        </button>
       )}
     </li>
   );

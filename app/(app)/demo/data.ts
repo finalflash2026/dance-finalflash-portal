@@ -217,7 +217,7 @@ export function demoCalendar(isOb: boolean) {
       : [
           { id: "dl-round", title: roundTitle(round), dueDate: round.deadline, dueTime: "23:59", url: "/schedule", important: true },
           { id: "dl3", title: "学祭の出演アンケート", dueDate: d(1), dueTime: null, url: "https://example.com/form", important: false },
-          { id: "dl1", title: "合宿費の集金", dueDate: d(4), dueTime: "23:59", url: "https://example.com/form", important: true },
+          { id: "dl1", title: "合宿費の集金", dueDate: d(4), dueTime: "23:59", url: null, important: true, note: "1人 12,000円。練習のあとに会計へ手渡し。払えない日は会計に連絡してください。" },
           { id: "dl2", title: "2ジャン登録フォーム", dueDate: d(9), dueTime: null, url: "https://example.com/form", important: false },
         ].sort((x, y) => x.dueDate.localeCompare(y.dueDate)),
     boards: isOb
@@ -253,7 +253,7 @@ export function demoManage(): {
       { id: "e2", title: "縦イベ", date: d(15), end_date: d(15), start_time: "13:00", end_time: "18:00", place: "講堂", note: "OB/OGと合同", show_to_ob: true, ...meta },
     ],
     deadlines: [
-      { id: "dl1", title: "合宿費の集金", due_date: d(4), due_time: "23:59", url: "https://example.com/form", note: null, important: true, ...meta },
+      { id: "dl1", title: "合宿費の集金", due_date: d(4), due_time: "23:59", url: null, note: "1人 12,000円。練習のあとに会計へ手渡し。払えない日は会計に連絡してください。", important: true, ...meta },
       { id: "dl2", title: "2ジャン登録フォーム", due_date: d(9), due_time: null, url: "https://example.com/form", note: null, important: false, ...meta },
     ],
     announcements: [
