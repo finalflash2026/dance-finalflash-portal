@@ -5,6 +5,8 @@ import { useCallback, useEffect, useState } from "react";
 import { buttonClass, secondaryButtonClass } from "@/components/ui";
 import {
   ATTENDANCE_LABELS,
+  ATTENDANCE_REASON_MAX,
+  ATTENDANCE_REASON_PRESETS,
   ATTENDANCE_TIME_LABELS,
   buildParticipants,
   formatAttendance,
@@ -12,7 +14,6 @@ import {
   type AttendanceRow,
   type Participant,
 } from "@/lib/attendance";
-import { confirmAction } from "@/lib/confirm";
 import { formatSpanRange } from "@/lib/day-span";
 import { dbErrorMessage } from "@/lib/error-message";
 import { createClient } from "@/lib/supabase/client";
@@ -83,6 +84,8 @@ export function AttendanceSheet({
   const [pending, setPending] = useState(false);
   const [draftStatus, setDraftStatus] = useState<AttendanceStatus | null>(null);
   const [draftTime, setDraftTime] = useState("");
+  /** 理由 (v1.33)。空のままでも登録できる */
+  const [draftReason, setDraftReason] = useState("");
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
@@ -112,7 +115,7 @@ export function AttendanceSheet({
       return;
     }
 
-    const query = supabase.from("attendances").select("user_id, status, time_value");
+    const query = supabase.from("attendances").select("user_id, status, time_value, reason");
     const { data, error: attendanceError } =
       target.kind === "slot"
         ? await query.in("slot_id", target.ids)
@@ -127,11 +130,17 @@ export function AttendanceSheet({
     }
 
     const rows: AttendanceRow[] = (
-      (data ?? []) as { user_id: string; status: AttendanceStatus; time_value: string | null }[]
+      (data ?? []) as {
+        user_id: string;
+        status: AttendanceStatus;
+        time_value: string | null;
+        reason: string | null;
+      }[]
     ).map((row) => ({
       userId: row.user_id,
       status: row.status,
       timeValue: row.time_value ? row.time_value.slice(0, 5) : null,
+      reason: row.reason,
     }));
 
     // まとめたコマを読むと、まとめる前に別々の部屋へ登録した人が二重に出る。
@@ -151,11 +160,20 @@ export function AttendanceSheet({
   const me = participants?.find((p) => p.userId === currentUserId) ?? null;
   const isParticipant = me !== null;
 
-  async function save(status: AttendanceStatus, timeValue: string | null) {
+  /** 状態のボタンを押したら、その場で時刻 (遅刻・早退) と理由の欄を開く */
+  function startDraft(status: AttendanceStatus) {
+    const current = me?.attendance?.status === status ? me.attendance : null;
+    setDraftStatus(status);
+    setDraftTime(current?.timeValue ?? "");
+    setDraftReason(current?.reason ?? "");
+  }
+
+  /**
+   * 欠席も「欠席で登録する」を押して決める (v1.33)。以前は押した瞬間に
+   * 確認の窓を出していたが、理由の欄を挟んだので押し間違いはここで止まる
+   */
+  async function save(status: AttendanceStatus, timeValue: string | null, reason: string) {
     if (target.kind === "info") return;
-    if (status === "absent" && !await confirmAction(`${title} を欠席にしますか?`)) {
-      return;
-    }
 
     setPending(true);
     setError(null);
@@ -172,6 +190,7 @@ export function AttendanceSheet({
         [key]: target.id,
         status,
         time_value: timeValue,
+        reason: reason.trim() || null,
       },
       { onConflict: `user_id,${key}` },
     );
@@ -195,6 +214,7 @@ export function AttendanceSheet({
 
     setDraftStatus(null);
     setDraftTime("");
+    setDraftReason("");
     load();
   }
 
@@ -286,13 +306,16 @@ export function AttendanceSheet({
                       ) : null}
                     </span>
                     <span
-                      className={`shrink-0 rounded px-1.5 py-0.5 text-xs ${
+                      className={`max-w-[60%] shrink-0 truncate rounded px-1.5 py-0.5 text-xs ${
                         participant.attendance
                           ? "bg-[var(--danger-bg)] font-medium text-[var(--danger-fg)]"
                           : "text-[var(--muted)]"
                       }`}
                     >
                       {formatAttendance(participant.attendance)}
+                      {participant.attendance?.reason
+                        ? ` · ${participant.attendance.reason}`
+                        : ""}
                     </span>
                   </li>
                 ))}
@@ -307,9 +330,6 @@ export function AttendanceSheet({
                     現在: {formatAttendance(me?.attendance ?? null)}
                   </span>
                 </h4>
-                <p className="text-xs text-[var(--muted)]">
-                  出席なら操作は要りません。登録した内容はこの一覧に出ます
-                </p>
 
                 <div className="flex gap-2">
                   {(["absent", "late", "leave_early"] as AttendanceStatus[]).map(
@@ -318,22 +338,10 @@ export function AttendanceSheet({
                         key={status}
                         type="button"
                         disabled={pending}
-                        onClick={() => {
-                          if (status === "absent") {
-                            save("absent", null);
-                            return;
-                          }
-                          // 時刻が要る状態は、その場で入力欄を開く
-                          setDraftStatus(status);
-                          setDraftTime(
-                            me?.attendance?.status === status
-                              ? (me.attendance.timeValue ?? "")
-                              : "",
-                          );
-                        }}
-                        aria-pressed={me?.attendance?.status === status}
+                        onClick={() => startDraft(status)}
+                        aria-pressed={(draftStatus ?? me?.attendance?.status) === status}
                         className={`flex-1 rounded-lg border px-2 py-2 text-sm ${
-                          me?.attendance?.status === status
+                          (draftStatus ?? me?.attendance?.status) === status
                             ? "border-[var(--primary)] bg-[var(--primary)] font-bold text-[var(--primary-fg)]"
                             : "border-[var(--border)]"
                         }`}
@@ -346,34 +354,79 @@ export function AttendanceSheet({
 
                 {draftStatus ? (
                   <div className="space-y-2 rounded-lg border border-[var(--border)] p-2">
-                    <p className="text-xs font-medium">
-                      {ATTENDANCE_TIME_LABELS[draftStatus]}時刻
-                    </p>
-                    {/* 1分刻みの自由入力 (SPEC §6.4.2 / v1.11)。
-                        実際の到着・退出時刻は15分刻みに乗らないため、
-                        プルダウンは置かない */}
+                    {draftStatus !== "absent" ? (
+                      <>
+                        <p className="text-xs font-medium">
+                          {ATTENDANCE_TIME_LABELS[draftStatus]}時刻
+                        </p>
+                        {/* 1分刻みの自由入力 (SPEC §6.4.2 / v1.11)。
+                            実際の到着・退出時刻は15分刻みに乗らないため、
+                            プルダウンは置かない */}
+                        <input
+                          aria-label={`${ATTENDANCE_TIME_LABELS[draftStatus]}時刻`}
+                          value={draftTime}
+                          placeholder="15:20"
+                          inputMode="numeric"
+                          disabled={pending}
+                          autoFocus
+                          onChange={(e) =>
+                            setDraftTime(normalizeTimeInput(e.target.value))
+                          }
+                          onBlur={(e) =>
+                            setDraftTime(finalizeTimeInput(e.target.value))
+                          }
+                          className="w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-2 py-1.5 text-sm"
+                        />
+                      </>
+                    ) : null}
+
+                    {/*
+                      理由 (v1.33)。よくあるものは押すだけで入る。
+                      もう一度押すと外れる。書かなくても登録できる
+                    */}
+                    <div className="flex flex-wrap gap-1.5">
+                      {ATTENDANCE_REASON_PRESETS.map((preset) => (
+                        <button
+                          key={preset}
+                          type="button"
+                          disabled={pending}
+                          aria-pressed={draftReason === preset}
+                          onClick={() =>
+                            setDraftReason((prev) => (prev === preset ? "" : preset))
+                          }
+                          className={`rounded-full px-3 py-1.5 text-sm ${
+                            draftReason === preset
+                              ? "bg-[var(--primary)] font-bold text-[var(--primary-fg)]"
+                              : "bg-[var(--fill)]"
+                          }`}
+                        >
+                          {preset}
+                        </button>
+                      ))}
+                    </div>
                     <input
-                      aria-label={`${ATTENDANCE_TIME_LABELS[draftStatus]}時刻`}
-                      value={draftTime}
-                      placeholder="15:20"
-                      inputMode="numeric"
+                      aria-label="理由"
+                      value={draftReason}
+                      placeholder="理由 (任意)"
+                      maxLength={ATTENDANCE_REASON_MAX}
                       disabled={pending}
-                      autoFocus
-                      onChange={(e) =>
-                        setDraftTime(normalizeTimeInput(e.target.value))
-                      }
-                      onBlur={(e) =>
-                        setDraftTime(finalizeTimeInput(e.target.value))
-                      }
+                      onChange={(e) => setDraftReason(e.target.value)}
                       className="w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-2 py-1.5 text-sm"
                     />
-                    <p className="text-[10px] text-[var(--muted)]">
-                      1分単位で入力できます。数字だけでも構いません (1520 → 15:20)
-                    </p>
+
                     <button
                       type="button"
-                      disabled={pending || !isValidAttendanceTime(draftTime)}
-                      onClick={() => save(draftStatus, draftTime.trim())}
+                      disabled={
+                        pending ||
+                        (draftStatus !== "absent" && !isValidAttendanceTime(draftTime))
+                      }
+                      onClick={() =>
+                        save(
+                          draftStatus,
+                          draftStatus === "absent" ? null : draftTime.trim(),
+                          draftReason,
+                        )
+                      }
                       className={buttonClass}
                     >
                       {ATTENDANCE_LABELS[draftStatus]}で登録する

@@ -29,7 +29,18 @@ export interface AttendanceRow {
   status: AttendanceStatus;
   /** late=到着予定時刻 / leave_early=退出予定時刻 */
   timeValue: TimeString | null;
+  /** 理由 (v1.33)。書かなくてもよい */
+  reason?: string | null;
 }
+
+/**
+ * 押すだけで入る理由 (SPEC §6.4.2 / v1.33)。毎回打つのは面倒で、
+ * 結局書かれなくなるので、よくあるものを並べておく
+ */
+export const ATTENDANCE_REASON_PRESETS = ["授業", "バイト", "体調不良", "就活", "用事"] as const;
+
+/** 理由の長さの上限。DB の CHECK (0022) と同じ */
+export const ATTENDANCE_REASON_MAX = 40;
 
 export interface Participant {
   userId: string;
