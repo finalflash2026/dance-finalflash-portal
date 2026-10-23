@@ -766,9 +766,6 @@ const WEEKDAY_LABELS = ["日", "月", "火", "水", "木", "金", "土"];
 /**
  * 1週間の帯 (§6.7.13)。読み込んだ範囲の週を横に並べ、スナップで1週ずつ止める。
  *
- * **今日が左から2番目に来るように並べる** (v1.33.1)。日曜始まりだと、週の後半は
- * 先の予定が見えなかった。区切りは「昨日の曜日」始まりで固定し、滑らせると7日ずつ動く。
- *
  * 滑らせて週が変わったら、**同じ曜日の日**を選び直す (iPhone のカレンダーと同じ)。
  * 範囲の外の日を押したら、その日を中心にページごと読み直す。
  */
@@ -788,16 +785,14 @@ function WeekStrip({
   onSelect: (date: DateString) => void;
 }) {
   const scroller = useRef<HTMLDivElement>(null);
-  /** 帯の左端の曜日 (昨日の曜日) */
-  const firstWeekday = getWeekday(addDays(today, -1));
   const weeks = useMemo(() => {
-    const first = addDays(rangeStart, -((getWeekday(rangeStart) - firstWeekday + 7) % 7));
+    const first = addDays(rangeStart, -getWeekday(rangeStart));
     const list: DateString[][] = [];
     for (let start = first; start <= rangeEnd; start = addDays(start, 7)) {
       list.push(Array.from({ length: 7 }, (_, i) => addDays(start, i)));
     }
     return list;
-  }, [rangeStart, rangeEnd, firstWeekday]);
+  }, [rangeStart, rangeEnd]);
 
   const selectedWeek = Math.max(
     0,
@@ -838,7 +833,7 @@ function WeekStrip({
       const index = Math.round(el!.scrollLeft / el!.clientWidth);
       if (index === selectedWeek || !weeks[index]) return;
       fromSwipe.current = true;
-      onSelect(weeks[index][(getWeekday(selectedDate) - firstWeekday + 7) % 7]);
+      onSelect(weeks[index][getWeekday(selectedDate)]);
     }
     function onScroll() {
       window.clearTimeout(timer);
@@ -865,23 +860,23 @@ function WeekStrip({
       window.removeEventListener("resize", onResize);
       window.clearTimeout(timer);
     };
-  }, [weeks, selectedWeek, selectedDate, onSelect, firstWeekday]);
+  }, [weeks, selectedWeek, selectedDate, onSelect]);
 
   return (
     <div className="rounded-xl bg-[var(--cell)] py-2">
       <div className="grid grid-cols-7 px-1 pb-1">
-        {Array.from({ length: 7 }, (_, i) => (firstWeekday + i) % 7).map((weekday) => (
+        {WEEKDAY_LABELS.map((label, i) => (
           <span
-            key={weekday}
+            key={label}
             className={`text-center text-[11px] ${
-              weekday === 0
+              i === 0
                 ? "text-[var(--accent)]"
-                : weekday === 6
+                : i === 6
                   ? "text-[var(--info)]"
                   : "text-[var(--muted)]"
             }`}
           >
-            {WEEKDAY_LABELS[weekday]}
+            {label}
           </span>
         ))}
       </div>
