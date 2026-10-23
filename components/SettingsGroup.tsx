@@ -135,8 +135,14 @@ export function SettingsGroup({
           >
             <CardFace icon={icon} title={title} summary={summary} />
           </div>
+          {/*
+            中身は**最初から画面いっぱいの大きさで組む** (v1.33.1)。広がっていく枠
+            (overflow-hidden) が切り抜いて見せるだけなので、広がる途中で文字の
+            折り返しが変わらない。枠の幅に合わせて組むと、幅が変わるたびに
+            改行の位置が動いて読みにくかった
+          */}
           <div
-            className="flex h-full flex-col"
+            className="absolute left-0 top-0 flex h-dvh w-screen flex-col"
             style={{ opacity: expanded ? 1 : 0, transition: `opacity ${DURATION}ms` }}
           >
             <header className="flex shrink-0 items-center gap-2 px-4 pb-2 pt-[max(env(safe-area-inset-top),12px)]">
