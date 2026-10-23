@@ -487,8 +487,8 @@ function RoleSection({
           </Link>
           {/* 日程調整 (§6.8 / v1.32)。いまは手元の環境の見本だけ。本番は DB を作るまで出さない */}
           {!hasSupabaseEnv() ? (
-            <Link href="/schedule" className={`${secondaryButtonClass} block text-center`}>
-              日程調整
+            <Link href="/schedule/plan" className={`${secondaryButtonClass} block text-center`}>
+              日程調整の割り振り
             </Link>
           ) : null}
           {/* イベント・締切・告知 (§6.7.11 / v1.30)。告知の欄は 3役にだけ出る */}

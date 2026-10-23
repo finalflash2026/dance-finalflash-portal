@@ -20,129 +20,31 @@ import { roundTitle, type ScheduleRound } from "@/lib/scheduling/round";
 import { formatDateLabel, getWeekday, parseDate, todayInTokyo } from "@/lib/time";
 
 /**
- * 日程調整からのコマ割り (SPEC.md §6.8.4 / v1.32 デモ)
+ * 日程調整 (SPEC.md §6.8.4 / v1.33.1)。
  *
- * 「回答する」はメンバーの画面の見本、「集計と割り振り」は折衝・3役の画面。
- * いまは見本のデータ (150人・来月の予約枠) で動き、保存はされない。
+ * **回答と割り振りは別の画面にする。** 回答 (`/schedule`) は全員、集計と割り振り
+ * (`/schedule/plan`) は折衝・3役だけ。いまは見本のデータ (150人・来月の予約枠) で
+ * 動き、保存はされない。
  */
-export function ScheduleClient({
+
+// ---------- 回答 (§6.8.2) ----------
+
+export function ScheduleAnswerClient({
   initialInput,
   me,
   round,
-  canPlan,
 }: {
   initialInput: PlanInput;
   me: string;
   round: ScheduleRound;
-  /**
-   * 集計と割り振りを使えるか (折衝・3役だけ。§6.8.1 / v1.32.4)。
-   * メンバーには回答の画面だけを出す。計算の API 側でも同じ権限を確かめる
-   */
-  canPlan: boolean;
 }) {
-  const [tab, setTab] = useState<"answer" | "plan">(canPlan ? "plan" : "answer");
   const [input, setInput] = useState(initialInput);
-  // ホームのカード・締切・お知らせからは ?tab=answer で来る (メンバーの回答)
-  useEffect(() => {
-    if (new URLSearchParams(window.location.search).get("tab") === "answer") setTab("answer");
-  }, []);
-  const days = daysBetween(todayInTokyo(), round.deadline);
-  // 回答した人数は回答そのものから数える (自分が答えると増える)
-  const answeredCount = input.members.filter(
-    (m) => Object.keys(input.answers[m.id] ?? {}).length > 0,
-  ).length;
-
-  return (
-    <main className="mx-auto max-w-3xl space-y-4 px-4 py-3">
-      <h1 className="text-[28px] font-bold leading-tight">{roundTitle(round)}</h1>
-      {/* 回の状態 (§6.8.4)。締切と回答した人数 */}
-      <div className="flex flex-wrap items-center gap-2 text-[14px]">
-        <span className="rounded-full bg-[#34c759] px-2.5 py-1 font-semibold text-white">受付中</span>
-        <span className="rounded-full bg-[var(--fill)] px-2.5 py-1 tabular-nums">
-          締切 {formatDateLabel(round.deadline)} 23:59 ({days <= 0 ? "今日" : `あと${days}日`})
-        </span>
-        <span className="rounded-full bg-[var(--fill)] px-2.5 py-1 tabular-nums">
-          回答 {answeredCount}/{input.members.length}人
-        </span>
-      </div>
-      <p className="rounded-xl bg-[var(--fill)] px-3 py-2 text-[14px] text-[var(--muted)]">
-        見本のデータ (150人・来月の予約枠) で動くお試し版です。保存はされません。
-        {canPlan ? " 折衝・3役として表示しています。" : " メンバーとして表示しています。"}
-      </p>
-      {canPlan ? (
-        <Segmented
-          label="画面"
-          value={tab}
-          onChange={setTab}
-          size="large"
-          options={[
-            { value: "answer", label: "自分の回答" },
-            { value: "plan", label: "集計と割り振り" },
-          ]}
-        />
-      ) : null}
-      {tab === "answer" || !canPlan ? (
-        <AnswerPanel
-          input={input}
-          me={me}
-          onChange={(answers) =>
-            setInput((prev) => ({ ...prev, answers: { ...prev.answers, [me]: answers } }))
-          }
-        />
-      ) : (
-        <PlanPanel input={input} />
-      )}
-    </main>
-  );
-}
-
-// ---------- 回答する (§6.8.2) ----------
-
-const ANSWER_STYLE: Record<Answer | "none", { label: string; className: string }> = {
-  ok: { label: "○", className: "bg-[#34c759] text-white" },
-  maybe: { label: "△", className: "bg-[#ff9f0a] text-white" },
-  no: { label: "×", className: "bg-[var(--muted)] text-white opacity-70" },
-  none: { label: "−", className: "bg-[var(--fill)] text-[var(--muted)]" },
-};
-const NEXT: Record<Answer | "none", Answer | undefined> = {
-  none: "ok",
-  ok: "maybe",
-  maybe: "no",
-  no: undefined,
-};
-const WEEKDAY = ["日", "月", "火", "水", "木", "金", "土"];
-
-/** 回答する日とコマの時間 (その日に予約枠のあるコマの時間だけ。§6.8.2 / v1.32.1) */
-function answerSlots(candidates: Candidate[]): { date: string; ranges: { start: string; end: string }[] }[] {
-  const map = new Map<string, Map<string, { start: string; end: string }>>();
-  for (const c of candidates) {
-    const ranges = map.get(c.date) ?? new Map();
-    ranges.set(`${c.startTime}-${c.endTime}`, { start: c.startTime, end: c.endTime });
-    map.set(c.date, ranges);
-  }
-  return [...map]
-    .sort(([a], [b]) => a.localeCompare(b))
-    .map(([date, ranges]) => ({
-      date,
-      ranges: [...ranges.values()].sort((x, y) => x.start.localeCompare(y.start)),
-    }));
-}
-
-function AnswerPanel({
-  input,
-  me,
-  onChange,
-}: {
-  input: PlanInput;
-  me: string;
-  onChange: (answers: Partial<Record<AnswerKey, Answer>>) => void;
-}) {
   const mine = input.answers[me] ?? {};
   const slots = useMemo(() => answerSlots(input.candidates), [input.candidates]);
-  const member = input.members.find((m) => m.id === me);
-  const keysOf = (list: typeof slots) =>
-    list.flatMap((s) => s.ranges.map((r) => answerKey(s.date, r.start, r.end)));
-  const answeredCount = keysOf(slots).filter((key) => mine[key]).length;
+  const allKeys = useMemo(() => keysOf(slots), [slots]);
+  const answeredCount = allKeys.filter((key) => mine[key]).length;
+  /** 今選んでいるペン (v1.33.1)。コマを押すとこの印が付く */
+  const [pen, setPen] = useState<Answer>("ok");
 
   function setMany(keys: AnswerKey[], value: Answer | undefined) {
     const next = { ...mine };
@@ -150,30 +52,49 @@ function AnswerPanel({
       if (value) next[key] = value;
       else delete next[key];
     }
-    onChange(next);
+    setInput((prev) => ({ ...prev, answers: { ...prev.answers, [me]: next } }));
   }
 
   return (
-    <div className="space-y-4">
-      <div className={`${groupClass} space-y-2 p-4`}>
-        <p className="text-[15px]">
-          <b>{member?.name}</b> として回答します。コマを押すたびに ○ → △ → × → 未回答 と変わります。
-        </p>
-        <ul className="flex flex-wrap gap-x-4 gap-y-1 text-[14px]">
-          <li><span className="font-bold text-[#34c759]">○</span> 出られる</li>
-          <li><span className="font-bold text-[#ff9f0a]">△</span> 出られるが、できれば避けたい</li>
-          <li><span className="font-bold text-[var(--muted)]">×</span> 出られない</li>
-        </ul>
-        <p className="text-[13px] text-[var(--muted)] tabular-nums">
-          {answeredCount} / {keysOf(slots).length}コマ 回答済み
-        </p>
+    <main className="mx-auto max-w-3xl space-y-4 px-4 py-3">
+      <h1 className="text-[28px] font-bold leading-tight">{roundTitle(round)}</h1>
+      <DeadlineCard round={round} answered={answeredCount} total={allKeys.length} />
+
+      {/*
+        ペン (v1.33.1)。選んでからコマを押す。印の意味はペンの文字が示すので、
+        説明文や凡例は置かない。スクロールしても手元に残るよう上に貼り付ける
+      */}
+      <div className="sticky top-0 z-20 -mx-4 bg-[var(--background)] px-4 pb-2 pt-1">
+        <div role="radiogroup" aria-label="付ける印" className="grid grid-cols-3 gap-2">
+          {(["ok", "maybe", "no"] as Answer[]).map((value) => {
+            const on = pen === value;
+            return (
+              <button
+                key={value}
+                type="button"
+                role="radio"
+                aria-checked={on}
+                onClick={() => setPen(value)}
+                className={`flex h-14 flex-col items-center justify-center rounded-2xl leading-tight transition-colors active:scale-[0.97] ${
+                  on ? PEN_STYLE[value].on : "bg-[var(--cell)]"
+                }`}
+              >
+                <span className={`text-[20px] font-bold ${on ? "" : PEN_STYLE[value].mark}`}>
+                  {ANSWER_STYLE[value].label}
+                </span>
+                <span className="text-[12px]">{PEN_STYLE[value].label}</span>
+              </button>
+            );
+          })}
+        </div>
       </div>
 
       <BulkCard
-        onApply={(weekdays, value) =>
+        pen={pen}
+        onApply={(weekdays) =>
           setMany(
             keysOf(weekdays.length ? slots.filter((s) => weekdays.includes(getWeekday(s.date))) : slots),
-            value,
+            pen,
           )
         }
       />
@@ -199,9 +120,10 @@ function AnswerPanel({
                     <button
                       key={key}
                       type="button"
-                      onClick={() => setMany([key], NEXT[value])}
-                      aria-label={`${formatDateLabel(date)} ${start}〜${end}`}
-                      className="flex h-12 items-center justify-between gap-2 rounded-xl bg-[var(--fill)] pl-3 pr-1.5 active:scale-[0.97] transition-transform"
+                      // 今のペンを付ける。同じ印が付いていたら未回答に戻す
+                      onClick={() => setMany([key], value === pen ? undefined : pen)}
+                      aria-label={`${formatDateLabel(date)} ${start}〜${end} ${ANSWER_WORD[value]}`}
+                      className="flex h-12 items-center justify-between gap-2 rounded-xl bg-[var(--fill)] pl-3 pr-1.5 transition-transform active:scale-[0.97]"
                     >
                       <span className="text-[14px] tabular-nums">
                         {start}〜{end}
@@ -219,33 +141,125 @@ function AnswerPanel({
           );
         })}
       </ul>
-    </div>
+    </main>
   );
 }
 
 /**
- * まとめて付ける (§6.8.2 / v1.32.1)。曜日を選び (選ばなければ全部の日)、
- * ○ か × を押す。曜日は丸いボタンで、選ぶと色が付く
+ * 締切と回答の進み具合 (v1.33.1)。状態のチップを並べる代わりに、
+ * 一番気にすること (あと何日・どこまで答えたか) を大きく1枚で見せる
  */
-function BulkCard({ onApply }: { onApply: (weekdays: number[], value: Answer) => void }) {
+function DeadlineCard({
+  round,
+  answered,
+  total,
+}: {
+  round: ScheduleRound;
+  answered: number;
+  total: number;
+}) {
+  const days = daysBetween(todayInTokyo(), round.deadline);
+  const done = total > 0 && answered === total;
+  return (
+    <section className="rounded-2xl bg-[var(--cell)] p-4">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="text-[34px] font-bold leading-none tabular-nums">
+            {days <= 0 ? "今日まで" : `あと${days}日`}
+          </p>
+          <p className="mt-1.5 text-[15px] text-[var(--muted)] tabular-nums">
+            {formatDateLabel(round.deadline)} 23:59 締切
+          </p>
+        </div>
+        <span
+          className={`shrink-0 rounded-full px-2.5 py-1 text-[13px] font-semibold ${
+            done ? "bg-[#34c759] text-white" : "bg-[var(--fill)]"
+          }`}
+        >
+          {done ? "回答済み" : "受付中"}
+        </span>
+      </div>
+      <div
+        className="mt-4 h-2 overflow-hidden rounded-full bg-[var(--fill)]"
+        role="progressbar"
+        aria-label="回答したコマ"
+        aria-valuemin={0}
+        aria-valuemax={total}
+        aria-valuenow={answered}
+      >
+        <div
+          className="h-full rounded-full bg-[#34c759] transition-[width] duration-300"
+          style={{ width: `${total ? (answered / total) * 100 : 0}%` }}
+        />
+      </div>
+      <p className="mt-1.5 text-[13px] text-[var(--muted)] tabular-nums">
+        {answered}/{total}コマ
+      </p>
+    </section>
+  );
+}
+
+const ANSWER_STYLE: Record<Answer | "none", { label: string; className: string }> = {
+  ok: { label: "○", className: "bg-[#34c759] text-white" },
+  maybe: { label: "△", className: "bg-[#ff9f0a] text-white" },
+  no: { label: "×", className: "bg-[var(--muted)] text-white opacity-70" },
+  none: { label: "−", className: "bg-[var(--fill)] text-[var(--muted)]" },
+};
+/** ペンの見た目。選んでいるペンは印の色で塗る */
+const PEN_STYLE: Record<Answer, { label: string; on: string; mark: string }> = {
+  ok: { label: "出られる", on: "bg-[#34c759] text-white", mark: "text-[#34c759]" },
+  maybe: { label: "できれば避けたい", on: "bg-[#ff9f0a] text-white", mark: "text-[#ff9f0a]" },
+  no: { label: "出られない", on: "bg-[var(--muted)] text-white", mark: "text-[var(--muted)]" },
+};
+/** 読み上げ用 */
+const ANSWER_WORD: Record<Answer | "none", string> = {
+  ok: "出られる",
+  maybe: "できれば避けたい",
+  no: "出られない",
+  none: "未回答",
+};
+const WEEKDAY = ["日", "月", "火", "水", "木", "金", "土"];
+
+/** 回答する日とコマの時間 (その日に予約枠のあるコマの時間だけ。§6.8.2 / v1.32.1) */
+function answerSlots(candidates: Candidate[]): { date: string; ranges: { start: string; end: string }[] }[] {
+  const map = new Map<string, Map<string, { start: string; end: string }>>();
+  for (const c of candidates) {
+    const ranges = map.get(c.date) ?? new Map();
+    ranges.set(`${c.startTime}-${c.endTime}`, { start: c.startTime, end: c.endTime });
+    map.set(c.date, ranges);
+  }
+  return [...map]
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([date, ranges]) => ({
+      date,
+      ranges: [...ranges.values()].sort((x, y) => x.start.localeCompare(y.start)),
+    }));
+}
+
+function keysOf(list: ReturnType<typeof answerSlots>): AnswerKey[] {
+  return list.flatMap((s) => s.ranges.map((r) => answerKey(s.date, r.start, r.end)));
+}
+
+/**
+ * まとめて付ける (§6.8.2 / v1.33.1)。曜日を選び (選ばなければ全部の日)、
+ * 今のペンで塗る
+ */
+function BulkCard({ pen, onApply }: { pen: Answer; onApply: (weekdays: number[]) => void }) {
   const [weekdays, setWeekdays] = useState<number[]>([]);
   const [done, setDone] = useState<string | null>(null);
   const target = weekdays.length
     ? `${[1, 2, 3, 4, 5, 6, 0].filter((d) => weekdays.includes(d)).map((d) => WEEKDAY[d]).join("・")}曜日`
     : "全部の日";
 
-  function apply(value: Answer) {
-    onApply(weekdays, value);
-    setDone(`${target}を${value === "ok" ? "○" : "×"}にしました`);
+  function apply() {
+    onApply(weekdays);
+    setDone(`${target}を${ANSWER_STYLE[pen].label}にしました`);
     window.setTimeout(() => setDone(null), 1800);
   }
 
   return (
     <section className="space-y-3 rounded-2xl bg-[var(--cell)] p-4">
-      <div className="flex items-baseline justify-between">
-        <h2 className="text-[17px] font-bold">まとめて付ける</h2>
-        <span className="text-[13px] text-[var(--muted)]">{target}</span>
-      </div>
+      <h2 className="text-[17px] font-bold">まとめて付ける</h2>
       <div className="flex justify-between gap-1" role="group" aria-label="曜日">
         {[1, 2, 3, 4, 5, 6, 0].map((d) => {
           const on = weekdays.includes(d);
@@ -266,22 +280,14 @@ function BulkCard({ onApply }: { onApply: (weekdays: number[], value: Answer) =>
           );
         })}
       </div>
-      <div className="grid grid-cols-2 gap-2">
-        <button
-          type="button"
-          onClick={() => apply("ok")}
-          className="flex h-12 items-center justify-center gap-2 rounded-xl bg-[#34c759] text-[16px] font-bold text-white active:opacity-80"
-        >
-          <span className="text-[20px]">○</span>にする
-        </button>
-        <button
-          type="button"
-          onClick={() => apply("no")}
-          className="flex h-12 items-center justify-center gap-2 rounded-xl bg-[var(--fill)] text-[16px] font-bold active:opacity-80"
-        >
-          <span className="text-[20px]">×</span>にする
-        </button>
-      </div>
+      {/* 押すと何が起きるかをボタンの文字で示す (説明文は置かない) */}
+      <button
+        type="button"
+        onClick={apply}
+        className={`flex h-12 w-full items-center justify-center gap-2 rounded-xl text-[16px] font-bold active:opacity-80 ${PEN_STYLE[pen].on}`}
+      >
+        {target}を<span className="text-[20px]">{ANSWER_STYLE[pen].label}</span>にする
+      </button>
       <p className="h-5 text-center text-[14px] text-[var(--tint)]" aria-live="polite">
         {done}
       </p>
@@ -289,9 +295,36 @@ function BulkCard({ onApply }: { onApply: (weekdays: number[], value: Answer) =>
   );
 }
 
-// ---------- 集計と割り振り (§6.8.3) ----------
+// ---------- 集計と割り振り (§6.8.3。折衝・3役だけ) ----------
 
-function PlanPanel({ input }: { input: PlanInput }) {
+export function SchedulePlanClient({
+  initialInput,
+  round,
+  canPlan,
+}: {
+  initialInput: PlanInput;
+  round: ScheduleRound;
+  /** 折衝・3役か。違えば中身を出さない (計算の API 側でも同じ権限を確かめる) */
+  canPlan: boolean;
+}) {
+  if (!canPlan) {
+    return (
+      <main className="mx-auto max-w-3xl px-4 py-10 text-center text-[15px] text-[var(--muted)]">
+        折衝と3役だけが使える画面です
+      </main>
+    );
+  }
+  return (
+    <main className="mx-auto max-w-3xl space-y-4 px-4 py-3">
+      <h1 className="text-[28px] font-bold leading-tight">
+        {parseDate(round.month).month}月の割り振り
+      </h1>
+      <PlanPanel input={initialInput} round={round} />
+    </main>
+  );
+}
+
+function PlanPanel({ input, round }: { input: PlanInput; round: ScheduleRound }) {
   const [settings, setSettings] = useState<PlanSettings>(() => ({
     ...DEFAULT_SETTINGS,
     perGenre: defaultPerGenre(input),
@@ -338,17 +371,19 @@ function PlanPanel({ input }: { input: PlanInput }) {
     <div className="space-y-4">
       <div className="grid grid-cols-3 gap-2">
         <Stat label="回答した人" value={`${answered}/${input.members.length}`} />
+        <Stat
+          label="締切"
+          sub={formatDateLabel(round.deadline)}
+          value={(() => {
+            const days = daysBetween(todayInTokyo(), round.deadline);
+            return days < 0 ? "締切済み" : days === 0 ? "今日" : `あと${days}日`;
+          })()}
+        />
         <Stat label="予約したコマ" value={`${total}`} />
-        <Stat label="ジャンル" value={`${genres}`} />
       </div>
 
       <section className={`${groupClass} space-y-4 p-4`}>
-        <div>
-          <h2 className="text-[17px] font-bold">各ジャンルのコマ数</h2>
-          <p className="text-[14px] text-[var(--muted)]">
-            全部のジャンルに同じ数ずつ入れます (端数は +1)。余ったコマは「空き」になります。
-          </p>
-        </div>
+        <h2 className="text-[17px] font-bold">各ジャンルのコマ数</h2>
         <div className="flex items-center justify-center gap-4">
           <StepButton label="減らす" onClick={() => setSettings({ ...settings, perGenre: Math.max(0, settings.perGenre - 1) })}>−</StepButton>
           <p className="min-w-[96px] text-center">
@@ -366,7 +401,7 @@ function PlanPanel({ input }: { input: PlanInput }) {
             />
           </div>
           <p className="mt-1 text-[13px] text-[var(--muted)] tabular-nums">
-            {genres}ジャンル × {settings.perGenre} = {used}コマを使う / 予約 {total}コマ ・ 空き {total - used}コマ
+            {genres}ジャンル × {settings.perGenre} = {used}コマを使う・空き {total - used}コマ
           </p>
         </div>
 
@@ -612,11 +647,12 @@ function Progress({ elapsed, limit }: { elapsed: number; limit: number }) {
   );
 }
 
-function Stat({ label, value }: { label: string; value: string }) {
+function Stat({ label, value, sub }: { label: string; value: string; sub?: string }) {
   return (
     <div className="rounded-xl bg-[var(--cell)] px-3 py-2.5">
       <p className="text-[13px] text-[var(--muted)]">{label}</p>
       <p className="text-[17px] font-bold tabular-nums">{value}</p>
+      {sub ? <p className="text-[12px] text-[var(--muted)] tabular-nums">{sub}</p> : null}
     </div>
   );
 }

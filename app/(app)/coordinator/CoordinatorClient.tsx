@@ -41,7 +41,7 @@ export function CoordinatorClient() {
       {/* 日程調整 (§6.8 / v1.32)。いまは手元の環境の見本だけ */}
       {!hasSupabaseEnv() ? (
         <Link
-          href="/schedule"
+          href="/schedule/plan"
           className="flex max-w-2xl items-center justify-between rounded-xl bg-[var(--cell)] px-4 py-3 text-[15px]"
         >
           <span>

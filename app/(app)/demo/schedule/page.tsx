@@ -1,19 +1,17 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo } from "react";
 
 import { demoRound } from "@/lib/scheduling/round";
 import { scenario } from "@/lib/scheduling/scenarios";
 import { addMonths, startOfMonth, todayInTokyo } from "@/lib/time";
 
-import { ScheduleClient } from "../../schedule/ScheduleClient";
+import { ScheduleAnswerClient } from "../../schedule/ScheduleClient";
 
 /**
- * 日程調整のデモ (SPEC.md §6.8.4)。見本の回答は端末で作る
+ * 日程調整の回答のデモ (SPEC.md §6.8.4)。見本の回答は端末で作る
  * (150人ぶんをサーバーから送るより軽く、種を決めた乱数なので毎回同じになる)。
- *
  * 見本は過去のコマ割り表の形を元にした月 (lib/scheduling/scenarios.ts)。
- * デモの人は3役なので割り振りまで見える。`?as=member` でメンバーの見え方になる
  */
 export default function DemoSchedule() {
   const input = useMemo(
@@ -21,9 +19,5 @@ export default function DemoSchedule() {
     [],
   );
   const round = useMemo(() => demoRound(), []);
-  const [canPlan, setCanPlan] = useState(true);
-  useEffect(() => {
-    if (new URLSearchParams(window.location.search).get("as") === "member") setCanPlan(false);
-  }, []);
-  return <ScheduleClient key={String(canPlan)} initialInput={input} me="BREAK-0" round={round} canPlan={canPlan} />;
+  return <ScheduleAnswerClient initialInput={input} me="BREAK-0" round={round} />;
 }

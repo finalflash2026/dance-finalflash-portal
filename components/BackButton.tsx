@@ -24,7 +24,7 @@ export function backTarget(pathname: string): { href: string; label: string } | 
     return { href: "/number-cal", label: "ナンバー" };
   }
   // 日程調整はホーム (メンバー) からも設定 (折衝・3役) からも来るので、来た画面へ戻る
-  if (path === "/schedule") return { href: "/", label: "戻る" };
+  if (path === "/schedule" || path === "/schedule/plan") return { href: "/", label: "戻る" };
   if (
     path === "/manage" ||
     path.startsWith("/admin") ||
@@ -40,7 +40,7 @@ export function backTarget(pathname: string): { href: string; label: string } | 
  * ナンバーの画面などからも開くので、ホームへ決め打ちで戻すと来た画面を見失う。
  * 日程調整はホーム (メンバー) からも設定 (折衝・3役) からも来る
  */
-const BACK_TO_PREVIOUS = ["/keys", "/notifications", "/schedule"];
+const BACK_TO_PREVIOUS = ["/keys", "/notifications", "/schedule", "/schedule/plan"];
 
 /**
  * このアプリの中で画面を移った回数。0 のとき (通知・URL直打ちで直接開いた) は

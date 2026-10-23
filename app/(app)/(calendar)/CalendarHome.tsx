@@ -448,7 +448,7 @@ function ScheduleRoundCard({ round, today }: { round: ScheduleRound; today: Date
   const due = days <= 0 ? "今日まで" : days === 1 ? "明日まで" : `あと${days}日`;
   return (
     <Link
-      href="/schedule?tab=answer"
+      href="/schedule"
       prefetch
       data-tour="schedule-round"
       className="flex items-center gap-3 rounded-2xl bg-[var(--tint)] px-4 py-3.5 text-white active:opacity-80"

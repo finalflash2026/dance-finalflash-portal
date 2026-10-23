@@ -157,7 +157,7 @@ export function demoCalendar(isOb: boolean) {
   // 日程調整の締切 (§6.8 / v1.32.2)。カレンダーと近い締切にも出す
   const round = demoRound();
   const deadlineEvents: MyEvent[] = [
-    ev({ kind: "deadline", sourceId: "dl-round", date: round.deadline, allDay: true, startTime: "00:00", endTime: "24:00", title: `締切: ${roundTitle(round)}`, important: true, dueTime: "23:59", url: "/schedule?tab=answer" }),
+    ev({ kind: "deadline", sourceId: "dl-round", date: round.deadline, allDay: true, startTime: "00:00", endTime: "24:00", title: `締切: ${roundTitle(round)}`, important: true, dueTime: "23:59", url: "/schedule" }),
     ev({ kind: "deadline", sourceId: "dl1", date: d(4), allDay: true, startTime: "00:00", endTime: "24:00", title: "締切: 合宿費の集金", important: true, dueTime: "23:59", url: "https://example.com/form" }),
     ev({ kind: "deadline", sourceId: "dl2", date: d(9), allDay: true, startTime: "00:00", endTime: "24:00", title: "締切: 2ジャン登録フォーム", url: "https://example.com/form" }),
     ev({ kind: "deadline", sourceId: "dl3", date: d(1), allDay: true, startTime: "00:00", endTime: "24:00", title: "締切: 学祭の出演アンケート", url: "https://example.com/form" }),
@@ -215,7 +215,7 @@ export function demoCalendar(isOb: boolean) {
     upcomingDeadlines: isOb
       ? []
       : [
-          { id: "dl-round", title: roundTitle(round), dueDate: round.deadline, dueTime: "23:59", url: "/schedule?tab=answer", important: true },
+          { id: "dl-round", title: roundTitle(round), dueDate: round.deadline, dueTime: "23:59", url: "/schedule", important: true },
           { id: "dl3", title: "学祭の出演アンケート", dueDate: d(1), dueTime: null, url: "https://example.com/form", important: false },
           { id: "dl1", title: "合宿費の集金", dueDate: d(4), dueTime: "23:59", url: "https://example.com/form", important: true },
           { id: "dl2", title: "2ジャン登録フォーム", dueDate: d(9), dueTime: null, url: "https://example.com/form", important: false },
