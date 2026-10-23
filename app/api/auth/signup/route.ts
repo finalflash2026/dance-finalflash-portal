@@ -1,10 +1,13 @@
-import bcrypt from "bcryptjs";
 import { z } from "zod";
 
 import { dummyEmail } from "@/lib/auth/email";
-import { generateCalendarToken } from "@/lib/auth/token";
-import { buildUsernameFromGenreId } from "@/lib/auth/username";
-import { GENRES, MIN_PASSWORD_LENGTH } from "@/lib/constants";
+import {
+  createMemberRecords,
+  memberFieldsSchema,
+  reserveUsername,
+  verifySignupPassphrase,
+} from "@/lib/auth/register";
+import { MIN_PASSWORD_LENGTH } from "@/lib/constants";
 import { hasSupabaseEnv } from "@/lib/env";
 import { clientIp, hitRateLimit } from "@/lib/rate-limit";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -12,76 +15,34 @@ import { createAdminClient } from "@/lib/supabase/admin";
 /**
  * POST /api/auth/signup  (SPEC.md §8.1 / §3.2)
  *
- * Supabase の一般サインアップは無効化してあるので、登録は必ずここを通る。
- * これにより合言葉の検証を強制できる。
+ * ユーザーIDとパスワードでの登録。Google での登録は /api/auth/complete-profile (§3.7)。
+ * 合言葉の照合・ユーザーIDの組み立て・プロフィールの作成は lib/auth/register.ts と共通。
  *
  * 1) app_settings.signup_pass と bcrypt 照合 (不一致 → 403)
  * 2) username 組立 → 重複チェック (409)
  * 3) auth.admin.createUser (ダミーメール, email_confirm: true)
- * 4) profiles insert
- * 4b) user_subgenres insert (2ジャン・3ジャン。選ばれていれば。v1.19)
- * 5) calendar_tokens insert (32byte base64url)
+ * 4) profiles / user_subgenres / calendar_tokens
  *
- * 3 以降で失敗したら作成済みの auth ユーザーを削除してロールバックする
+ * 4 で失敗したら作成済みの auth ユーザーを削除してロールバックする
  * (auth.users だけ残ると同じ username で二度と登録できなくなるため)。
  */
 export const runtime = "nodejs";
 
-const GENRE_IDS: number[] = GENRES.map((g) => g.id);
-
-const schema = z.object({
-  generation: z
-    .number({ message: "期を数値で入力してください" })
-    .int("期は整数で入力してください")
-    .min(1, "期が不正です")
-    .max(99, "期が不正です"),
-  mainGenreId: z
-    .number()
-    .int()
-    .refine((v) => GENRE_IDS.includes(v), "1ジャンを選択してください"),
-  displayName: z
-    .string()
-    .trim()
-    .min(1, "名前を入力してください")
-    .max(20, "名前は20文字以内で入力してください"),
-  password: z
-    .string()
-    .min(MIN_PASSWORD_LENGTH, `パスワードは${MIN_PASSWORD_LENGTH}文字以上にしてください`),
-  /**
-   * 確認用のもう一度の入力 (v1.19)。
-   * 画面側でも突き合わせるが、**API は直接叩けるのでここでも見る**。
-   */
-  passwordConfirm: z.string().min(1, "確認用のパスワードを入力してください"),
-  passphrase: z.string().min(1, "サークル生合言葉を入力してください"),
-  /** 2ジャン・3ジャン (v1.19)。未設定は null */
-  subgenre2Id: z.number().int().nullable().optional(),
-  subgenre3Id: z.number().int().nullable().optional(),
-})
+const schema = z
+  .object({
+    password: z
+      .string()
+      .min(MIN_PASSWORD_LENGTH, `パスワードは${MIN_PASSWORD_LENGTH}文字以上にしてください`),
+    /**
+     * 確認用のもう一度の入力 (v1.19)。
+     * 画面側でも突き合わせるが、**API は直接叩けるのでここでも見る**。
+     */
+    passwordConfirm: z.string().min(1, "確認用のパスワードを入力してください"),
+  })
   .refine((v) => v.password === v.passwordConfirm, {
     message: "パスワードが一致しません",
     path: ["passwordConfirm"],
-  })
-  .refine(
-    (v) =>
-      [v.subgenre2Id, v.subgenre3Id].every(
-        (id) => id == null || GENRE_IDS.includes(id),
-      ),
-    { message: "選べないジャンルが指定されています", path: ["subgenre2Id"] },
-  )
-  .refine(
-    (v) =>
-      [v.subgenre2Id, v.subgenre3Id].every(
-        (id) => id == null || id !== v.mainGenreId,
-      ),
-    { message: "1ジャンと同じジャンルは選べません", path: ["subgenre2Id"] },
-  )
-  .refine(
-    (v) =>
-      v.subgenre2Id == null ||
-      v.subgenre3Id == null ||
-      v.subgenre2Id !== v.subgenre3Id,
-    { message: "2ジャンと3ジャンに同じジャンルは選べません", path: ["subgenre3Id"] },
-  );
+  });
 
 export async function POST(request: Request) {
   // 試行回数の制限は DB で数える (§13.2 / v1.31.4)。IP ごと 5回/分
@@ -99,88 +60,31 @@ export async function POST(request: Request) {
     );
   }
 
-  const parsed = schema.safeParse(await request.json().catch(() => null));
-  if (!parsed.success) {
-    return Response.json(
-      { error: parsed.error.issues[0]?.message ?? "入力内容が不正です" },
-      { status: 400 },
-    );
+  const body = await request.json().catch(() => null);
+  const fields = memberFieldsSchema.safeParse(body);
+  const passwords = schema.safeParse(body);
+  if (!fields.success || !passwords.success) {
+    const issue = (fields.error ?? passwords.error)?.issues[0];
+    return Response.json({ error: issue?.message ?? "入力内容が正しくありません。" }, { status: 400 });
   }
-  const {
-    generation,
-    mainGenreId,
-    displayName,
-    password,
-    passphrase,
-    subgenre2Id,
-    subgenre3Id,
-  } = parsed.data;
 
   const admin = createAdminClient();
 
   // ---- 1. 合言葉の照合 ----
-  const { data: setting, error: settingError } = await admin
-    .from("app_settings")
-    .select("value_hash")
-    .eq("key", "signup_pass")
-    .maybeSingle();
-
-  // 接続エラーと「行が無い」を混同しないこと。
-  // 混同すると設定ミス(URLの誤りなど)が「合言葉が未設定」に見えて原因を追えなくなる
-  if (settingError) {
-    return Response.json(
-      { error: `DBに接続できませんでした: ${settingError.message}` },
-      { status: 503 },
-    );
-  }
-  if (!setting) {
-    return Response.json(
-      { error: "合言葉が未設定です。管理者に連絡してください。" },
-      { status: 503 },
-    );
-  }
-  if (!(await bcrypt.compare(passphrase, setting.value_hash))) {
-    return Response.json({ error: "合言葉が違います。" }, { status: 403 });
-  }
+  const pass = await verifySignupPassphrase(admin, fields.data.passphrase);
+  if (!pass.ok) return Response.json({ error: pass.error }, { status: pass.status });
 
   // ---- 2. username 組立と重複チェック ----
-  const username = buildUsernameFromGenreId(
-    generation,
-    mainGenreId,
-    displayName,
-  );
-
-  const { data: existing, error: existingError } = await admin
-    .from("profiles")
-    .select("user_id")
-    .eq("username", username)
-    .maybeSingle();
-
-  // ここでエラーを握り潰すと「重複なし」と誤判定して auth ユーザーを作ってしまう
-  if (existingError) {
-    return Response.json(
-      { error: `DBに接続できませんでした: ${existingError.message}` },
-      { status: 503 },
-    );
-  }
-  if (existing) {
-    return Response.json(
-      {
-        error: `ユーザーID「${username}」は既に使われています。名前の表記を変えてください。`,
-      },
-      { status: 409 },
-    );
-  }
+  const reserved = await reserveUsername(admin, fields.data);
+  if (!reserved.ok) return Response.json({ error: reserved.error }, { status: reserved.status });
+  const username = reserved.value;
 
   // ---- 3. auth ユーザー作成 ----
-  const { data: created, error: createError } = await admin.auth.admin.createUser(
-    {
-      email: dummyEmail(username),
-      password,
-      email_confirm: true,
-    },
-  );
-
+  const { data: created, error: createError } = await admin.auth.admin.createUser({
+    email: dummyEmail(username),
+    password: passwords.data.password,
+    email_confirm: true,
+  });
   if (createError || !created.user) {
     return Response.json(
       { error: `登録に失敗しました: ${createError?.message ?? "unknown"}` },
@@ -188,67 +92,11 @@ export async function POST(request: Request) {
     );
   }
 
-  const userId = created.user.id;
-
-  // ---- 4-5. profiles / calendar_tokens。失敗したら auth ユーザーを消して戻す ----
-  const { error: profileError } = await admin.from("profiles").insert({
-    user_id: userId,
-    username,
-    generation,
-    main_genre_id: mainGenreId,
-    display_name: displayName,
-  });
-
-  if (profileError) {
-    await admin.auth.admin.deleteUser(userId);
-    return Response.json(
-      { error: `登録に失敗しました: ${profileError.message}` },
-      { status: 500 },
-    );
-  }
-
-  // ---- 4b. 2ジャン・3ジャン (v1.19) ----
-  // 登録時に選べるようにした。設定画面 (§6.4.1) から後で変えられる点は変わらない。
-  // 選ばなければ行を作らない = 今までどおり「未設定」
-  const subgenreRows = (
-    [
-      [2, subgenre2Id],
-      [3, subgenre3Id],
-    ] as const
-  )
-    .filter(([, genreId]) => genreId != null)
-    .map(([slot, genreId]) => ({
-      user_id: userId,
-      slot,
-      genre_id: genreId as number,
-    }));
-
-  if (subgenreRows.length > 0) {
-    const { error: subgenreError } = await admin
-      .from("user_subgenres")
-      .insert(subgenreRows);
-
-    if (subgenreError) {
-      await admin.auth.admin.deleteUser(userId);
-      return Response.json(
-        { error: `登録に失敗しました: ${subgenreError.message}` },
-        { status: 500 },
-      );
-    }
-  }
-
-  const { error: tokenError } = await admin.from("calendar_tokens").insert({
-    user_id: userId,
-    token: generateCalendarToken(),
-  });
-
-  if (tokenError) {
-    // profiles は user_id に on delete cascade が付いているので一緒に消える
-    await admin.auth.admin.deleteUser(userId);
-    return Response.json(
-      { error: `登録に失敗しました: ${tokenError.message}` },
-      { status: 500 },
-    );
+  // ---- 4. プロフィールなど。失敗したら auth ユーザーを消して戻す ----
+  const records = await createMemberRecords(admin, created.user.id, username, fields.data);
+  if (!records.ok) {
+    await admin.auth.admin.deleteUser(created.user.id);
+    return Response.json({ error: records.error }, { status: records.status });
   }
 
   return Response.json({ username }, { status: 201 });

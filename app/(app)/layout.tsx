@@ -1,3 +1,5 @@
+import { redirect } from "next/navigation";
+
 import { BackButton } from "@/components/BackButton";
 import { BellButton } from "@/components/BellButton";
 import { HeaderIdentity } from "@/components/HeaderIdentity";
@@ -54,6 +56,10 @@ export default async function AppLayout({
         })
       : Promise.resolve(1),
   ]);
+  // Google でログインしたが、まだ登録 (期・ジャンル・合言葉) を終えていない人 (§3.7 / v1.34)。
+  // アプリの画面には入れず、登録の続きへ送る
+  if (hasSupabaseEnv() && !profile) redirect("/welcome");
+
   // Supabase 未設定 (セットアップ前) は member 相当で表示する
   const role: Role = profile?.role ?? "member";
 

@@ -22,7 +22,15 @@ import { buildUsername } from "@/lib/auth/username";
  * 出したいのに、設定画面まで行かないと選べなかった。後から変えられる点は
  * これまでどおり (§6.4.1)。
  */
-export function SignupForm() {
+export function SignupForm({
+  google = false,
+}: {
+  /**
+   * Google でログインしたあとの登録 (§3.7 / v1.34)。パスワードの欄を出さず、
+   * /api/auth/complete-profile に送ってそのままホームへ入る
+   */
+  google?: boolean;
+}) {
   const router = useRouter();
   const [generation, setGeneration] = useState("");
   const [mainGenreId, setMainGenreId] = useState("");
@@ -43,6 +51,7 @@ export function SignupForm() {
 
   /** 両方入力されていて食い違うときだけ知らせる (打っている途中で赤くしない) */
   const mismatch =
+    !google &&
     password.length > 0 &&
     passwordConfirm.length > 0 &&
     password !== passwordConfirm;
@@ -67,7 +76,7 @@ export function SignupForm() {
 
   async function onSubmit(event: React.FormEvent) {
     event.preventDefault();
-    if (password !== passwordConfirm) {
+    if (!google && password !== passwordConfirm) {
       setError("パスワードが一致しません。");
       return;
     }
@@ -75,7 +84,7 @@ export function SignupForm() {
     setError(null);
 
     try {
-      const res = await fetch("/api/auth/signup", {
+      const res = await fetch(google ? "/api/auth/complete-profile" : "/api/auth/signup", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -96,6 +105,12 @@ export function SignupForm() {
         return;
       }
 
+      if (google) {
+        // Google のログインでセッションはもうある。そのままホームへ
+        router.refresh();
+        router.replace("/");
+        return;
+      }
       // 登録できたら ID を引き継いでログイン画面へ
       router.push(`/login?username=${encodeURIComponent(body.username)}`);
     } catch {
@@ -189,37 +204,42 @@ export function SignupForm() {
         </select>
       </Field>
 
-      <Field
-        label="マイパスワード"
-        hint={`${MIN_PASSWORD_LENGTH}文字以上。メールを使わないので、忘れたときは管理者に再設定を頼みます。`}
-      >
-        <input
-          className={inputClass}
-          type="password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          minLength={MIN_PASSWORD_LENGTH}
-          autoComplete="new-password"
-          required
-        />
-      </Field>
+      {/* Google で登録するときはパスワードを持たない (§3.7) */}
+      {google ? null : (
+        <>
+          <Field
+            label="マイパスワード"
+            hint={`${MIN_PASSWORD_LENGTH}文字以上。メールを使わないので、忘れたときは管理者に再設定を頼みます。`}
+          >
+            <input
+              className={inputClass}
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              minLength={MIN_PASSWORD_LENGTH}
+              autoComplete="new-password"
+              required
+            />
+          </Field>
 
-      <Field label="マイパスワード(確認)">
-        <input
-          className={inputClass}
-          type="password"
-          value={passwordConfirm}
-          onChange={(e) => setPasswordConfirm(e.target.value)}
-          autoComplete="new-password"
-          aria-invalid={mismatch}
-          required
-        />
-        {mismatch ? (
-          <p role="alert" className="mt-1 text-xs text-[var(--danger-fg)]">
-            パスワードが一致しません
-          </p>
-        ) : null}
-      </Field>
+          <Field label="マイパスワード(確認)">
+            <input
+              className={inputClass}
+              type="password"
+              value={passwordConfirm}
+              onChange={(e) => setPasswordConfirm(e.target.value)}
+              autoComplete="new-password"
+              aria-invalid={mismatch}
+              required
+            />
+            {mismatch ? (
+              <p role="alert" className="mt-1 text-xs text-[var(--danger-fg)]">
+                パスワードが一致しません
+              </p>
+            ) : null}
+          </Field>
+        </>
+      )}
 
       <Field label="サークル生合言葉">
         <input
@@ -243,11 +263,13 @@ export function SignupForm() {
         {pending ? "登録中…" : "登録する"}
       </button>
 
-      <p className="text-center text-sm">
-        <Link href="/login" className="underline">
-          登録済みの人はこちら(ログイン)
-        </Link>
-      </p>
+      {google ? null : (
+        <p className="text-center text-sm">
+          <Link href="/login" className="underline">
+            登録済みの人はこちら(ログイン)
+          </Link>
+        </p>
+      )}
     </form>
   );
 }

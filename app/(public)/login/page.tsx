@@ -1,3 +1,5 @@
+import { GoogleSignInButton } from "@/components/GoogleSignInButton";
+
 import { LoginForm } from "./LoginForm";
 
 /**
@@ -9,10 +11,10 @@ import { LoginForm } from "./LoginForm";
 export default async function LoginPage({
   searchParams,
 }: {
-  searchParams: Promise<{ username?: string }>;
+  searchParams: Promise<{ username?: string; error?: string }>;
 }) {
   // 新規登録直後は ?username=... で ID を引き継いで入力欄に入れておく
-  const { username } = await searchParams;
+  const { username, error } = await searchParams;
 
   return (
     <div className="space-y-6">
@@ -22,6 +24,18 @@ export default async function LoginPage({
           ダンスサークル練習管理
         </p>
       </header>
+      {/* Google でログイン (§3.7 / v1.34)。今までのユーザーIDとパスワードは下に残す */}
+      <GoogleSignInButton />
+      {error === "google" ? (
+        <p role="alert" className="text-sm text-[var(--danger-fg)]">
+          Google でログインできませんでした。もう一度試してください。
+        </p>
+      ) : null}
+      <div className="flex items-center gap-3 text-[13px] text-[var(--muted)]">
+        <span className="h-px flex-1 bg-[var(--border)]" />
+        ユーザーIDとパスワード
+        <span className="h-px flex-1 bg-[var(--border)]" />
+      </div>
       <LoginForm initialUsername={username ?? ""} />
     </div>
   );
