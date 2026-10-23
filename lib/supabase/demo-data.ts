@@ -102,5 +102,14 @@ function profiles(): Row[] {
 export function demoRows(table: string): Row[] {
   if (table === "reservations") return reservations();
   if (table === "profiles") return profiles();
+  // ナンバー詳細の出欠表 (v1.35) の見本。/demo/number の日程 n1〜n4 に対応
+  if (table === "attendances") {
+    return [
+      { user_id: "u9", number_event_id: "n1", status: "late", time_value: "21:30:00", reason: "バイト" },
+      { user_id: "u2", number_event_id: "n2", status: "absent", time_value: null, reason: "授業" },
+      { user_id: "u4", number_event_id: "n3", status: "absent", time_value: null, reason: null },
+      { user_id: "u9", number_event_id: "n4", status: "leave_early", time_value: "22:00:00", reason: "用事" },
+    ];
+  }
   return [];
 }

@@ -24,6 +24,8 @@ import {
   todayInTokyo,
 } from "@/lib/time";
 
+import { AttendanceTable } from "./AttendanceTable";
+
 /**
  * ナンバー詳細 (SPEC.md §6.3)
  *
@@ -72,7 +74,7 @@ export function NumberDetailClient({
   events: NumberEvent[];
   currentUserId: string;
 }) {
-  const [tab, setTab] = useState<"events" | "members">("events");
+  const [tab, setTab] = useState<"events" | "table" | "members">("events");
   const [error, setError] = useState<string | null>(null);
   const isOwner = number.ownerId === currentUserId;
   const color = numberColor(number.id);
@@ -100,6 +102,8 @@ export function NumberDetailClient({
         {(
           [
             { id: "events", label: "日程" },
+            // 全部の日程とメンバーごとの出欠 (コレオ・主催向け。v1.35)
+            { id: "table", label: "出欠表" },
             { id: "members", label: "メンバー" },
           ] as const
         ).map((item) => (
@@ -133,6 +137,8 @@ export function NumberDetailClient({
           currentUserId={currentUserId}
           onError={setError}
         />
+      ) : tab === "table" ? (
+        <AttendanceTable events={events} members={members} />
       ) : (
         <MembersTab
           number={number}

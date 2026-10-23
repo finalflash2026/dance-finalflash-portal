@@ -22,6 +22,8 @@ export default async function DemoNumber({
       events={[
         { id: "n1", date: today, startTime: "21:00", endTime: "23:00", place: "スタジオA", note: "サビまで通す" },
         { id: "n2", date: addDays(today, 6), startTime: "23:00", endTime: "05:00", place: "スタジオA", note: null },
+        { id: "n3", date: addDays(today, 9), startTime: "19:00", endTime: "21:00", place: "練習室2(フレスコ)", note: "通し" },
+        { id: "n4", date: addDays(today, 13), startTime: "20:00", endTime: "23:00", place: "スタジオB", note: "動画撮影" },
       ]}
       currentUserId={DEMO_USER_ID}
     />
