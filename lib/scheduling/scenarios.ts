@@ -27,11 +27,12 @@ export function random(seed: number) {
   };
 }
 
-type Times = readonly (readonly [string, string])[];
-const EVENING_90: Times = [["18:00", "19:30"], ["19:40", "21:10"]];
-const EVENING_70: Times = [["18:00", "19:10"], ["19:15", "20:25"], ["20:30", "21:40"]];
-const WEEKEND_90: Times = [["13:00", "14:30"], ["14:40", "16:10"], ["16:20", "17:50"], ["18:00", "19:30"], ["19:40", "21:10"]];
-const HOLIDAY_110: Times = [["13:00", "14:50"], ["15:00", "16:50"], ["17:00", "19:00"], ["19:10", "21:10"]];
+export type Times = readonly (readonly [string, string])[];
+/** 過去のコマ割り表のコマの区切り。予約枠をコマに割るときにも使う (candidates.ts) */
+export const EVENING_90: Times = [["18:00", "19:30"], ["19:40", "21:10"]];
+export const EVENING_70: Times = [["18:00", "19:10"], ["19:15", "20:25"], ["20:30", "21:40"]];
+export const WEEKEND_90: Times = [["13:00", "14:30"], ["14:40", "16:10"], ["16:20", "17:50"], ["18:00", "19:30"], ["19:40", "21:10"]];
+export const HOLIDAY_110: Times = [["13:00", "14:50"], ["15:00", "16:50"], ["17:00", "19:00"], ["19:10", "21:10"]];
 
 const SECTION: Record<number, string> = {
   1: "7号館", 2: "フレスコ", 3: "フレスコ", 4: "フレスコ", 5: "講堂", 6: "講堂", 7: "講堂", 8: "講堂",

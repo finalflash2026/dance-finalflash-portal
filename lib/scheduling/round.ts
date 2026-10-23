@@ -23,6 +23,23 @@ export function roundTitle(round: ScheduleRound): string {
   return `${parseDate(round.month).month}月の日程調整`;
 }
 
+/**
+ * デモ環境 (Supabase につないだデモ。§6.8.4 / v1.35) の回。**再来月**を受付中にし、
+ * 締切は来月の15日。回答の保存 (DB) を作るまでの仮の回
+ */
+export function liveDemoRound(today: DateString = todayInTokyo()): ScheduleRound {
+  const thisMonth = startOfMonth(today);
+  return {
+    id: "round-live-demo",
+    month: addMonths(thisMonth, 2),
+    deadline: addDays(addMonths(thisMonth, 1), 14),
+    status: "open",
+    answeredCount: 0,
+    memberCount: 0,
+    answeredByMe: false,
+  };
+}
+
 /** デモの回。来月ぶんを受付中、締切は1週間後 */
 export function demoRound(): ScheduleRound {
   const today = todayInTokyo();

@@ -33,12 +33,23 @@ export function ScheduleAnswerClient({
   initialInput,
   me,
   round,
+  storageKey,
 }: {
   initialInput: PlanInput;
   me: string;
   round: ScheduleRound;
+  /**
+   * 自分の回答を端末に保存するときの鍵 (デモ環境。v1.35)。回答を DB に
+   * 保存するのは次の段階なので、それまではこの端末に残す
+   */
+  storageKey?: string;
 }) {
   const [input, setInput] = useState(initialInput);
+  // 端末に保存した回答を読む (描いたあとで。サーバーの描画とそろえるため)
+  useEffect(() => {
+    const saved = readSavedAnswers(storageKey);
+    if (saved) setInput((prev) => ({ ...prev, answers: { ...prev.answers, [me]: saved } }));
+  }, [storageKey, me]);
   const mine = input.answers[me] ?? {};
   const slots = useMemo(() => answerSlots(input.candidates), [input.candidates]);
   const allKeys = useMemo(() => keysOf(slots), [slots]);
@@ -53,6 +64,11 @@ export function ScheduleAnswerClient({
       else delete next[key];
     }
     setInput((prev) => ({ ...prev, answers: { ...prev.answers, [me]: next } }));
+    if (storageKey) {
+      try {
+        localStorage.setItem(storageKey, JSON.stringify(next));
+      } catch {}
+    }
   }
 
   return (
@@ -220,6 +236,17 @@ const ANSWER_WORD: Record<Answer | "none", string> = {
 };
 const WEEKDAY = ["日", "月", "火", "水", "木", "金", "土"];
 
+/** 端末に保存した自分の回答 (デモ環境。v1.35)。無い・読めないときは null */
+function readSavedAnswers(storageKey?: string): Partial<Record<AnswerKey, Answer>> | null {
+  if (!storageKey) return null;
+  try {
+    const raw = localStorage.getItem(storageKey);
+    return raw ? (JSON.parse(raw) as Partial<Record<AnswerKey, Answer>>) : null;
+  } catch {
+    return null;
+  }
+}
+
 /** 回答する日とコマの時間 (その日に予約枠のあるコマの時間だけ。§6.8.2 / v1.32.1) */
 function answerSlots(candidates: Candidate[]): { date: string; ranges: { start: string; end: string }[] }[] {
   const map = new Map<string, Map<string, { start: string; end: string }>>();
@@ -301,12 +328,22 @@ export function SchedulePlanClient({
   initialInput,
   round,
   canPlan,
+  me,
+  storageKey,
 }: {
   initialInput: PlanInput;
   round: ScheduleRound;
   /** 折衝・3役か。違えば中身を出さない (計算の API 側でも同じ権限を確かめる) */
   canPlan: boolean;
+  /** 見ている人と、その人が回答の画面で端末に保存した回答の鍵 (デモ環境。v1.35) */
+  me?: string;
+  storageKey?: string;
 }) {
+  const [input, setInput] = useState(initialInput);
+  useEffect(() => {
+    const saved = readSavedAnswers(storageKey);
+    if (saved && me) setInput((prev) => ({ ...prev, answers: { ...prev.answers, [me]: saved } }));
+  }, [storageKey, me]);
   if (!canPlan) {
     return (
       <main className="mx-auto max-w-3xl px-4 py-10 text-center text-[15px] text-[var(--muted)]">
@@ -319,7 +356,7 @@ export function SchedulePlanClient({
       <h1 className="text-[28px] font-bold leading-tight">
         {parseDate(round.month).month}月の割り振り
       </h1>
-      <PlanPanel input={initialInput} round={round} />
+      <PlanPanel input={input} round={round} />
     </main>
   );
 }

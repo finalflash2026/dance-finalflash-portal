@@ -2,6 +2,7 @@ import highsLoader from "highs";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
+import { requireRole } from "@/lib/auth/guard";
 import { hasSupabaseEnv } from "@/lib/env";
 import { plan } from "@/lib/scheduling/plan";
 import type { PlanInput } from "@/lib/scheduling/types";
@@ -16,9 +17,9 @@ import type { PlanInput } from "@/lib/scheduling/types";
  * **折衝・3役だけ** (§6.8.1 / v1.32.4)。DB を作る段階で requireRole("coordinator") を
  * ここに置く (いまは本番で開けないので、下の 404 がその代わり)。
  *
- * **いまはデモだけ**: Supabase 未設定の手元の環境でだけ、画面から送られた
- * 見本の回答で計算する。本番は回答の保存 (DB) を作るまで 404。
- * 本番では回答を画面から受け取らない (改ざんできてしまうため。DB から読む)。
+ * **いまはデモだけ**: 画面から送られた回答で計算する (v1.35 からは Supabase に
+ * つないだデモ環境でも、折衝・3役なら呼べる)。回答の保存 (DB) を作ったあとは、
+ * 回答を画面から受け取らない (改ざんできてしまうため。DB から読む)。
  */
 export const runtime = "nodejs";
 /** 計算は数秒〜十数秒かかる (Vercel の CPU では手元の 3〜5倍)。余裕を持たせる */
@@ -66,8 +67,11 @@ const schema = z.object({
 let solverPromise: ReturnType<typeof highsLoader> | null = null;
 
 export async function POST(request: Request) {
+  // 折衝・3役だけ (§6.8.1)。Supabase につないだデモ環境 (v1.35) でも確かめる。
+  // 手元の環境 (Supabase 未設定) は誰でも見本で試せる
   if (hasSupabaseEnv()) {
-    return NextResponse.json({ error: "NOT_FOUND" }, { status: 404 });
+    const guard = await requireRole("coordinator");
+    if (guard instanceof Response) return guard;
   }
 
   const parsed = schema.safeParse(await request.json().catch(() => null));

@@ -6,6 +6,7 @@ import { getCurrentProfile } from "@/lib/auth/session";
 import { GENRE_BY_ID } from "@/lib/constants";
 import { hasSupabaseEnv } from "@/lib/env";
 import { getMyEvents, getMyGenreIds } from "@/lib/events";
+import { liveDemoRound } from "@/lib/scheduling/round";
 import { createClient } from "@/lib/supabase/server";
 import {
   addDays,
@@ -206,6 +207,8 @@ export default async function HomePage({
       */}
       <CalendarHome
         key={selectedDate}
+        // 日程調整の回 (デモ環境で試せる。§6.8.4 / v1.35)。OB には出さない
+        scheduleRound={isOb ? null : liveDemoRound(today)}
         rangeStart={rangeStart}
         rangeEnd={rangeEnd}
         initialDate={selectedDate}
