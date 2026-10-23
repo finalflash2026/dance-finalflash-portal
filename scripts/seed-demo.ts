@@ -294,17 +294,46 @@ async function seed(sql: postgres.Sql): Promise<string> {
 
   // ---- 予約枠とコマ (日程調整の計算で割り振る) ----
   const solver: Solver = await highsLoader();
-  const months: { month: string; kind: MonthKind; published: boolean }[] = [
-    { month: addMonths(thisMonth, -1), kind: "holiday", published: true },
-    { month: thisMonth, kind: "term", published: true },
-    { month: addMonths(thisMonth, 1), kind: "term", published: true },
-    { month: addMonths(thisMonth, 2), kind: "term", published: false },
+  // 再来月 (日程調整の月。§6.8.4) とその次の月は**予約枠だけ** (コマ割り前。v1.35)。
+  // 日程調整 → コマ割り を試せるように
+  const months: { month: string; kind: MonthKind; published: boolean; slots: boolean }[] = [
+    { month: addMonths(thisMonth, -1), kind: "holiday", published: true, slots: true },
+    { month: thisMonth, kind: "term", published: true, slots: true },
+    { month: addMonths(thisMonth, 1), kind: "term", published: true, slots: true },
+    { month: addMonths(thisMonth, 2), kind: "term", published: false, slots: false },
+    { month: addMonths(thisMonth, 3), kind: "term", published: false, slots: false },
   ];
   const planMembers: Member[] = active.map((m) => ({ id: m.id, name: m.username, genres: [m.mainGenreId, ...m.subgenres] }));
   const slotRows: { id: string; reservation_id: string; date: string; start_time: string; end_time: string; room_id: number; status: string; genre_id: number | null; published: boolean }[] = [];
   const reservationRows: { id: string; date: string; start_time: string; end_time: string; room_id: number; created_by: string }[] = [];
-  for (const [index, { month, kind, published }] of months.entries()) {
+  for (const [index, { month, kind, published, slots }] of months.entries()) {
     const candidates = scenarioCandidates(month, kind, 9000 + index);
+    if (!slots) {
+      // 予約枠だけ入れる (同じ日・同じ部屋をまとめる)
+      const spans = new Map<string, { date: string; roomId: number; start: string; end: string }>();
+      for (const c of candidates) {
+        const key = `${c.date}|${c.roomId}`;
+        const span = spans.get(key);
+        spans.set(key, {
+          date: c.date,
+          roomId: c.roomId,
+          start: span && span.start < c.startTime ? span.start : c.startTime,
+          end: span && span.end > c.endTime ? span.end : c.endTime,
+        });
+      }
+      for (const span of spans.values()) {
+        reservationRows.push({
+          id: randomUUID(),
+          date: span.date,
+          start_time: span.start,
+          end_time: span.end,
+          room_id: span.roomId,
+          created_by: pick(rand, coordinators).id,
+        });
+      }
+      console.log(`${month.slice(0, 7)} は予約枠だけ (${spans.size}枠)`);
+      continue;
+    }
     const input: PlanInput = {
       genres: GENRES.map((g) => ({ id: g.id, code: g.code })),
       candidates,
