@@ -78,8 +78,9 @@ export default async function HomePage({
   const today = todayInTokyo();
   const selectedDate: DateString =
     date && DATE_PATTERN.test(date) ? date : today;
-  const rangeStart = startOfMonth(addMonths(selectedDate, -1));
-  const rangeEnd = endOfMonth(addMonths(selectedDate, 1));
+  // 選んだ日の前後2か月 (v1.35)。端に近づいたら画面側がその日を中心に読み直す
+  const rangeStart = startOfMonth(addMonths(selectedDate, -2));
+  const rangeEnd = endOfMonth(addMonths(selectedDate, 2));
   const todayInRange = today >= rangeStart && today <= rangeEnd;
 
   const isOb = profile.role === "ob";

@@ -73,6 +73,7 @@ import type { DateString, MyEvent } from "@/lib/types";
 
 const FILTER_STORAGE_KEY = "calendar-filter-v2";
 const VIEW_STORAGE_KEY = "calendar-day-view-v2";
+const MONTH_OPEN_KEY = "calendar-month-open";
 
 export interface UpcomingDeadline {
   id: string;
@@ -147,7 +148,22 @@ export function CalendarHome({
   const [dayView, setDayView] = useState<DayView>("list");
   /** 表示のしかたを変えた向き。日を変えた向き (direction) とは別に持つ */
   const [viewDirection, setViewDirection] = useState<"left" | "right" | null>(null);
-  const [monthOpen, setMonthOpen] = useState(false);
+  // 読み直し (端に近づいたとき。v1.35) で作り直されても、月表示を開いたままにする
+  const [monthOpen, setMonthOpenState] = useState(false);
+  // サーバーの描画とそろえるため、端末の記憶は描いたあとで読む
+  useEffect(() => {
+    try {
+      if (sessionStorage.getItem(MONTH_OPEN_KEY) === "1") setMonthOpenState(true);
+    } catch {}
+  }, []);
+  const setMonthOpen = (update: (open: boolean) => boolean) =>
+    setMonthOpenState((open) => {
+      const next = update(open);
+      try {
+        sessionStorage.setItem(MONTH_OPEN_KEY, next ? "1" : "0");
+      } catch {}
+      return next;
+    });
   const [layout, setLayout] = useState<HomeLayout>(DEFAULT_HOME_LAYOUT);
   const [selected, setSelected] = useState<MyEvent | null>(null);
   const [claiming, setClaiming] = useState<{
@@ -201,8 +217,9 @@ export function CalendarHome({
 
   function selectDate(date: DateString) {
     if (date === selectedDate) return;
-    // 読み込んだ範囲の外はページごと読み直す (その日を中心に前後1か月)
-    if (date < rangeStart || date > rangeEnd) {
+    // 読み込んだ範囲の外、または**端の2週間**に入ったら、その日を中心に読み直す
+    // (v1.35)。端で止めると週の帯がそれ以上滑らなくなる (前後2か月を読み込む)
+    if (date < addDays(rangeStart, 14) || date > addDays(rangeEnd, -14)) {
       router.push(`/?date=${encodeURIComponent(date)}`);
       return;
     }
