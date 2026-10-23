@@ -87,14 +87,14 @@ export async function POST(request: Request) {
   // 試行回数の制限は DB で数える (§13.2 / v1.31.4)。IP ごと 5回/分
   if (!(await hitRateLimit(`signup:ip:${clientIp(request)}`, 5, 60_000))) {
     return Response.json(
-      { error: "試行回数が多すぎます。1分ほど待ってからやり直してください" },
+      { error: "試行回数が多すぎます。1分ほど待ってからやり直してください。" },
       { status: 429 },
     );
   }
 
   if (!hasSupabaseEnv()) {
     return Response.json(
-      { error: "サーバーの設定が未完了です (Supabase 未接続)" },
+      { error: "サーバーの設定が未完了です(Supabase 未接続)。" },
       { status: 503 },
     );
   }
@@ -135,12 +135,12 @@ export async function POST(request: Request) {
   }
   if (!setting) {
     return Response.json(
-      { error: "合言葉が未設定です。管理者に連絡してください" },
+      { error: "合言葉が未設定です。管理者に連絡してください。" },
       { status: 503 },
     );
   }
   if (!(await bcrypt.compare(passphrase, setting.value_hash))) {
-    return Response.json({ error: "合言葉が違います" }, { status: 403 });
+    return Response.json({ error: "合言葉が違います。" }, { status: 403 });
   }
 
   // ---- 2. username 組立と重複チェック ----
@@ -166,7 +166,7 @@ export async function POST(request: Request) {
   if (existing) {
     return Response.json(
       {
-        error: `ユーザーID「${username}」は既に使われています。名前の表記を変えてください`,
+        error: `ユーザーID「${username}」は既に使われています。名前の表記を変えてください。`,
       },
       { status: 409 },
     );

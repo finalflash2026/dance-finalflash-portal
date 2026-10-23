@@ -41,7 +41,7 @@ export async function POST(request: Request) {
 
   const parsed = schema.safeParse(await request.json().catch(() => null));
   if (!parsed.success || !isValidDateString(parsed.data.month)) {
-    return Response.json({ error: "月の指定が不正です" }, { status: 400 });
+    return Response.json({ error: "月の指定が不正です。" }, { status: 400 });
   }
 
   const monthStart = startOfMonth(parsed.data.month);

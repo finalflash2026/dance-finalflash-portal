@@ -49,7 +49,7 @@ export function PublishStep({
     const lines = [`${drafts.length}件の下書きコマを公開します。`];
     if (gaps.length > 0) {
       lines.push(
-        `あわせて、コマを割り当てていない時間帯 ${gaps.length}件を「空き」として公開します (個人練の申請ができるようになります)。`,
+        `あわせて、コマを割り当てていない時間帯 ${gaps.length}件を「空き」として公開します(個人練の申請ができるようになります)。`,
       );
     }
     lines.push("OB以外の全員にお知らせが配られます。よろしいですか?");
@@ -67,7 +67,7 @@ export function PublishStep({
       const body = await res.json().catch(() => ({}));
 
       if (!res.ok && res.status !== 207) {
-        setError(body.error ?? "公開に失敗しました");
+        setError(body.error ?? "公開に失敗しました。");
         return;
       }
       // 207 = 公開は済んだがお知らせで失敗。両方伝える
@@ -108,7 +108,7 @@ export function PublishStep({
           {total === 0 ? (
             <p className="rounded-xl border border-[var(--border)] px-4 py-8 text-center text-sm text-[var(--muted)]">
               {slots.length === 0
-                ? "この月の予約枠がありません。①CSV取込 から登録してください"
+                ? "この月の予約枠はありません。①CSV取込から登録します。"
                 : "公開していないコマはありません"}
             </p>
           ) : (
@@ -141,8 +141,8 @@ export function PublishStep({
 
               <div className="space-y-2 border-t border-[var(--border)] pt-4">
                 <p className="text-sm text-[var(--muted)]">
-                  OB 以外の全員にお知らせが届きます
-                  {publishedCount > 0 ? " (「更新されました」として)" : ""}
+                  OB以外の全員にお知らせが届きます
+                  {publishedCount > 0 ? "(「更新されました」として)" : ""}。
                 </p>
                 <button
                   type="button"

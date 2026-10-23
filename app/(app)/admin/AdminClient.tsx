@@ -121,7 +121,7 @@ export function AdminClient({
         <input
           type="search"
           value={query}
-          placeholder="ユーザーIDで検索 (例: 22BREAK)"
+          placeholder="ユーザーIDで検索(例: 22BREAK)"
           onChange={(e) => setQuery(e.target.value)}
           className={inputClass}
         />
@@ -289,7 +289,7 @@ function PassphraseSection({
       });
       const json = await res.json().catch(() => ({}));
       if (!res.ok) {
-        onError(json.error ?? "合言葉を変更できませんでした");
+        onError(json.error ?? "合言葉を変更できませんでした。");
         return;
       }
       setValues({ signupPass: "", coordinatorPass: "", adminPass: "" });
@@ -304,8 +304,8 @@ function PassphraseSection({
     <section className="space-y-3 rounded-xl border border-[var(--border)] p-3" data-tour="admin-pass">
       <h2 className="text-base font-bold">合言葉</h2>
       <p className="text-xs text-[var(--muted)]">
-        <strong>代替わり・卒業の時期には必ず変更してください</strong>。
-        空欄の項目は変わりません
+        <strong>代替わり・卒業の時期には必ず変えてください。</strong>
+        空欄の項目は変わりません。
       </p>
 
       {entries.map((entry) => (
@@ -435,7 +435,7 @@ function EditPanel({
 
   async function save() {
     if (!valid) {
-      onError("名前と期を正しく入力してください");
+      onError("名前と期を正しく入力してください。");
       return;
     }
 
@@ -481,7 +481,7 @@ function EditPanel({
       });
       const body = await res.json().catch(() => ({}));
       if (!res.ok) {
-        onError(body.error ?? "更新に失敗しました");
+        onError(body.error ?? "更新に失敗しました。");
         return;
       }
 
@@ -524,7 +524,7 @@ function EditPanel({
       );
       const body = await res.json().catch(() => ({}));
       if (!res.ok) {
-        onError(body.error ?? "仮パスワードを発行できませんでした");
+        onError(body.error ?? "仮パスワードを発行できませんでした。");
         return;
       }
       setTempPassword(body.password);
@@ -559,7 +559,7 @@ function EditPanel({
       });
       const body = await res.json().catch(() => ({}));
       if (!res.ok) {
-        onError(body.error ?? "削除できませんでした");
+        onError(body.error ?? "削除できませんでした。");
         return;
       }
       onNotice(`${body.username} を削除しました`);
@@ -614,8 +614,8 @@ function EditPanel({
         label="権限"
         hint={
           isSelf
-            ? "自分自身の権限は変更できません (最後の3役が消えるのを防ぐため)"
-            : "OB/OGにすると公式練・空き部屋・鍵の画面が見えなくなります"
+            ? "自分の権限は変えられません。3役が誰もいなくなるのを防ぐためです。"
+            : "OB/OGにすると、公式練・空き部屋・鍵の画面が見えなくなります。"
         }
       >
         <select
@@ -659,7 +659,7 @@ function EditPanel({
         {tempPassword ? (
           <div className="rounded-lg border border-[var(--foreground)] px-3 py-2">
             <p className="text-xs text-[var(--muted)]">
-              仮パスワード (この画面でしか読めません。本人へ伝えてください)
+              仮パスワード(この画面でしか見られません。本人に伝えてください)
             </p>
             <p className="select-all font-mono text-lg font-bold">
               {tempPassword}
@@ -677,8 +677,7 @@ function EditPanel({
           このアカウントを削除する
         </button>
         <p className="text-xs text-[var(--muted)]">
-          卒業はOB/OGへの移行を使ってください。削除は誤登録の整理用で、
-          活動の記録が残っているアカウントは削除できません。
+          卒業した人は、削除ではなくOB/OGへ移してください。削除は誤登録の整理用で、活動の記録があるアカウントは消せません。
         </p>
       </div>
     </div>
@@ -742,7 +741,7 @@ function BulkGraduateSection({
       });
       const body = await res.json().catch(() => ({}));
       if (!res.ok) {
-        onError(body.error ?? "移行に失敗しました");
+        onError(body.error ?? "移行に失敗しました。");
         return;
       }
       onGraduated(targets.map((t) => t.userId));
@@ -755,9 +754,9 @@ function BulkGraduateSection({
 
   return (
     <section className="space-y-3 rounded-xl border border-[var(--border)] p-3" data-tour="admin-graduate">
-      <h2 className="text-base font-bold">卒業処理 (一括OB化)</h2>
+      <h2 className="text-base font-bold">卒業処理(一括OB化)</h2>
       <p className="text-xs text-[var(--muted)]">
-        ナンバーと購読URLはOB/OGになっても使えます
+        ナンバーと購読URLは、OB/OGになっても使えます。
       </p>
 
       <div className="flex gap-2">

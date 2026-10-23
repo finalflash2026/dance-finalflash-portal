@@ -127,13 +127,13 @@ export function ClaimSheet({
       if (insertError.code === EXCLUSION_VIOLATION) {
         // SPEC §6.1-4: 同時申請の重複は DB で必ず片方が失敗する
         setError(
-          "その時間帯は先に申請が入りました。最新の状態を読み込みます",
+          "その時間帯は先に申請が入りました。最新の状態を読み込みます。",
         );
         router.refresh();
         return;
       }
       if (insertError.code === CHECK_VIOLATION) {
-        setError(`時刻は${CLAIM_STEP_MINUTES}分刻みで選んでください`);
+        setError(`時刻は${CLAIM_STEP_MINUTES}分刻みで選んでください。`);
         return;
       }
       setError(dbErrorMessage("申請に失敗しました", insertError));
@@ -190,7 +190,7 @@ export function ClaimSheet({
                 disabled={pending}
                 className="w-full rounded-lg border border-[var(--border)] py-3 text-sm font-medium"
               >
-                いいえ (戻る)
+                いいえ(戻る)
               </button>
             </div>
           </>

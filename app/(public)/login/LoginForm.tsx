@@ -36,7 +36,7 @@ export function LoginForm({ initialUsername }: { initialUsername: string }) {
       const body = await res.json().catch(() => ({}));
 
       if (!res.ok) {
-        setError(body.error ?? "ログインに失敗しました");
+        setError(body.error ?? "ログインに失敗しました。");
         return;
       }
 
@@ -44,7 +44,7 @@ export function LoginForm({ initialUsername }: { initialUsername: string }) {
       router.refresh();
       router.push("/");
     } catch {
-      setError("通信に失敗しました。電波状況を確認してください");
+      setError("通信に失敗しました。電波状況を確認してください。");
     } finally {
       setPending(false);
     }
@@ -81,7 +81,7 @@ export function LoginForm({ initialUsername }: { initialUsername: string }) {
 
       <p className="text-center text-sm">
         <Link href="/signup" className="underline">
-          はじめての人はこちら (新規登録)
+          はじめての人はこちら(新規登録)
         </Link>
       </p>
     </form>

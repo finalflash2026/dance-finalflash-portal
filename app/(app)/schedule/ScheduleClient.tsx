@@ -355,12 +355,12 @@ function PlanPanel({ input, round }: { input: PlanInput; round: ScheduleRound })
       });
       const body = await res.json().catch(() => null);
       if (!res.ok) {
-        setError(body?.error ?? "計算できませんでした");
+        setError(body?.error ?? "計算できませんでした。");
         return;
       }
       setResult(body as PlanResult);
     } catch {
-      setError("通信できませんでした。電波の良いところでもう一度押してください");
+      setError("通信できませんでした。電波の良いところでもう一度押してください。");
     } finally {
       window.clearInterval(timer);
       setPending(false);
@@ -423,7 +423,7 @@ function PlanPanel({ input, round }: { input: PlanInput; round: ScheduleRound })
           <div className="space-y-4">
             <Choice
               label="同じジャンルの1日の上限"
-              hint="2コマ以上入れるときは、必ず続けた時間にします"
+              hint="2コマ以上入れる日は、必ず時間を続けます。"
               value={settings.maxPerDay}
               options={[
                 { value: 1, label: "1コマ" },
@@ -434,7 +434,7 @@ function PlanPanel({ input, round }: { input: PlanInput; round: ScheduleRound })
             />
             <Choice
               label="続けて入れるときの部屋"
-              hint="同じ日に連続して入れるとき、部屋をそろえるか (時間の連続は必ず守ります)"
+              hint="続けて入れるコマを、同じ部屋にそろえるかどうか。"
               value={settings.sameRoomBonus}
               options={[
                 { value: 0, label: "気にしない" },
@@ -445,7 +445,7 @@ function PlanPanel({ input, round }: { input: PlanInput; round: ScheduleRound })
             />
             <Choice
               label="欠席の偏り"
-              hint="特定の曜日しか空いていない人が、毎回出られない案にならないように"
+              hint="特定の曜日しか空いていない人が、毎回欠席になる案を避けます。"
               value={settings.fairnessWeight}
               options={[
                 { value: 0, label: "気にしない" },
@@ -456,7 +456,7 @@ function PlanPanel({ input, round }: { input: PlanInput; round: ScheduleRound })
             />
             <Choice
               label="広い部屋での通し練習"
-              hint="どのジャンルにも、月にこの回数は広い部屋を入れます"
+              hint="どのジャンルも、月にこの回数は広い部屋で練習できるようにします。"
               value={settings.minBigPerGenre}
               options={[
                 { value: 0, label: "決めない" },
@@ -472,7 +472,7 @@ function PlanPanel({ input, round }: { input: PlanInput; round: ScheduleRound })
             />
             <Choice
               label="△ (できれば避けたい) の数え方"
-              hint="△ の人を何人ぶんとして数えるか"
+              hint="△ の人を何人ぶんと数えるか。"
               value={settings.maybeWeight}
               options={[
                 { value: 0, label: "数えない" },
@@ -483,7 +483,7 @@ function PlanPanel({ input, round }: { input: PlanInput; round: ScheduleRound })
             />
             <Choice
               label="2・3ジャンの人の数え方"
-              hint="1ジャンの人を 1人としたとき"
+              hint="1ジャンの人を1人としたときの重さ。"
               value={settings.genreWeights[1]}
               options={[
                 { value: 1, label: "同じ" },
@@ -496,7 +496,7 @@ function PlanPanel({ input, round }: { input: PlanInput; round: ScheduleRound })
             />
             <Choice
               label="人が少ないコマに印を付ける"
-              hint="見込みがこの人数に届かないコマを赤い枠で示します"
+              hint="見込みがこの人数に届かないコマを、赤い枠で示します。"
               value={settings.minPeople}
               options={[
                 { value: 0, label: "付けない" },
@@ -579,7 +579,7 @@ function RoomSizes({
           );
         })}
       </ul>
-      <p className="text-[13px] text-[var(--muted)]">広い部屋ほど、人が多く集まるジャンルに回りやすくなります</p>
+      <p className="text-[13px] text-[var(--muted)]">広い部屋ほど、人の多いジャンルに回りやすくなります。</p>
     </div>
   );
 }
@@ -641,7 +641,7 @@ function Progress({ elapsed, limit }: { elapsed: number; limit: number }) {
         ))}
       </ol>
       <p className="text-[13px] text-[var(--muted)] tabular-nums">
-        {elapsed.toFixed(0)}秒経過 ・ ふつう5〜20秒ほどかかります (最大{limit}秒)
+        {elapsed.toFixed(0)}秒経過・ふつう5〜20秒(最大{limit}秒)
       </p>
     </div>
   );
@@ -701,7 +701,7 @@ function ResultView({
         <div className="flex items-baseline justify-between gap-2">
           <h2 className="text-[17px] font-bold">案</h2>
           <span className="text-[13px] text-[var(--muted)] tabular-nums">
-            {result.status === "optimal" ? "最適 (差 0.5% 以内)" : "制限時間内で一番良い案"} ・ {(result.elapsedMs / 1000).toFixed(1)}秒
+            {result.status === "optimal" ? "最適(差 0.5% 以内)" : "制限時間内で一番良い案"} ・ {(result.elapsedMs / 1000).toFixed(1)}秒
           </span>
         </div>
         <ul className="grid grid-cols-3 gap-2">
@@ -726,11 +726,11 @@ function ResultView({
         ) : null}
         <Scorecard metrics={measure(input, settings, result)} />
         <p className="text-[14px] text-[var(--muted)]">
-          {below > 0 ? `人数の基準に届かないコマ ${below}件 (赤い枠)。` : ""}
-          {overlaps > 0 ? `1ジャンと2・3ジャンが重なったコマ ${overlaps}件 (「重なり」)。` : "1ジャンと2・3ジャンの重なりはありません。"}
+          {below > 0 ? `人数の基準に届かないコマ ${below}件(赤い枠)。` : ""}
+          {overlaps > 0 ? `1ジャンと2・3ジャンが重なったコマ ${overlaps}件(「重なり」)。` : "1ジャンと2・3ジャンの重なりはありません。"}
         </p>
         <button type="button" disabled className={`${primaryButtonClass} opacity-50`}>
-          この案で下書きに入れる (DB を作る段階で使えます)
+          この案で下書きに入れる(DB を作る段階で使えます)
         </button>
       </section>
 

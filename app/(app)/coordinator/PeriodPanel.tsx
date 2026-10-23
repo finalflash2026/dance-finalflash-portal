@@ -55,7 +55,7 @@ export function PeriodPanel({
     <section className="space-y-3 rounded-xl border border-[var(--border)] p-3">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <h3 className="text-sm font-bold">
-          基準のコマ ({year}年{monthNumber}月)
+          基準のコマ({year}年{monthNumber}月)
         </h3>
         {dirty ? (
           <span className="text-xs text-[var(--danger-fg)]">

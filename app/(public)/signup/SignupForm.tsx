@@ -68,7 +68,7 @@ export function SignupForm() {
   async function onSubmit(event: React.FormEvent) {
     event.preventDefault();
     if (password !== passwordConfirm) {
-      setError("パスワードが一致しません");
+      setError("パスワードが一致しません。");
       return;
     }
     setPending(true);
@@ -92,14 +92,14 @@ export function SignupForm() {
       const body = await res.json().catch(() => ({}));
 
       if (!res.ok) {
-        setError(body.error ?? "登録に失敗しました");
+        setError(body.error ?? "登録に失敗しました。");
         return;
       }
 
       // 登録できたら ID を引き継いでログイン画面へ
       router.push(`/login?username=${encodeURIComponent(body.username)}`);
     } catch {
-      setError("通信に失敗しました。電波状況を確認してください");
+      setError("通信に失敗しました。電波状況を確認してください。");
     } finally {
       setPending(false);
     }
@@ -107,7 +107,7 @@ export function SignupForm() {
 
   return (
     <form onSubmit={onSubmit} className="space-y-4">
-      <Field label="期" hint="入会年度の代。例: 22">
+      <Field label="期" hint="入会した年度の代。例: 22">
         <input
           className={inputClass}
           type="number"
@@ -120,7 +120,7 @@ export function SignupForm() {
         />
       </Field>
 
-      <Field label="1ジャン (メインジャンル)" hint="登録後は本人では変更できません">
+      <Field label="1ジャン(メインジャンル)" hint="登録した後は、自分では変えられません。">
         <select
           className={inputClass}
           value={mainGenreId}
@@ -136,7 +136,7 @@ export function SignupForm() {
         </select>
       </Field>
 
-      <Field label="名前" hint="ひらがな / カタカナ / 漢字が使えます">
+      <Field label="名前" hint="ひらがな・カタカナ・漢字が使えます。">
         <input
           className={inputClass}
           value={displayName}
@@ -159,7 +159,7 @@ export function SignupForm() {
         2ジャン・3ジャンは任意 (v1.19)。ここで選ぶと登録した時点から
         マイカレンダーと購読URLに含まれる。あとから設定画面で変えられる
       */}
-      <Field label="2ジャン (任意)">
+      <Field label="2ジャン(任意)">
         <select
           className={inputClass}
           value={subgenre2Id}
@@ -174,7 +174,7 @@ export function SignupForm() {
         </select>
       </Field>
 
-      <Field label="3ジャン (任意)">
+      <Field label="3ジャン(任意)">
         <select
           className={inputClass}
           value={subgenre3Id}
@@ -191,7 +191,7 @@ export function SignupForm() {
 
       <Field
         label="マイパスワード"
-        hint={`${MIN_PASSWORD_LENGTH}文字以上。メールが無いため、忘れた場合は管理者に再設定を依頼します`}
+        hint={`${MIN_PASSWORD_LENGTH}文字以上。メールを使わないので、忘れたときは管理者に再設定を頼みます。`}
       >
         <input
           className={inputClass}
@@ -204,7 +204,7 @@ export function SignupForm() {
         />
       </Field>
 
-      <Field label="マイパスワード (確認)">
+      <Field label="マイパスワード(確認)">
         <input
           className={inputClass}
           type="password"
@@ -245,7 +245,7 @@ export function SignupForm() {
 
       <p className="text-center text-sm">
         <Link href="/login" className="underline">
-          登録済みの人はこちら (ログイン)
+          登録済みの人はこちら(ログイン)
         </Link>
       </p>
     </form>

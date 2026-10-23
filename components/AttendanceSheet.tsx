@@ -289,7 +289,7 @@ export function AttendanceSheet({
           <>
             <section className="space-y-1">
               <h4 className="text-sm font-bold">
-                参加者 ({participants.length}人)
+                参加者({participants.length}人)
               </h4>
               <ul className="max-h-56 divide-y divide-[var(--border)] overflow-y-auto rounded-xl border border-[var(--border)]">
                 {participants.map((participant) => (
@@ -407,7 +407,7 @@ export function AttendanceSheet({
                     <input
                       aria-label="理由"
                       value={draftReason}
-                      placeholder="理由 (任意)"
+                      placeholder="理由(任意)"
                       maxLength={ATTENDANCE_REASON_MAX}
                       disabled={pending}
                       onChange={(e) => setDraftReason(e.target.value)}
@@ -447,7 +447,7 @@ export function AttendanceSheet({
               </section>
             ) : (
               <p className="border-t border-[var(--border)] pt-3 text-xs text-[var(--muted)]">
-                この練習の参加対象ではないため、出欠の登録はできません
+                この練習の参加対象ではないため、出欠は付けられません。
               </p>
             )}
           </>
@@ -463,10 +463,10 @@ export function AttendanceSheet({
 
 function describeError(error: { code?: string; message: string }): string {
   if (error.code === "42501") {
-    return "この練習の参加対象ではないため登録できません";
+    return "この練習の参加対象ではないため登録できません。";
   }
   if (error.code === "23514") {
-    return "遅刻・早退には時刻が必要です";
+    return "遅刻・早退には時刻が必要です。";
   }
   return dbErrorMessage("登録できませんでした", error);
 }
@@ -494,7 +494,7 @@ async function loadSlotParticipants(
     .maybeSingle();
 
   if (slotError || !slot) {
-    return { people: [], error: "練習の情報を取得できませんでした" };
+    return { people: [], error: "練習の情報を取得できませんでした。" };
   }
   const genreId = (slot as { genre_id: number | null }).genre_id;
   const generations = (slot as { target_generations: number[] | null })
@@ -524,7 +524,7 @@ async function loadStudioParticipants(
     .maybeSingle();
 
   if (error || !data) {
-    return { people: [], error: "スタ練の情報を取得できませんでした" };
+    return { people: [], error: "スタ練の情報を取得できませんでした。" };
   }
   return loadGenreParticipants(
     supabase,
@@ -598,7 +598,7 @@ async function loadNumberParticipants(
     .maybeSingle();
 
   if (eventError || !event) {
-    return { people: [], error: "予定の情報を取得できませんでした" };
+    return { people: [], error: "予定の情報を取得できませんでした。" };
   }
 
   const { data, error } = await supabase

@@ -33,25 +33,25 @@ const schema = z.object({
 export async function POST(request: Request) {
   if (!hasSupabaseEnv()) {
     return Response.json(
-      { error: "サーバーの設定が未完了です (Supabase 未接続)" },
+      { error: "サーバーの設定が未完了です(Supabase 未接続)。" },
       { status: 503 },
     );
   }
 
   const profile = await getCurrentProfile();
   if (!profile) {
-    return Response.json({ error: "ログインしてください" }, { status: 401 });
+    return Response.json({ error: "ログインしてください。" }, { status: 401 });
   }
 
   const parsed = schema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) {
-    return Response.json({ error: "指定が不正です" }, { status: 400 });
+    return Response.json({ error: "指定が不正です。" }, { status: 400 });
   }
 
   const supabase = await createClient();
   const room = (await fetchRoomMap(supabase)).get(parsed.data.roomId);
   if (!room) {
-    return Response.json({ error: "その練習場所はありません" }, { status: 400 });
+    return Response.json({ error: "その練習場所はありません。" }, { status: 400 });
   }
 
   const today = todayInTokyo();

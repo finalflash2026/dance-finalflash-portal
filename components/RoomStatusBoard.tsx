@@ -115,7 +115,7 @@ export function RoomStatusBoard({
       const data = (await res.json().catch(() => null)) as {
         error?: string;
       } | null;
-      setError(data?.error ?? "切り替えに失敗しました");
+      setError(data?.error ?? "切り替えに失敗しました。");
       setPendingRoomId(null);
       return;
     }

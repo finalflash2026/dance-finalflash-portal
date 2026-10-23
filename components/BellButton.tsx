@@ -17,7 +17,7 @@ export function BellButton({ unread }: { unread: number }) {
   return (
     <Link
       href={active ? "/" : "/notifications"}
-      aria-label={unread > 0 ? `お知らせ (未読${unread}件)` : "お知らせ"}
+      aria-label={unread > 0 ? `お知らせ(未読${unread}件)` : "お知らせ"}
       className={`${BUTTON_CLASS} relative`}
       data-tour="bell"
     >

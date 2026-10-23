@@ -40,7 +40,7 @@ export async function GET(request: Request) {
 
   if (!hasSupabaseEnv()) {
     return Response.json(
-      { ok: false, error: "Supabase の環境変数が未設定です" },
+      { ok: false, error: "Supabase の環境変数が未設定です。" },
       { status: 503 },
     );
   }

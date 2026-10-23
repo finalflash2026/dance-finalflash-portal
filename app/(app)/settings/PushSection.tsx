@@ -179,7 +179,7 @@ export function PushSection({ vapidPublicKey }: { vapidPublicKey: string }) {
       if (permission !== "granted") {
         setDenied(permission === "denied");
         setError(
-          "通知が許可されませんでした。端末の設定から許可し直してください",
+          "通知が許可されませんでした。端末の設定から許可し直してください。",
         );
         return;
       }
@@ -216,7 +216,7 @@ export function PushSection({ vapidPublicKey }: { vapidPublicKey: string }) {
           const body = (await res.json().catch(() => null)) as {
             error?: string;
           } | null;
-          setError(body?.error ?? "通知を解除できませんでした");
+          setError(body?.error ?? "通知を解除できませんでした。");
           return;
         }
         await subscription.unsubscribe();
@@ -250,7 +250,7 @@ export function PushSection({ vapidPublicKey }: { vapidPublicKey: string }) {
       if (!subscription) {
         setPrefs(prefs);
         setSubscribed(false);
-        setError("この端末の登録が切れています。もう一度オンにしてください");
+        setError("この端末の登録が切れています。もう一度オンにしてください。");
         return;
       }
       await save(subscription, next);

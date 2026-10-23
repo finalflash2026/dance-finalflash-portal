@@ -41,27 +41,27 @@ export async function POST(request: Request) {
   // 試行回数の制限は DB で数える (§13.2 / v1.31.4)。IP ごと 5回/分
   if (!(await hitRateLimit(`elevate:ip:${clientIp(request)}`, 5, 60_000))) {
     return Response.json(
-      { error: "試行回数が多すぎます。1分ほど待ってからやり直してください" },
+      { error: "試行回数が多すぎます。1分ほど待ってからやり直してください。" },
       { status: 429 },
     );
   }
 
   if (!hasSupabaseEnv()) {
     return Response.json(
-      { error: "サーバーの設定が未完了です (Supabase 未接続)" },
+      { error: "サーバーの設定が未完了です(Supabase 未接続)。" },
       { status: 503 },
     );
   }
 
   const profile = await getCurrentProfile();
   if (!profile) {
-    return Response.json({ error: "ログインしてください" }, { status: 401 });
+    return Response.json({ error: "ログインしてください。" }, { status: 401 });
   }
 
   // OB は昇格不可 (SPEC §3.6)
   if (profile.role === "ob") {
     return Response.json(
-      { error: "OB/OGは折衝・管理者になれません" },
+      { error: "OB/OGは折衝・管理者になれません。" },
       { status: 403 },
     );
   }
@@ -108,7 +108,7 @@ export async function POST(request: Request) {
   }
 
   if (!matched) {
-    return Response.json({ error: "合言葉が違います" }, { status: 403 });
+    return Response.json({ error: "合言葉が違います。" }, { status: 403 });
   }
 
   // 現ロールより下位への変更はしない

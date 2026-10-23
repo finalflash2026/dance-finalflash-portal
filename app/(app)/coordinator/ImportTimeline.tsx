@@ -208,7 +208,7 @@ function Block({
 
   const warning =
     conflict === "duplicate"
-      ? "同じ枠が重複しています (確定時に自動でスキップされます)"
+      ? "同じ枠が重複しています(確定時に自動でスキップされます)"
       : conflict === "overlap"
         ? "同じ部屋で時間が重なっています。読み取りミスの可能性があります"
         : null;

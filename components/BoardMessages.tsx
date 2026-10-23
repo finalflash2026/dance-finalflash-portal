@@ -154,7 +154,7 @@ export function BoardMessages({
       const data = (await res.json().catch(() => null)) as {
         error?: string;
       } | null;
-      setError(data?.error ?? "書き込めませんでした");
+      setError(data?.error ?? "書き込めませんでした。");
       return;
     }
     setDraft("");

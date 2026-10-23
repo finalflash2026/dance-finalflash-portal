@@ -325,7 +325,7 @@ function EventSheet({
         <div className={groupClass}>
           <input
             aria-label="タイトル"
-            placeholder="タイトル (例: 夏合宿)"
+            placeholder="タイトル(例: 夏合宿)"
             value={draft.title}
             maxLength={60}
             onChange={(e) => set("title", e.target.value)}
@@ -333,7 +333,7 @@ function EventSheet({
           />
           <input
             aria-label="場所"
-            placeholder="場所 (任意)"
+            placeholder="場所(任意)"
             value={draft.place}
             onChange={(e) => set("place", e.target.value)}
             className={cellInputClass}
@@ -392,7 +392,7 @@ function EventSheet({
         <div className={groupClass}>
           <textarea
             aria-label="メモ"
-            placeholder="メモ (任意)"
+            placeholder="メモ(任意)"
             rows={3}
             value={draft.note}
             onChange={(e) => set("note", e.target.value)}
@@ -529,12 +529,12 @@ function DeadlineSheet({
 
   async function save() {
     if (!draft.title.trim()) {
-      setError("タイトルを入れてください");
+      setError("タイトルを入れてください。");
       return;
     }
     const url = draft.url.trim();
     if (url && !/^https?:\/\//i.test(url)) {
-      setError("リンクは https:// から始まる形で入れてください");
+      setError("リンクは https:// から始まる形で入れてください。");
       return;
     }
     setPending(true);
@@ -612,7 +612,7 @@ function DeadlineSheet({
         <div className={groupClass}>
           <input
             aria-label="タイトル"
-            placeholder="タイトル (例: 合宿費の集金)"
+            placeholder="タイトル(例: 合宿費の集金)"
             value={draft.title}
             maxLength={60}
             onChange={(e) => set("title", e.target.value)}
@@ -620,7 +620,7 @@ function DeadlineSheet({
           />
           <input
             aria-label="リンク"
-            placeholder="リンク (Google フォームなど・任意)"
+            placeholder="リンク(Google フォームなど・任意)"
             inputMode="url"
             value={draft.url}
             onChange={(e) => set("url", e.target.value)}
@@ -664,7 +664,7 @@ function DeadlineSheet({
         <div className={groupClass}>
           <textarea
             aria-label="メモ"
-            placeholder="メモ (任意)"
+            placeholder="メモ(任意)"
             rows={3}
             value={draft.note}
             onChange={(e) => set("note", e.target.value)}
@@ -691,7 +691,7 @@ function AnnouncementsPanel({ announcements }: { announcements: Announcement[] }
 
   async function send() {
     if (!title.trim() || !body.trim()) {
-      setError("タイトルと本文を入れてください");
+      setError("タイトルと本文を入れてください。");
       return;
     }
     const who = includeOb ? "現役と OB/OG の全員" : "現役全員";
@@ -712,7 +712,7 @@ function AnnouncementsPanel({ announcements }: { announcements: Announcement[] }
     } | null;
     setPending(false);
     if (!res.ok) {
-      setError(data?.error ?? "送れませんでした");
+      setError(data?.error ?? "送れませんでした。");
       return;
     }
     setTitle("");
@@ -725,7 +725,7 @@ function AnnouncementsPanel({ announcements }: { announcements: Announcement[] }
   async function remove(announcement: Announcement) {
     if (
       !await confirmAction(
-        `「${announcement.title}」を取り消しますか?\nまだ読んでいない人のお知らせからも消えます (届いた通知は消せません)。`,
+        `「${announcement.title}」を取り消しますか?\nまだ読んでいない人のお知らせからも消えます(届いた通知は消せません)。`,
       )
     ) {
       return;

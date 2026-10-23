@@ -308,7 +308,7 @@ function EventsTab({
         </button>
       ) : (
         <p className="text-xs text-[var(--muted)]">
-          日程の追加・変更は主催のみ行えます
+          日程を変えられるのは主催だけです。
         </p>
       )}
 
@@ -728,7 +728,7 @@ function MembersTab({
   return (
     <div className="space-y-4">
       <section className="space-y-2">
-        <h2 className="text-sm font-bold">メンバー ({members.length}人)</h2>
+        <h2 className="text-sm font-bold">メンバー({members.length}人)</h2>
         <ul className="divide-y divide-[var(--separator)] rounded-xl bg-[var(--cell)]">
           {members.map((member) => (
             <li key={member.userId} className="flex items-center gap-2 px-3 py-2">

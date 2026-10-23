@@ -22,20 +22,20 @@ export async function requireRole(
 ): Promise<Profile | Response> {
   if (!hasSupabaseEnv()) {
     return Response.json(
-      { error: "サーバーの設定が未完了です (Supabase 未接続)" },
+      { error: "サーバーの設定が未完了です(Supabase 未接続)。" },
       { status: 503 },
     );
   }
 
   const profile = await getCurrentProfile();
   if (!profile) {
-    return Response.json({ error: "ログインしてください" }, { status: 401 });
+    return Response.json({ error: "ログインしてください。" }, { status: 401 });
   }
 
   const allowed: Role[] =
     minimum === "admin" ? ["admin"] : ["coordinator", "admin"];
   if (!allowed.includes(profile.role)) {
-    return Response.json({ error: "権限がありません" }, { status: 403 });
+    return Response.json({ error: "権限がありません。" }, { status: 403 });
   }
 
   return profile;

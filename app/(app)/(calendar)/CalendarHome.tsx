@@ -972,7 +972,7 @@ function FilterButton({
       <button
         type="button"
         onClick={() => setOpen(true)}
-        aria-label={added > 0 ? `表示するもの (${added}つ追加中)` : "表示するもの (自分の予定だけ)"}
+        aria-label={added > 0 ? `表示するもの(${added}つ追加中)` : "表示するもの(自分の予定だけ)"}
         className={`flex h-10 shrink-0 items-center gap-1 rounded-full ${compact ? "px-2.5" : "px-3"} text-[14px] font-semibold ${
           added > 0 ? "bg-[var(--tint)] text-white" : "bg-[var(--fill)] text-[var(--tint)]"
         }`}
@@ -1025,7 +1025,7 @@ function FilterButton({
               <li className="flex min-h-[48px] items-center justify-between gap-3 px-4">
                 <span className="flex items-center gap-2 text-[17px]">
                   <span aria-hidden className="h-2.5 w-2.5 rounded-full bg-[#34c759]" />
-                  空き (自主練できる時間)
+                  空き(自主練できる時間)
                 </span>
                 <Switch
                   label="空きを表示"

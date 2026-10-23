@@ -533,7 +533,7 @@ export function SlotStep({
 
     if (writeError || !data) {
       setError(
-        writeError ? describeSlotError(writeError) : "コマを作れませんでした",
+        writeError ? describeSlotError(writeError) : "コマを作れませんでした。",
       );
       reload();
       return;
@@ -601,7 +601,7 @@ export function SlotStep({
             <p className="rounded-xl border border-[var(--border)] px-4 py-3 text-center text-sm text-[var(--muted)]">
               {loading
                 ? "読み込み中…"
-                : "この月の予約枠はありません。①CSV取込 から登録すると ○ が付きます"}
+                : "この月の予約枠はありません。①CSV取込から登録すると ○ が付きます。"}
             </p>
           ) : null}
 
@@ -631,7 +631,7 @@ export function SlotStep({
           {loading
             ? "読み込み中…"
             : reservations.length > 0
-              ? "月・水・木の予約枠はありません。他の曜日は「すべての曜日」で見られます"
+              ? "月・水・木の予約枠はありません。他の曜日は「すべての曜日」で見られます。"
               : "この月の予約枠はありません。①CSV取込 から登録してください"}
         </p>
       ) : (
@@ -723,7 +723,7 @@ function SplitReservationNotice({
       </p>
       <p>
         施設の予約ページが続きの枠を別の行で出すことがあります。
-        このままだと<strong>境目をまたぐコマ (例 18:50〜20:00) を置けません</strong>
+        このままだと<strong>境目をまたぐコマ(例 18:50〜20:00) を置けません</strong>
         (△ になります)。
       </p>
       <ul className="space-y-0.5">
@@ -769,7 +769,7 @@ function ViewToggle({
     <div className="flex gap-2">
       {(
         [
-          { value: "grid", label: "表 (コマ割り)" },
+          { value: "grid", label: "表(コマ割り)" },
           { value: "timeline", label: "タイムライン" },
         ] as const
       ).map((option) => (
@@ -911,7 +911,7 @@ function MonthGenerationPicker({
       )}
 
       <p className="text-xs text-[var(--muted)]">
-        変えるとこの月の公式練 {genreSlotCount}件にすぐ反映されます
+        変えると、この月の公式練 {genreSlotCount}件にすぐ反映されます。
       </p>
 
       {mixed ? (
@@ -946,10 +946,10 @@ function confirmClaimLoss(claims: SlotClaimInfo[]): Promise<boolean> {
 /** DB 側の制約に当たったときに、原因の分かる日本語にする */
 function describeSlotError(error: { code?: string; message: string }): string {
   if (error.code === "23P01") {
-    return "同じ予約枠の中でコマの時間が重なっています。画面を再読み込みして確認してください";
+    return "同じ予約枠の中でコマの時間が重なっています。画面を再読み込みして確かめてください。";
   }
   if (error.code === "23514") {
-    return "コマの内容が不正です (時刻の前後、または公式練のジャンル未設定)";
+    return "コマの内容が正しくありません(時刻の前後、または公式練のジャンルが未設定)。";
   }
   return dbErrorMessage("保存できませんでした", error);
 }
@@ -1143,7 +1143,7 @@ function SlotEditor({
                   ? `${monthGenerations.join("・")}期`
                   : "全期"}
               </strong>{" "}
-              になります (この月の設定。変更は画面上部から)
+              になります(この月の設定。変更は画面上部から)
             </p>
           </>
         ) : null}

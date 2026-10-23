@@ -84,7 +84,7 @@ export function SettingsClient({
       const res = await fetch("/api/cal/regenerate", { method: "POST" });
       const body = await res.json().catch(() => ({}));
       if (!res.ok) {
-        setError(body.error ?? "再発行に失敗しました");
+        setError(body.error ?? "再発行に失敗しました。");
         return;
       }
       setToken(body.token);
@@ -151,7 +151,7 @@ export function SettingsClient({
       {/*
         自分のカレンダーアプリへの登録 (§6.4.1 / v1.30 §6.7.9)。
         **URL を見せる前にボタンで登録できるようにした。** URL をコピーして
-        貼る手順は、Google カレンダーのアプリからは行えず (ブラウザが要る)、
+        貼る手順は、Google カレンダーのアプリからは行えず(ブラウザが要る)、
         やり方が分からないまま止まっている人が多かった。
       */}
       <SettingsGroup
@@ -198,7 +198,7 @@ export function SettingsClient({
           </summary>
           <div className="mt-3 space-y-3">
             <p className="text-[var(--muted)]">
-              <strong>URLは他人に教えないでください</strong>(知っている人は予定を見られます)
+              <strong>URLは他人に教えないでください。</strong>知っている人は予定を見られます。
             </p>
             {httpsUrl && webcalUrl ? (
               <>
@@ -219,7 +219,7 @@ export function SettingsClient({
       </SettingsGroup>
 
       {/*
-        通知は現役だけに配る (練習日程・鍵はどちらも OB に関係が無い。SPEC §6.6)。
+        通知は現役だけに配る(練習日程・鍵はどちらも OB に関係が無い。SPEC §6.6)。
         受け取れないのに設定欄だけあると、オンにしても何も来ない状態になる
       */}
       {profile.role !== "ob" ? (
@@ -457,7 +457,7 @@ function RoleSection({
       });
       const body = await res.json().catch(() => ({}));
       if (!res.ok) {
-        onError(body.error ?? "権限を追加できませんでした");
+        onError(body.error ?? "権限を追加できませんでした。");
         return;
       }
       setRolePassword("");
@@ -474,7 +474,7 @@ function RoleSection({
       title="権限"
       icon="key"
       summary={ROLE_LABELS[role]}
-      hint="折衝または3役の合言葉を入れると、その担当の画面が使えるようになります。いま持っている権限が減ることはありません。"
+      hint="折衝か3役の合言葉を入れると、その担当の画面が使えます。今の権限が減ることはありません。"
     >
 
       {isCoordinatorOrAbove(role) ? (
@@ -561,11 +561,11 @@ function SubgenreSection({
     const other = slot === 2 ? values[3] : values[2];
 
     if (genreId !== null && genreId === mainGenreId) {
-      onError("1ジャンと同じジャンルは選べません");
+      onError("1ジャンと同じジャンルは選べません。");
       return;
     }
     if (genreId !== null && genreId === other) {
-      onError("2ジャンと3ジャンに同じジャンルは選べません");
+      onError("2ジャンと3ジャンに同じジャンルは選べません。");
       return;
     }
 
@@ -607,7 +607,7 @@ function SubgenreSection({
         .map((id) => (id ? GENRE_BY_ID.get(id)?.code : null))
         .filter(Boolean)
         .join("・") || "なし"}
-      hint="ここで選んだジャンルの公式練が自分の予定に入ります。変更は今日以降の予定にだけ反映され、昨日までの予定はそのまま残ります。"
+      hint="選んだジャンルの公式練が自分の予定に入ります。変えると今日から先の予定にだけ反映され、昨日までの予定は残ります。"
     >
       {([2, 3] as const).map((slot) => (
         <Field key={slot} label={`${slot}ジャン`}>

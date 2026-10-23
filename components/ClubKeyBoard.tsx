@@ -90,7 +90,7 @@ export function ClubKeyBoard({
         error?: string;
       } | null;
       setPending(false);
-      setError(data?.error ?? "登録できませんでした");
+      setError(data?.error ?? "登録できませんでした。");
       return;
     }
 

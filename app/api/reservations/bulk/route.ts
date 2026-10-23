@@ -88,7 +88,7 @@ export async function POST(request: Request) {
     }
     if (!roomIds.has(row.roomId)) {
       return Response.json(
-        { error: `${index + 1}行目: 部屋を選んでください` },
+        { error: `${index + 1}行目: 部屋を選んでください。` },
         { status: 400 },
       );
     }
@@ -115,7 +115,7 @@ export async function POST(request: Request) {
     const found = new Set((data ?? []).map((f) => (f as { id: string }).id));
     if (found.size !== fileIds.length) {
       return Response.json(
-        { error: "取込履歴が見つかりません。CSVを解析し直してください" },
+        { error: "取込履歴が見つかりません。CSVを解析し直してください。" },
         { status: 400 },
       );
     }
@@ -263,7 +263,7 @@ export async function POST(request: Request) {
         return Response.json(
           {
             error:
-              "同じ予約枠が同時に登録されました。CSVを解析し直してから再度確定してください",
+              "同じ予約枠が同時に登録されました。CSVを解析し直してから再度確定してください。",
           },
           { status: 409 },
         );

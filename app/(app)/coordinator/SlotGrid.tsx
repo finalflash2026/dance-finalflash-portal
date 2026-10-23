@@ -112,7 +112,7 @@ function cellFace(cell: GridCell): {
         text: "○",
         bg: SLOT_OPEN_COLOR.bg,
         fg: SLOT_OPEN_COLOR.fg,
-        title: "空き (個人練に開放)",
+        title: "空き(個人練に開放)",
       };
     case "unavailable":
       return {
@@ -126,7 +126,7 @@ function cellFace(cell: GridCell): {
         text: "○",
         bg: "transparent",
         fg: "var(--foreground)",
-        title: "練習できます (未割当。公開すると「空き」になります)",
+        title: "練習できます(未割当。公開すると「空き」になります)",
       };
     case "conflict": {
       const labels = cell.overlapping
@@ -761,7 +761,7 @@ function BrushPalette({
         onClick={() =>
           onChange(brush?.kind === "open" ? null : { kind: "open" })
         }
-        title="この時間だけを個人練に開放したいときに使います。未割当 (薄い○) のままでも、公開すれば通しで空きになります"
+        title="この時間だけを個人練に開放したいときに使います。未割当(薄い○) のままでも、公開すれば通しで空きになります"
         className={chip(brush?.kind === "open")}
       >
         空き ○
@@ -793,7 +793,7 @@ function BrushPalette({
 
       {brush ? (
         <span className="ml-auto text-xs text-[var(--muted)]">
-          セルを押すと <strong>{brushLabel(brush)}</strong> が入ります (Esc で解除)
+          セルを押すと <strong>{brushLabel(brush)}</strong> が入ります(Esc で解除)
         </span>
       ) : (
         <span className="ml-auto text-xs text-[var(--muted)]">
@@ -949,7 +949,7 @@ function Legend() {
         (公開時に unassignedRanges() が予約枠の余りを1本にまとめる)。
       */}
       <p>
-        <strong>未割当 (薄い ○) はそのままで構いません。</strong>
+        <strong>未割当(薄い ○) はそのままで構いません。</strong>
         公開すると、その日の余った時間が<strong>通しで1本の「空き」</strong>になります。
         「空き」を1コマずつ置くと、空きがコマ単位に切れて、
         コマをまたぐ個人練の申請ができなくなります。

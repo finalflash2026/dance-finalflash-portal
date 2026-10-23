@@ -352,7 +352,7 @@ export function StudioPracticeSection({
           </div>
 
           <label className="block">
-            <span className="text-sm font-medium">メモ (任意)</span>
+            <span className="text-sm font-medium">メモ(任意)</span>
             <input
               value={note}
               placeholder="例: 振り入れ"

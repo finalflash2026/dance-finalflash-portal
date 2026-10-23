@@ -17,7 +17,7 @@ const BY_CODE: Record<string, string> = {
   "23505": "同じものが既にあります。画面を更新して確かめてください",
   "23514": "入力した値が条件に合っていません。時刻や日付を確かめてください",
   "23P01": "他の予定と時間が重なっています",
-  "23503": "関係するデータが見つかりません (他の人が消したかもしれません)。画面を更新してください",
+  "23503": "関係するデータが見つかりません(他の人が消したかもしれません)。画面を更新してください",
   PGRST116: "見つかりませんでした。他の人が消したかもしれません。画面を更新してください",
   PGRST301: "ログインの期限が切れました。ログインし直してください",
 };
@@ -33,12 +33,13 @@ function isNetworkError(message: string): boolean {
  */
 export function dbErrorMessage(action: string, error: DbErrorLike): string {
   const known = error.code ? BY_CODE[error.code] : undefined;
-  if (known) return `${action}。${known}`;
+  // エラーは文として読ませるので「。」で終える (§12 / v1.33.1)
+  if (known) return `${action}。${known}。`;
   if (isNetworkError(error.message)) {
-    return `${action}。通信できませんでした。電波の良いところでもう一度試してください`;
+    return `${action}。通信できませんでした。電波の良いところでもう一度試してください。`;
   }
   if (/jwt expired/i.test(error.message)) {
-    return `${action}。${BY_CODE.PGRST301}`;
+    return `${action}。${BY_CODE.PGRST301}。`;
   }
-  return `${action}。時間をおいてもう一度試してください (詳細: ${error.message})`;
+  return `${action}。時間をおいてもう一度試してください(詳細: ${error.message})。`;
 }

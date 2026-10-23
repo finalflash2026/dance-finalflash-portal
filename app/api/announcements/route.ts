@@ -29,7 +29,7 @@ export async function POST(request: Request) {
   const parsed = schema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) {
     return Response.json(
-      { error: "タイトル (60文字まで) と本文 (1000文字まで) を入れてください" },
+      { error: "タイトル(60文字まで)と本文(1000文字まで)を入れてください。" },
       { status: 400 },
     );
   }

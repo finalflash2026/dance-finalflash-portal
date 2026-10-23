@@ -86,7 +86,7 @@ export function ImportStep({
       });
       const body = await res.json().catch(() => ({}));
       if (!res.ok) {
-        setError(body.error ?? "解析に失敗しました");
+        setError(body.error ?? "解析に失敗しました。");
         return;
       }
 
@@ -133,7 +133,7 @@ export function ImportStep({
       });
       const body = await res.json().catch(() => ({}));
       if (!res.ok) {
-        setError(body.error ?? "登録に失敗しました");
+        setError(body.error ?? "登録に失敗しました。");
         return;
       }
 
@@ -198,7 +198,7 @@ export function ImportStep({
       <section className="space-y-3">
         <h2 className="text-base font-bold">1. CSVをアップロード</h2>
         <p className="text-sm text-[var(--muted)]">
-          1行目が「{CSV_HEADER_LINE}」のCSV (複数可)
+          1行目が「{CSV_HEADER_LINE}」のCSV(複数可)
         </p>
         <input
           ref={fileInput}
@@ -253,7 +253,7 @@ export function ImportStep({
           {invalidRows.length > 0 ? (
             <div className="space-y-2">
               <h3 className="text-sm font-bold text-[var(--danger-fg)]">
-                要修正 ({invalidRows.length}件)
+                要修正({invalidRows.length}件)
               </h3>
               <ul className="space-y-2">
                 {invalidRows.map((row) => (
@@ -299,9 +299,6 @@ export function ImportStep({
           </button>
 
           <div className="space-y-2 border-t border-[var(--border)] pt-4">
-            <p className="text-sm text-[var(--muted)]">
-              確定すると予約枠として登録されます。同じ日・部屋・時間の予約枠が既にあれば自動でスキップされます。
-            </p>
             <button
               type="button"
               disabled={pending || invalidRows.length > 0}
@@ -348,9 +345,7 @@ function PromptCard() {
     <section className="space-y-3 rounded-xl border border-[var(--border)] p-3">
       <h2 className="text-base font-bold">0. スクショからCSVを作る</h2>
       <p className="text-sm text-[var(--muted)]">
-        予約完了ページのスクリーンショットと下のプロンプトを、自分のAI
-        (ChatGPT / Claude など) に渡してCSVを作らせてください。
-        このサイトからAIを呼ぶことはありません。
+        予約完了ページのスクリーンショットと下のプロンプトを、自分のAI(ChatGPT・Claude など)に渡してCSVを作ります。このサイトからAIは呼びません。
       </p>
       <pre className="max-h-56 overflow-auto rounded-lg bg-[var(--surface)] p-3 text-xs whitespace-pre-wrap">
         {COORDINATOR_PROMPT}
@@ -624,13 +619,13 @@ function NewRoomForm({
       });
       const body = await res.json().catch(() => ({}));
       if (!res.ok) {
-        setError(body.error ?? "登録に失敗しました");
+        setError(body.error ?? "登録に失敗しました。");
         return;
       }
       onCreated(body.room.id as number);
       router.refresh();
     } catch {
-      setError("通信に失敗しました");
+      setError("通信に失敗しました。");
     } finally {
       setPending(false);
     }

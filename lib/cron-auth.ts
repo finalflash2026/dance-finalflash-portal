@@ -18,7 +18,7 @@ export function checkCronSecret(request: Request): Response | null {
   const expected = cronSecret();
   if (!expected) {
     return Response.json(
-      { ok: false, error: "CRON_SECRET が未設定です" },
+      { ok: false, error: "CRON_SECRET が未設定です。" },
       { status: 503 },
     );
   }

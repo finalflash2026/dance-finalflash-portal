@@ -13,7 +13,7 @@ export const DEFAULT_ROOM_SIZES: Record<number, RoomSize> = {
   9: "large", // アリーナA
   10: "large", // アリーナB
   11: "large", // アリーナC
-  12: "large", // 剣道場 (体育館)
+  12: "large", // 剣道場(体育館)
   6: "small", // 控室136
   7: "small", // 控室132
   8: "small", // 控室131

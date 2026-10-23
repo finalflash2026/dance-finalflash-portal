@@ -26,7 +26,7 @@ export const THEME_LABELS: Record<Theme, string> = {
 };
 
 export const THEME_HINTS: Record<Theme, string> = {
-  system: "端末の設定 (外観モード) に合わせて切り替わります",
+  system: "端末の設定(外観モード) に合わせて切り替わります",
   light: "白い背景。明るい場所で見やすい",
   dark: "グレーの背景。暗い場所でまぶしくない",
 };

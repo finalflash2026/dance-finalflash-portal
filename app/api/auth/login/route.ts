@@ -28,7 +28,7 @@ const TOO_MANY = "試行回数が多すぎます。しばらく待ってから�
 export async function POST(request: Request) {
   if (!hasSupabaseEnv()) {
     return Response.json(
-      { error: "サーバーの設定が未完了です (Supabase 未接続)" },
+      { error: "サーバーの設定が未完了です(Supabase 未接続)。" },
       { status: 503 },
     );
   }

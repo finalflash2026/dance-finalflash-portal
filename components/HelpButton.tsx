@@ -34,7 +34,7 @@ interface Hint {
 
 const GROUPS: { title: string; hints: Hint[] }[] = [
   {
-    title: "はじめに (最初に1回だけ)",
+    title: "はじめに(最初に1回だけ)",
     hints: [
       {
         q: "ホーム画面に追加する",
@@ -177,7 +177,7 @@ export function HelpButton() {
               <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" aria-hidden>
                 <path d="M8 5v14l11-7z" />
               </svg>
-              {pageTour ? "この画面の使い方ツアーを見る" : "使い方ツアーを見る (ホーム)"}
+              {pageTour ? "この画面の使い方ツアーを見る" : "使い方ツアーを見る(ホーム)"}
             </button>
             {GROUPS.map((group) => (
               <div key={group.title}>
