@@ -304,8 +304,8 @@ function PassphraseSection({
     <section className="space-y-3 rounded-xl border border-[var(--border)] p-3" data-tour="admin-pass">
       <h2 className="text-base font-bold">合言葉</h2>
       <p className="text-xs text-[var(--muted)]">
-        <strong>代替わり・卒業の時期には必ず変更してください</strong>
-        (SPEC §3.5)。空欄の項目は変更しません。変更しても、今の権限は取り消されません。
+        <strong>代替わり・卒業の時期には必ず変更してください</strong>。
+        空欄の項目は変わりません
       </p>
 
       {entries.map((entry) => (
@@ -757,8 +757,7 @@ function BulkGraduateSection({
     <section className="space-y-3 rounded-xl border border-[var(--border)] p-3" data-tour="admin-graduate">
       <h2 className="text-base font-bold">卒業処理 (一括OB化)</h2>
       <p className="text-xs text-[var(--muted)]">
-        卒業者は<strong>削除ではなくOB/OGへ移行</strong>します。ナンバー機能と購読URLは
-        そのまま使えます (SPEC §3.6)。削除は誤登録の整理にのみ使ってください。
+        ナンバーと購読URLはOB/OGになっても使えます
       </p>
 
       <div className="flex gap-2">

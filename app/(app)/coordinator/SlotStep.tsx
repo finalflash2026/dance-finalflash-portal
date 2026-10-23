@@ -845,10 +845,9 @@ function WeekdayFilter({
 
 function Legend() {
   return (
+    // 文で説明せず、記号と意味の対応だけを並べる (§12 / v1.33)
     <p className="text-xs text-[var(--muted)]">
-      ＋ の破線が未割当です。タップするとその時刻からコマを作れます。
-      枠線が破線のブロックは下書き(未公開)です。●の数字は空き申請の件数、
-      行末の ✕ は予約枠の取消です。
+      ＋ 未割当 ・ 破線の枠 下書き ・ ● 空き申請の数 ・ ✕ 予約枠の取消
     </p>
   );
 }
@@ -912,8 +911,7 @@ function MonthGenerationPicker({
       )}
 
       <p className="text-xs text-[var(--muted)]">
-        未選択=全期。変更するとこの月の公式練コマ {genreSlotCount}件に
-        すぐ反映され、新しく作るコマにも入ります。
+        変えるとこの月の公式練 {genreSlotCount}件にすぐ反映されます
       </p>
 
       {mixed ? (
@@ -1086,11 +1084,11 @@ function SlotEditor({
               </button>
             ))}
           </div>
-          <p className="text-xs text-[var(--muted)]">
-            {draft.id
-              ? "数字だけでも入力できます (1700 → 17:00)"
-              : `${formatTimeRange(gap.startTime, gap.endTime)} が空いています。プリセットを押すと ${gap.startTime} から入ります (1700 のように数字だけでも入力できます)`}
-          </p>
+          {draft.id ? null : (
+            <p className="text-xs text-[var(--muted)]">
+              空き {formatTimeRange(gap.startTime, gap.endTime)}
+            </p>
+          )}
         </div>
 
         <div className="space-y-1">

@@ -171,7 +171,6 @@ export function RoomStatusBoard({
           {fetchedAt ? `${formatAsTokyoTime(fetchedAt)} 時点` : "更新"}
         </button>
       </header>
-      <p className="mt-1 text-[14px] text-[var(--muted)]">押すと、開けた・閉めたを報告できます</p>
 
       {error ? (
         <p role="alert" className="mt-1 text-xs text-[var(--danger-fg)]">

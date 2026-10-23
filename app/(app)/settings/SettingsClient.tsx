@@ -188,7 +188,7 @@ export function SettingsClient({
           </div>
         ) : (
           <p className="text-sm text-[var(--muted)]">
-            購読URLがまだありません。下の「購読URLを再発行する」を押すと作られます。
+            購読URLがまだありません
           </p>
         )}
 
@@ -198,8 +198,7 @@ export function SettingsClient({
           </summary>
           <div className="mt-3 space-y-3">
             <p className="text-[var(--muted)]">
-              <strong>URLは他人に教えないでください</strong>(知っている人は予定を見られます)。
-              他のアプリで使うときは、ここからコピーしてください。
+              <strong>URLは他人に教えないでください</strong>(知っている人は予定を見られます)
             </p>
             {httpsUrl && webcalUrl ? (
               <>

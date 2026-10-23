@@ -142,8 +142,7 @@ export function LaunchPrompts({
         }
       >
         <p className="text-[15px] leading-relaxed text-[var(--muted)]">
-          アプリのように1タップで開けて、
-          {ios ? "練習や締切の通知も受け取れるようになります (iPhone は追加しないと通知が届きません)。" : "練習や締切の通知も受け取れます。"}
+          {ios ? "iPhone は、ホーム画面に追加しないと通知が届きません。" : "練習や締切の通知も受け取れます。"}
         </p>
         <ol className="mt-4 space-y-3 text-[16px]">
           {ios ? (
@@ -200,9 +199,6 @@ export function LaunchPrompts({
           <li>・3役からの告知、練習日程の公開</li>
           <li>・練習場所や部室の鍵の連絡</li>
         </ul>
-        <p className="mt-3 text-[13px] text-[var(--muted)]">
-          種類ごとのオン/オフは、あとから歯車 →「通知」で変えられます。
-        </p>
         {error ? (
           <p role="alert" className="mt-2 text-[13px] text-[var(--danger-fg)]">
             {error}

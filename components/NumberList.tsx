@@ -78,9 +78,7 @@ export function NumberList({
 
         {numbers.length === 0 ? (
           <p className="rounded-xl bg-[var(--cell)] px-4 py-5 text-center text-sm text-[var(--muted)]">
-            所属しているナンバーはありません。
-            <br />
-            自分で作るか、主催者に追加してもらってください
+            所属しているナンバーはありません
           </p>
         ) : (
           <ul className="space-y-2">
@@ -123,9 +121,6 @@ export function NumberList({
         data-tour="number-create"
       >
         <h2 className="text-sm font-bold">ナンバーを作る</h2>
-        <p className="text-xs text-[var(--muted)]">
-          作った人が主催になります。メンバーの追加と日程の登録は主催のみ行えます
-        </p>
         <input
           aria-label="ナンバー名"
           value={name}

@@ -159,10 +159,7 @@ export function SignupForm() {
         2ジャン・3ジャンは任意 (v1.19)。ここで選ぶと登録した時点から
         マイカレンダーと購読URLに含まれる。あとから設定画面で変えられる
       */}
-      <Field
-        label="2ジャン (任意)"
-        hint="選んだジャンルの公式練が、自分の予定に入ります。あとから設定で変えられます"
-      >
+      <Field label="2ジャン (任意)">
         <select
           className={inputClass}
           value={subgenre2Id}
@@ -177,7 +174,7 @@ export function SignupForm() {
         </select>
       </Field>
 
-      <Field label="3ジャン (任意)" hint="あとから設定画面で変えられます">
+      <Field label="3ジャン (任意)">
         <select
           className={inputClass}
           value={subgenre3Id}
@@ -207,10 +204,7 @@ export function SignupForm() {
         />
       </Field>
 
-      <Field
-        label="マイパスワード (確認)"
-        hint="打ち間違いを防ぐため、もう一度入力してください"
-      >
+      <Field label="マイパスワード (確認)">
         <input
           className={inputClass}
           type="password"
@@ -227,7 +221,7 @@ export function SignupForm() {
         ) : null}
       </Field>
 
-      <Field label="サークル生合言葉" hint="サークル内で共有されている合言葉">
+      <Field label="サークル生合言葉">
         <input
           className={inputClass}
           type="password"

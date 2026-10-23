@@ -198,8 +198,7 @@ export function ImportStep({
       <section className="space-y-3">
         <h2 className="text-base font-bold">1. CSVをアップロード</h2>
         <p className="text-sm text-[var(--muted)]">
-          1行目が「{CSV_HEADER_LINE}」のCSVを選んでください(複数可)。
-          ファイル自体はサーバーに保存されません。
+          1行目が「{CSV_HEADER_LINE}」のCSV (複数可)
         </p>
         <input
           ref={fileInput}
@@ -278,14 +277,14 @@ export function ImportStep({
             conflicts={conflicts}
             onSelect={setEditingKey}
           />
-          {validRows.length > 0 ? (
+          {/* 説明は ⚠ があるときだけ (ブロックが押せることは見た目で分かる。§12 / v1.33) */}
+          {overlapCount > 0 || duplicateCount > 0 ? (
             <p className="text-xs text-[var(--muted)]">
-              ブロックをタップすると日付・時刻・部屋を編集できます。
               {overlapCount > 0
-                ? " ⚠ の枠は同じ部屋で時間が重なっています。読み取りミスの可能性があるので確認してください。"
+                ? "⚠ の枠は同じ部屋で時間が重なっています。読み取りミスがないか確かめてください。"
                 : ""}
               {duplicateCount > 0
-                ? " ⚠ の枠のうち完全に同じものは、確定時に自動でスキップされます。"
+                ? " 完全に同じ枠は、確定時に自動でスキップされます。"
                 : ""}
             </p>
           ) : null}
@@ -478,7 +477,7 @@ function RowCard({
         <input
           aria-label="日付"
           value={row.date}
-          placeholder="2026-08-06"
+          placeholder="20260806"
           inputMode="numeric"
           disabled={disabled}
           onChange={(e) => onChange({ date: normalizeDateInput(e.target.value) })}
@@ -488,7 +487,7 @@ function RowCard({
         <input
           aria-label="開始時刻"
           value={row.start}
-          placeholder="13:00"
+          placeholder="1300"
           inputMode="numeric"
           disabled={disabled}
           onChange={(e) => onChange({ start: normalizeTimeInput(e.target.value) })}
@@ -498,7 +497,7 @@ function RowCard({
         <input
           aria-label="終了時刻"
           value={row.end}
-          placeholder="21:30"
+          placeholder="2130"
           inputMode="numeric"
           disabled={disabled}
           onChange={(e) => onChange({ end: normalizeTimeInput(e.target.value) })}
@@ -507,10 +506,8 @@ function RowCard({
         />
       </div>
 
-      {/* iOS の数字キーボードには : も - も無いので、数字だけでも通ることを明示する */}
-      <p className="text-[11px] text-[var(--muted)]">
-        数字だけでも入力できます (1700 → 17:00 / 20260806 → 2026-08-06)
-      </p>
+      {/* iOS の数字キーボードには : も - も無い。数字だけで通ることは
+          プレースホルダーの例 (1300 / 20260806) で示す (§12 / v1.33) */}
 
       <div className="flex gap-2">
         <input
@@ -667,9 +664,6 @@ function NewRoomForm({
           <option key={s} value={s} />
         ))}
       </datalist>
-      <p className="text-[11px] text-[var(--muted)]">
-        所在はカレンダーの列の見出しになります。新しい所在も入力できます
-      </p>
       {error ? (
         <p role="alert" className="text-xs text-[var(--danger-fg)]">
           {error}

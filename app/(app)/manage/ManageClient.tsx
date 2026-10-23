@@ -387,7 +387,6 @@ function EventSheet({
               />
             </Row>
           </div>
-          <GroupFooter>縦イベのように OB/OG も参加するものだけオンにします。</GroupFooter>
         </div>
 
         <div className={groupClass}>
@@ -497,10 +496,7 @@ function DeadlinesPanel({
           ))}
         </ul>
       )}
-      <GroupFooter>
-        現役全員のカレンダーに出て、締切の日の朝に通知が届きます。
-        「大事な締切」は1週間前の朝にも届きます。
-      </GroupFooter>
+      <GroupFooter>現役全員のカレンダーに出て、締切の日の朝に通知が届きます。</GroupFooter>
 
       {draft ? (
         <DeadlineSheet
@@ -662,9 +658,7 @@ function DeadlineSheet({
               />
             </Row>
           </div>
-          <GroupFooter>
-            集金など落とすと困るもの。1週間前の朝にもリマインドが届き、画面でも目立たせます。
-          </GroupFooter>
+          <GroupFooter>1週間前の朝にも通知が届きます。</GroupFooter>
         </div>
 
         <div className={groupClass}>
@@ -775,9 +769,7 @@ function AnnouncementsPanel({ announcements }: { announcements: Announcement[] }
             <Switch label="OB/OGにも送る" checked={includeOb} onChange={setIncludeOb} />
           </Row>
         </div>
-        <GroupFooter>
-          全員のお知らせに入り、通知も届きます。送れるのは3役だけです。
-        </GroupFooter>
+        <GroupFooter>全員に通知が届きます。</GroupFooter>
         <div className="mt-3 space-y-2">
           <ErrorMessage>{error}</ErrorMessage>
           {notice ? (

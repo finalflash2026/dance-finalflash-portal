@@ -342,11 +342,7 @@ export function PushSection({ vapidPublicKey }: { vapidPublicKey: string }) {
             </li>
           ))}
         </ul>
-        {!subscribed ? (
-          <p className="text-[14px] text-[var(--muted)]">
-            上の「この端末で通知を受け取る」を押すと選べるようになります。
-          </p>
-        ) : (
+        {!subscribed ? null : (
           <button
             type="button"
             onClick={disable}

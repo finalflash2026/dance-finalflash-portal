@@ -279,7 +279,7 @@ export function StudioPracticeSection({
               <span className="text-sm font-medium">開始</span>
               <input
                 value={startTime}
-                placeholder="19:00"
+                placeholder="1900"
                 inputMode="numeric"
                 disabled={pending}
                 onChange={(e) => setStartTime(normalizeTimeInput(e.target.value))}
@@ -292,7 +292,7 @@ export function StudioPracticeSection({
               <span className="text-sm font-medium">終了</span>
               <input
                 value={endTime}
-                placeholder="21:00"
+                placeholder="2100"
                 inputMode="numeric"
                 disabled={pending}
                 onChange={(e) => setEndTime(normalizeTimeInput(e.target.value))}

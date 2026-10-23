@@ -365,7 +365,7 @@ export function AttendanceSheet({
                         <input
                           aria-label={`${ATTENDANCE_TIME_LABELS[draftStatus]}時刻`}
                           value={draftTime}
-                          placeholder="15:20"
+                          placeholder="1520"
                           inputMode="numeric"
                           disabled={pending}
                           autoFocus
