@@ -13,13 +13,29 @@ export default function DemoNumbers() {
           { id: "num-2", name: "縦イベ HIPHOP", isOwner: false, memberCount: 14 },
         ]}
         numbersError={null}
-        mainGenreCode="BREAK"
-        mainGenreId={1}
-        practices={[
+        studioGenres={[
           {
-            id: "s1", date: addDays(today, 5), startTime: "20:00", endTime: "22:00",
-            place: "スタジオB", note: null, targetGenerations: null,
-            createdBy: DEMO_USER_ID, createdByName: "22BREAKたろう",
+            id: 1,
+            code: "BREAK",
+            practices: [
+              {
+                id: "s1", date: addDays(today, 5), startTime: "20:00", endTime: "22:00",
+                place: "スタジオB", note: null, targetGenerations: null,
+                createdBy: DEMO_USER_ID, createdByName: "22BREAKたろう",
+              },
+            ],
+          },
+          // 2ジャン (v1.33)。ジャンルショーケースの練習など
+          {
+            id: 3,
+            code: "POP",
+            practices: [
+              {
+                id: "s2", date: addDays(today, 9), startTime: "18:00", endTime: "20:00",
+                place: "スタジオA", note: "ショーケースの通し", targetGenerations: null,
+                createdBy: "demo-other", createdByName: "23POPはなこ",
+              },
+            ],
           },
         ]}
         generations={[25, 24, 23, 22]}

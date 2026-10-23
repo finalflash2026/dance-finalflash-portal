@@ -26,9 +26,10 @@ import {
  * 決める性質のものではなく、名簿を作らせると「入れ忘れた人に伝わらない」
  * が起きる。
  *
- * **設定できるのは自分の1ジャンだけ。** 他ジャンルの予定を勝手に立てられると、
- * そのジャンルの人には出所の分からない予定が届く。RLS (`ins_gpractice`) が
- * 同じ条件を持っているので、画面の制限は補助でしかない。
+ * **設定できるのは自分のジャンル (1/2/3ジャン) だけ** (v1.33。以前は1ジャンだけ)。
+ * 他ジャンルの予定を勝手に立てられると、そのジャンルの人には出所の分からない
+ * 予定が届く。RLS (`ins_gpractice`) が同じ条件を持っているので、画面の制限は
+ * 補助でしかない。ジャンルごとにこの欄を1つずつ並べる。
  *
  * 直せるのは登録した本人だけ。同じジャンルの他の人にも触らせない
  * (空き申請の取消と同じ考え方。§6.1)。
@@ -53,14 +54,17 @@ export function StudioPracticeSection({
   practices,
   generations,
   currentUserId,
+  tour = false,
 }: {
   genreCode: string;
   genreId: number;
-  /** 自分の1ジャンのスタ練 (今日以降) */
+  /** このジャンルのスタ練 (今日以降) */
   practices: StudioPractice[];
   /** 対象期の候補 (現役に実在する期。新しい順) */
   generations: number[];
   currentUserId: string;
+  /** 初回ツアーの吹き出しを付ける欄か (並んだ欄の最初だけ) */
+  tour?: boolean;
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -138,7 +142,7 @@ export function StudioPracticeSection({
       note: note.trim() || null,
       target_generations: targets,
     };
-    // RLS が genre_id = 自分の1ジャン と created_by = auth.uid() を要求する。
+    // RLS が genre_id = 自分のジャンル と created_by = auth.uid() を要求する。
     // ここで genreId を渡しても、他ジャンルには書けない
     const { error: writeError } = editing
       ? await supabase
@@ -188,12 +192,8 @@ export function StudioPracticeSection({
   }
 
   return (
-    <section className="space-y-2" data-tour="studio">
-      <h2 className="text-sm font-bold">{genreCode}スタ練を設定する</h2>
-      <p className="text-xs text-[var(--muted)]">
-        登録すると、{genreCode}を取っている人全員のカレンダーに出ます。
-        メンバーを選ぶ必要はありません
-      </p>
+    <section className="space-y-2" data-tour={tour ? "studio" : undefined}>
+      <h2 className="text-sm font-bold">{genreCode}スタ練</h2>
 
       <ErrorMessage>{error}</ErrorMessage>
 
@@ -301,9 +301,6 @@ export function StudioPracticeSection({
               />
             </label>
           </div>
-          <p className="text-xs text-[var(--muted)]">
-            数字だけでも入力できます (20260910 → 2026-09-10 / 1900 → 19:00)
-          </p>
           {spansMidnight(startTime, endTime) &&
           /^\d{2}:\d{2}$/.test(startTime) &&
           /^\d{2}:\d{2}$/.test(endTime) ? (
@@ -352,11 +349,6 @@ export function StudioPracticeSection({
                 );
               })}
             </div>
-            <p className="mt-1 text-xs text-[var(--muted)]">
-              {targets === null
-                ? "全ての期が対象です"
-                : `${targets.join("・")}期のカレンダーにだけ出ます`}
-            </p>
           </div>
 
           <label className="block">
@@ -380,7 +372,8 @@ export function StudioPracticeSection({
               ? "保存中…"
               : editing
                 ? "この内容に変更する"
-                : `${genreCode}のスタ練として登録する`}
+                : // 押すと誰に届くかをボタンの文字で伝える (説明文は置かない。§12 / v1.33)
+                  `${genreCode}の${targets === null ? "全員" : `${targets.join("・")}期`}のカレンダーに出す`}
           </button>
           <button
             type="button"
@@ -421,7 +414,7 @@ export function StudioPracticeSection({
 
       {practices.length === 0 && !open ? (
         <p className="text-xs text-[var(--muted)]">
-          予定されているスタ練はありません
+          今後のスタ練はありません
         </p>
       ) : null}
     </section>
