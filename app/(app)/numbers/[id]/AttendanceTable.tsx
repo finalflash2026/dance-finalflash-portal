@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 
+import { RollingNumber } from "@/components/motion/RollingNumber";
 import { ErrorMessage } from "@/components/ui";
 import { ATTENDANCE_LABELS } from "@/lib/attendance";
 import { dbErrorMessage } from "@/lib/error-message";
@@ -14,7 +15,7 @@ import type { AttendanceStatus } from "@/lib/types";
  *
  * 縦にメンバー・横に日程を並べ、交わるところに出欠を出す。コレオ・主催が
  * 「誰がいつ来られないか」を、日程を1つずつ開かずに1枚で見るため。
- * 行が無い人は出席 (§6.4.2) なので、マスは空けておく。
+ * 行が無い人は**未回答** (v1.36) なので、マスは空けておく。「出」は出席と答えた人。
  * 見えるのはそのナンバーのメンバーだけ (RLS `sel_att`)。
  */
 
@@ -26,7 +27,7 @@ interface Row {
   reason: string | null;
 }
 
-const SHORT: Record<AttendanceStatus, string> = { absent: "欠", late: "遅", leave_early: "早" };
+const SHORT: Record<AttendanceStatus, string> = { present: "出", absent: "欠", late: "遅", leave_early: "早" };
 
 export function AttendanceTable({
   events,
@@ -147,32 +148,35 @@ export function AttendanceTable({
                             className={`h-8 w-full rounded-md text-[12px] font-semibold tabular-nums ${
                               row.status === "absent"
                                 ? "bg-[var(--danger-bg)] text-[var(--danger-fg)]"
-                                : "bg-[var(--fill)]"
+                                : row.status === "present"
+                                  ? "bg-[var(--success-bg)] text-[var(--success-fg)]"
+                                  : "bg-[var(--fill)]"
                             } ${on ? "ring-2 ring-[var(--tint)]" : ""}`}
                           >
                             {SHORT[row.status]}
                             {row.time_value ? ` ${row.time_value.slice(0, 5)}` : ""}
                           </button>
                         ) : (
-                          <span className="sr-only">出席</span>
+                          <span className="sr-only">未回答</span>
                         )}
                       </td>
                     );
                   })}
                 </tr>
               ))}
-              {/* 日程ごとの出られる人数 */}
+              {/* 日程ごとの「出席と答えた人」と「未回答」(v1.36。分けて出す) */}
               <tr>
                 <th className="sticky left-0 z-10 border-t border-[var(--separator)] bg-[var(--cell)] px-3 py-2 text-left font-semibold">
-                  出席
+                  出席 / 未回答
                 </th>
                 {visible.map((e) => {
-                  const absent = members.filter(
-                    (m) => byCell.get(`${m.userId}|${e.id}`)?.status === "absent",
-                  ).length;
+                  const statuses = members.map((m) => byCell.get(`${m.userId}|${e.id}`)?.status);
+                  const present = statuses.filter((st) => st === "present").length;
+                  const unanswered = statuses.filter((st) => st === undefined).length;
                   return (
-                    <td key={e.id} className="border-t border-[var(--separator)] py-2 text-center font-semibold tabular-nums">
-                      {members.length - absent}/{members.length}
+                    <td key={e.id} className="border-t border-[var(--separator)] py-2 text-center tabular-nums">
+                      <RollingNumber value={present} className="font-semibold" />
+                      <span className="text-[var(--muted)]"> / {unanswered}</span>
                     </td>
                   );
                 })}

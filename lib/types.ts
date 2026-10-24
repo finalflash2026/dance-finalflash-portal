@@ -15,7 +15,8 @@ export type Role = "ob" | "member" | "coordinator" | "admin";
 export type SlotStatus = "genre" | "open" | "unavailable";
 export type ReservationStatus = "active" | "cancelled";
 export type ImportFileStatus = "pending" | "confirmed";
-export type AttendanceStatus = "absent" | "late" | "leave_early";
+/** present = 出席と答えた (v1.36)。行が無い人は「未回答」 */
+export type AttendanceStatus = "present" | "absent" | "late" | "leave_early";
 export type NotificationType =
   | "number_added"
   | "schedule_updated"

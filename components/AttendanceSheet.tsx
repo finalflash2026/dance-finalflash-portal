@@ -22,6 +22,7 @@ import {
   formatDateLabel,
   normalizeTimeInput,
 } from "@/lib/time";
+import { showToast } from "@/lib/toast";
 import type { AttendanceStatus, DateString } from "@/lib/types";
 
 /**
@@ -215,6 +216,7 @@ export function AttendanceSheet({
     setDraftStatus(null);
     setDraftTime("");
     setDraftReason("");
+    showToast(`${ATTENDANCE_LABELS[status]}で登録しました`);
     load();
   }
 
@@ -307,9 +309,11 @@ export function AttendanceSheet({
                     </span>
                     <span
                       className={`max-w-[60%] shrink-0 truncate rounded px-1.5 py-0.5 text-xs ${
-                        participant.attendance
-                          ? "bg-[var(--danger-bg)] font-medium text-[var(--danger-fg)]"
-                          : "text-[var(--muted)]"
+                        !participant.attendance
+                          ? "text-[var(--muted)]"
+                          : participant.attendance.status === "present"
+                            ? "bg-[var(--success-bg)] font-medium text-[var(--success-fg)]"
+                            : "bg-[var(--danger-bg)] font-medium text-[var(--danger-fg)]"
                       }`}
                     >
                       {formatAttendance(participant.attendance)}
@@ -332,13 +336,16 @@ export function AttendanceSheet({
                 </h4>
 
                 <div className="flex gap-2">
-                  {(["absent", "late", "leave_early"] as AttendanceStatus[]).map(
+                  {(["present", "absent", "late", "leave_early"] as AttendanceStatus[]).map(
                     (status) => (
                       <button
                         key={status}
                         type="button"
                         disabled={pending}
-                        onClick={() => startDraft(status)}
+                        // 出席は押すだけで決まる (理由・時刻は要らない。v1.36)
+                        onClick={() =>
+                          status === "present" ? save("present", null, "") : startDraft(status)
+                        }
                         aria-pressed={(draftStatus ?? me?.attendance?.status) === status}
                         className={`flex-1 rounded-lg border px-2 py-2 text-sm ${
                           (draftStatus ?? me?.attendance?.status) === status
@@ -441,7 +448,7 @@ export function AttendanceSheet({
                     onClick={reset}
                     className={secondaryButtonClass}
                   >
-                    出席に戻す
+                    回答を取り消す
                   </button>
                 ) : null}
               </section>

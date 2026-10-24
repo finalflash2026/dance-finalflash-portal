@@ -67,12 +67,12 @@ const GROUPS: { title: string; hints: Hint[] }[] = [
     title: "練習の日",
     hints: [
       {
-        q: "欠席・遅刻を伝える",
+        q: "出欠を伝える",
         steps: [
           <>カレンダーの下の一覧で<b>自分の予定</b>を押す(「時間」の表示でも押せます)</>,
-          <><b>欠席・遅刻・早退</b>を選ぶ</>,
+          <><b>出席・欠席・遅刻・早退</b>を選ぶ</>,
         ],
-        note: "出席するときは何もしなくて大丈夫です。",
+        note: "答えていないと「未回答」と出ます。出られる日も「出席」を押しておくと、コレオや主催が人数を数えやすくなります。",
       },
       {
         q: "空いている部屋で自主練する",
@@ -137,6 +137,18 @@ const GROUPS: { title: string; hints: Hint[] }[] = [
       },
     ],
   },
+];
+
+/** 言葉の意味 (SPEC §6.7.9 / v1.36)。初めての人がつまずく言葉だけ */
+const GLOSSARY: [string, string][] = [
+  ["コマ", "練習場所を区切った1回ぶんの時間(例: 18:00〜19:30)。"],
+  ["公式練", "折衝がジャンルに割り振ったコマでの練習。"],
+  ["空き申請", "どのジャンルにも割り振られていないコマを、自主練に使うと伝えること。"],
+  ["スタ練", "ジャンルの誰かがスタジオを取って開く練習。そのジャンルの全員の予定に入ります。"],
+  ["ナンバー", "作品ごとに集まるメンバーと、その練習の日程。"],
+  ["1ジャン・2ジャン", "メインのジャンルと、ほかに取っているジャンル(3ジャンまで)。"],
+  ["期", "入会した代の番号。ユーザーIDの先頭の数字です。"],
+  ["折衝・3役", "練習場所の予約とコマ割りを担当する人(折衝)と、サークルの運営をする人(3役)。"],
 ];
 
 export function HelpButton() {
@@ -232,6 +244,18 @@ export function HelpButton() {
                 </ul>
               </div>
             ))}
+            {/* 言葉の意味 (v1.36)。画面を説明文で埋めない代わりに、ここで引ける */}
+            <div>
+              <GroupHeader>言葉の意味</GroupHeader>
+              <dl className={groupClass}>
+                {GLOSSARY.map(([word, meaning]) => (
+                  <div key={word} className="px-4 py-2.5">
+                    <dt className="text-[16px] font-semibold">{word}</dt>
+                    <dd className="text-[15px] leading-snug text-[var(--muted)]">{meaning}</dd>
+                  </div>
+                ))}
+              </dl>
+            </div>
             <Link
               href="/settings"
               onClick={() => setOpen(false)}

@@ -106,6 +106,8 @@ export function demoRows(table: string): Row[] {
   if (table === "attendances") {
     return [
       { user_id: "u9", number_event_id: "n1", status: "late", time_value: "21:30:00", reason: "バイト" },
+      { user_id: "00000000-0000-0000-0000-000000000001", number_event_id: "n1", status: "present", time_value: null, reason: null },
+      { user_id: "u2", number_event_id: "n1", status: "present", time_value: null, reason: null },
       { user_id: "u2", number_event_id: "n2", status: "absent", time_value: null, reason: "授業" },
       { user_id: "u4", number_event_id: "n3", status: "absent", time_value: null, reason: null },
       { user_id: "u9", number_event_id: "n4", status: "leave_early", time_value: "22:00:00", reason: "用事" },

@@ -419,16 +419,17 @@ async function seed(sql: postgres.Sql): Promise<string> {
     seenSlotTime.add(key);
     for (const m of active) {
       if (m.mainGenreId !== s.genre_id && !m.subgenres.includes(s.genre_id!)) continue;
+      // 来られない人に加え、4割ほどは「出席」と答えている (v1.36)。残りは未回答
       const r = rand();
-      if (r > 0.12) continue;
-      const status = r < 0.07 ? "absent" : r < 0.1 ? "late" : "leave_early";
+      if (r > 0.55) continue;
+      const status = r < 0.07 ? "absent" : r < 0.1 ? "late" : r < 0.12 ? "leave_early" : "present";
       attendanceRows.push({
         user_id: m.id,
         slot_id: s.id,
         status,
         time_value:
           status === "late" ? clock(minutes(s.start_time) + 20) : status === "leave_early" ? clock(minutes(s.end_time) - 30) : null,
-        reason: pick(rand, REASONS),
+        reason: status === "present" ? null : pick(rand, REASONS),
       });
     }
   }
