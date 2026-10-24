@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 
+import { generationChoices } from "@/lib/auth/generations";
 import { getCurrentProfile } from "@/lib/auth/session";
 
 import { SignupForm } from "../signup/SignupForm";
@@ -12,11 +13,12 @@ import { SignupForm } from "../signup/SignupForm";
  */
 export default async function WelcomePage() {
   if (await getCurrentProfile()) redirect("/");
+  const choices = await generationChoices();
 
   return (
     <div className="space-y-6">
       <h1 className="text-2xl font-bold">登録</h1>
-      <SignupForm google />
+      <SignupForm google generationChoices={choices} />
     </div>
   );
 }

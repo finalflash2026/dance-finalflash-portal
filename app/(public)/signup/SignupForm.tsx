@@ -24,7 +24,10 @@ import { buildUsername } from "@/lib/auth/username";
  */
 export function SignupForm({
   google = false,
+  generationChoices = [],
 }: {
+  /** 期の候補 (現役の期と、その次の期。新しい順。v1.36) */
+  generationChoices?: number[];
   /**
    * Google でログインしたあとの登録 (§3.7 / v1.34)。パスワードの欄を出さず、
    * /api/auth/complete-profile に送ってそのままホームへ入る
@@ -122,7 +125,30 @@ export function SignupForm({
 
   return (
     <form onSubmit={onSubmit} className="space-y-4">
-      <Field label="期" hint="入会した年度の代。例: 22">
+      <Field label="期" hint="入会した年度の代。ユーザーIDの先頭の数字になります。">
+        {/*
+          今いる期を押せるように並べる (v1.36)。自分が何期か分からない1年生が
+          迷うため。どれでもなければ下に数字で入れる
+        */}
+        {generationChoices.length > 0 ? (
+          <div className="mb-2 mt-1 flex flex-wrap gap-1.5" role="group" aria-label="期の候補">
+            {generationChoices.map((g) => (
+              <button
+                key={g}
+                type="button"
+                aria-pressed={generation === String(g)}
+                onClick={() => setGeneration(String(g))}
+                className={`h-10 rounded-full px-4 text-[15px] font-semibold ${
+                  generation === String(g)
+                    ? "bg-[var(--tint)] text-white"
+                    : "bg-[var(--fill)]"
+                }`}
+              >
+                {g}期
+              </button>
+            ))}
+          </div>
+        ) : null}
         <input
           className={inputClass}
           type="number"

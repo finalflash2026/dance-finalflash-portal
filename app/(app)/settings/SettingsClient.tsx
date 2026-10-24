@@ -623,6 +623,8 @@ function SubgenreSection({
           </select>
         </Field>
       ))}
+      {/* 変えると過去の練習が消えるのでは、と迷わないように (§6.4.1 / v1.36) */}
+      <p className="text-[14px] text-[var(--muted)]">今日から先の予定に反映されます。</p>
     </SettingsGroup>
   );
 }
