@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { startOfMonth, todayInTokyo } from "@/lib/time";
 import type { DateString } from "@/lib/types";
@@ -33,6 +33,13 @@ const STEPS = [
 export function CoordinatorClient() {
   const [step, setStep] = useState<1 | 2 | 3>(1);
   const [month, setMonth] = useState<DateString>(() => startOfMonth(todayInTokyo()));
+  // 日程調整の案を下書きにしたあとは ?month=…&step=2 で来る (§6.8.4 / v1.36)
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const target = params.get("month");
+    if (target && /^\d{4}-\d{2}-01$/.test(target)) setMonth(target as DateString);
+    if (params.get("step") === "2") setStep(2);
+  }, []);
 
   return (
     <main className="mx-auto w-full max-w-[1600px] space-y-4 px-4 py-4">

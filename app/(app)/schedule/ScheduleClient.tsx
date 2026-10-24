@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { CheckMark } from "@/components/motion/CheckMark";
@@ -19,6 +20,7 @@ import type {
   PlanSettings,
 } from "@/lib/scheduling/types";
 import { roundTitle, type ScheduleRound } from "@/lib/scheduling/round";
+import { confirmAction } from "@/lib/confirm";
 import { showToast } from "@/lib/toast";
 import { formatDateLabel, getWeekday, parseDate, todayInTokyo } from "@/lib/time";
 
@@ -553,7 +555,9 @@ function PlanPanel({ input, round }: { input: PlanInput; round: ScheduleRound })
         <ErrorMessage>{error}</ErrorMessage>
       </section>
 
-      {result && !pending ? <ResultView input={input} result={result} settings={settings} /> : null}
+      {result && !pending ? (
+        <ResultView input={input} result={result} settings={settings} month={round.month} />
+      ) : null}
     </div>
   );
 }
@@ -711,10 +715,13 @@ function ResultView({
   input,
   result,
   settings,
+  month,
 }: {
   input: PlanInput;
   result: PlanResult;
   settings: PlanSettings;
+  /** 案を下書きにする月 */
+  month: string;
 }) {
   const genreCode = new Map(input.genres.map((g) => [g.id, g.code]));
   const byCandidate = new Map(result.assignments.map((a) => [a.candidateId, a]));
@@ -774,9 +781,7 @@ function ResultView({
           {below > 0 ? `人数の基準に届かないコマ ${below}件(赤い枠)。` : ""}
           {overlaps > 0 ? `1ジャンと2・3ジャンが重なったコマ ${overlaps}件(「重なり」)。` : "1ジャンと2・3ジャンの重なりはありません。"}
         </p>
-        <button type="button" disabled className={`${primaryButtonClass} opacity-50`}>
-          この案で下書きに入れる(DB を作る段階で使えます)
-        </button>
+        <DraftButton input={input} result={result} month={month} />
       </section>
 
       {dates.map((date) => (
@@ -789,6 +794,58 @@ function ResultView({
           maybeWeight={settings.maybeWeight}
         />
       ))}
+    </div>
+  );
+}
+
+/**
+ * 案をコマ割りの下書きにする (§6.8.4 / v1.36)。その月の公開していないコマを
+ * 消してから作るので、押す前に確かめる。作ったら折衝ワークフローの②へ移る
+ */
+function DraftButton({ input, result, month }: { input: PlanInput; result: PlanResult; month: string }) {
+  const router = useRouter();
+  const [pending, setPending] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const byId = new Map(input.candidates.map((c) => [c.id, c]));
+  const slots = result.assignments.map((a) => {
+    const c = byId.get(a.candidateId)!;
+    return { date: c.date, roomId: c.roomId, startTime: c.startTime, endTime: c.endTime, genreId: a.genreId };
+  });
+  const monthLabel = `${Number(month.slice(5, 7))}月`;
+
+  async function makeDraft() {
+    if (
+      !(await confirmAction({
+        message: `${monthLabel}の公開していないコマを消して、この案のコマ ${slots.length}件を下書きで作ります。`,
+        confirmLabel: "下書きを作る",
+        destructive: true,
+      }))
+    ) {
+      return;
+    }
+    setPending(true);
+    setError(null);
+    const res = await fetch("/api/schedule/draft", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ month, slots }),
+    }).catch(() => null);
+    const body = await res?.json().catch(() => null);
+    setPending(false);
+    if (!res?.ok) {
+      setError(body?.error ?? "下書きを作れませんでした。");
+      return;
+    }
+    showToast(`${monthLabel}の下書きを ${body.created}コマ作りました`);
+    router.push(`/coordinator?month=${month}&step=2`);
+  }
+
+  return (
+    <div className="space-y-2">
+      <button type="button" onClick={makeDraft} disabled={pending} className={primaryButtonClass}>
+        {pending ? "作っています…" : "この案でコマ割りの下書きを作る"}
+      </button>
+      <ErrorMessage>{error}</ErrorMessage>
     </div>
   );
 }
