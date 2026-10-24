@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 
 import { ConfirmHost } from "@/components/ConfirmHost";
 import { SPLASH_INIT_SCRIPT, Splash } from "@/components/Splash";
+import { ToastHost } from "@/components/ToastHost";
 import { THEME_INIT_SCRIPT } from "@/lib/theme";
 
 import "./globals.css";
@@ -62,6 +63,8 @@ export default function RootLayout({
         {children}
         {/* 確認の窓 (window.confirm の代わり。v1.32.7) */}
         <ConfirmHost />
+        {/* 短い知らせ (成功したとき。v1.36) */}
+        <ToastHost />
       </body>
     </html>
   );

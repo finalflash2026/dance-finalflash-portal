@@ -9,6 +9,7 @@ import { confirmAction } from "@/lib/confirm";
 import { formatSpanRange, spansMidnight } from "@/lib/day-span";
 import { dbErrorMessage } from "@/lib/error-message";
 import { createClient } from "@/lib/supabase/client";
+import { showToast } from "@/lib/toast";
 import {
   finalizeTimeInput,
   formatDateLabel,
@@ -161,6 +162,7 @@ export function StudioPracticeSection({
       );
       return;
     }
+    showToast(editing ? "スタ練を変更しました" : `${genreCode}スタ練を登録しました`);
     reset();
     router.refresh();
   }
@@ -188,6 +190,7 @@ export function StudioPracticeSection({
       setError(dbErrorMessage("削除できませんでした", deleteError));
       return;
     }
+    showToast("スタ練を削除しました");
     router.refresh();
   }
 

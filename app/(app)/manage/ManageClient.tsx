@@ -25,6 +25,7 @@ import {
   formatDateLabel,
   normalizeTime,
 } from "@/lib/time";
+import { showToast } from "@/lib/toast";
 import type { Announcement, CircleEvent, Deadline } from "@/lib/types";
 
 /**
@@ -270,6 +271,7 @@ function EventSheet({
       setError(dbErrorMessage("保存できませんでした", saveError));
       return;
     }
+    showToast("保存しました");
     onClose();
     router.refresh();
   }
@@ -559,6 +561,7 @@ function DeadlineSheet({
       setError(dbErrorMessage("保存できませんでした", saveError));
       return;
     }
+    showToast("保存しました");
     onClose();
     router.refresh();
   }

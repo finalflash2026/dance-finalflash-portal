@@ -226,15 +226,26 @@
  * **入場だけ**を動かす。退場を入れるには閉じる状態を全モーダルに持たせる
  * 必要があり、得られる印象に見合わない。
  */
+/*
+ * バネのような動き (v1.36 / SPEC §12「動き」)。減衰 0.72・0.35秒で落ち着く
+ * 減衰振動を 0.5秒ぶん描いたもの (少し行き過ぎて戻る)。開閉に使う
+ */
+:root {
+  --ease-spring: linear(0, 0.018, 0.065, 0.132, 0.212, 0.299, 0.389, 0.477, 0.561, 0.639, 0.71, 0.773, 0.828, 0.876, 0.916, 0.949, 0.975, 0.996, 1.011, 1.023, 1.031, 1.035, 1.038, 1.038, 1.037, 1.035, 1.033, 1.03, 1.026, 1.023, 1.019, 1.016, 1.013, 1.011, 1.008, 1.006, 1.004, 1.003, 1.002, 1.001, 1);
+}
+
+/* 選んだ日を変えたときの入れ替え。ぼかしてから入れ替える (v1.36) */
 @keyframes page-in-from-right {
   from {
     opacity: 0;
+    filter: blur(6px);
     transform: translate3d(16px, 0, 0);
   }
 }
 @keyframes page-in-from-left {
   from {
     opacity: 0;
+    filter: blur(6px);
     transform: translate3d(-16px, 0, 0);
   }
 }
@@ -246,7 +257,7 @@
 @keyframes sheet-in {
   from {
     opacity: 0;
-    transform: translate3d(0, 12px, 0);
+    transform: translate3d(0, 40px, 0);
   }
 }
 
@@ -263,12 +274,14 @@
 @keyframes view-in-from-right {
   from {
     opacity: 0;
+    filter: blur(12px);
     transform: translate3d(48px, 0, 0) scale(0.98);
   }
 }
 @keyframes view-in-from-left {
   from {
     opacity: 0;
+    filter: blur(12px);
     transform: translate3d(-48px, 0, 0) scale(0.98);
   }
 }
@@ -282,7 +295,83 @@
   animation: fade-in 0.18s ease-out;
 }
 .sheet-in {
-  animation: sheet-in 0.22s cubic-bezier(0.32, 0.72, 0, 1);
+  animation: sheet-in 0.5s var(--ease-spring);
+}
+
+/* ---------- v1.36 の動き (SPEC §12「動き」) ---------- */
+
+/* 数字が縦に転がって変わる (RollingNumber)。増えたら下から、減ったら上から */
+@keyframes roll-from-below {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 0.6em, 0);
+    filter: blur(2px);
+  }
+}
+@keyframes roll-from-above {
+  from {
+    opacity: 0;
+    transform: translate3d(0, -0.6em, 0);
+    filter: blur(2px);
+  }
+}
+.roll-up {
+  animation: roll-from-below 0.42s var(--ease-spring);
+}
+.roll-down {
+  animation: roll-from-above 0.42s var(--ease-spring);
+}
+
+/* 完了のチェックが描かれる (CheckMark)。線の長さを pathLength=1 にそろえる */
+@keyframes check-draw {
+  from {
+    stroke-dashoffset: 1;
+  }
+}
+@keyframes check-pop {
+  from {
+    transform: scale(0.6);
+    opacity: 0;
+  }
+}
+.check-pop {
+  animation: check-pop 0.45s var(--ease-spring);
+}
+.check-draw {
+  stroke-dasharray: 1;
+  animation: check-draw 0.35s 0.12s ease-out both;
+}
+
+/* 短い知らせ (Toast)。下から出て、消えるときは縮む */
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 24px, 0) scale(0.96);
+  }
+}
+@keyframes toast-out {
+  to {
+    opacity: 0;
+    transform: scale(0.85);
+  }
+}
+.toast-in {
+  animation: toast-in 0.45s var(--ease-spring);
+}
+.toast-out {
+  animation: toast-out 0.2s ease-in forwards;
+}
+
+/* 結果のカードを少しずつずらして順に出す (--i に並び順を入れる) */
+@keyframes rise-in {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 12px, 0) scale(0.97);
+  }
+}
+.rise-in {
+  animation: rise-in 0.5s var(--ease-spring) both;
+  animation-delay: calc(var(--i, 0) * 70ms);
 }
 
 /* 動きに酔う人・OSで動きを減らす設定の人には出さない */
@@ -305,7 +394,14 @@
   .view-in-right,
   .view-in-left,
   .backdrop-in,
-  .sheet-in {
+  .sheet-in,
+  .roll-up,
+  .roll-down,
+  .check-pop,
+  .check-draw,
+  .toast-in,
+  .toast-out,
+  .rise-in {
     animation: none;
   }
 }

@@ -2,6 +2,8 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 
+import { CheckMark } from "@/components/motion/CheckMark";
+import { RollingNumber } from "@/components/motion/RollingNumber";
 import { ErrorMessage, GroupHeader, Segmented, groupClass, primaryButtonClass } from "@/components/ui";
 import { GENRE_COLORS, ROOM_BY_ID, type GenreCode } from "@/lib/constants";
 import learned from "@/lib/scheduling/learned.json";
@@ -17,6 +19,7 @@ import type {
   PlanSettings,
 } from "@/lib/scheduling/types";
 import { roundTitle, type ScheduleRound } from "@/lib/scheduling/round";
+import { showToast } from "@/lib/toast";
 import { formatDateLabel, getWeekday, parseDate, todayInTokyo } from "@/lib/time";
 
 /**
@@ -188,10 +191,12 @@ function DeadlineCard({
           </p>
         </div>
         <span
-          className={`shrink-0 rounded-full px-2.5 py-1 text-[13px] font-semibold ${
+          className={`flex shrink-0 items-center gap-1 rounded-full px-2.5 py-1 text-[13px] font-semibold ${
             done ? "bg-[#34c759] text-white" : "bg-[var(--fill)]"
           }`}
         >
+          {/* 全部答えた瞬間にチェックが描かれる (§12「動き」/ v1.36) */}
+          {done ? <CheckMark size={16} className="text-white/30" /> : null}
           {done ? "回答済み" : "受付中"}
         </span>
       </div>
@@ -209,7 +214,7 @@ function DeadlineCard({
         />
       </div>
       <p className="mt-1.5 text-[13px] text-[var(--muted)] tabular-nums">
-        {answered}/{total}コマ
+        <RollingNumber value={answered} />/{total}コマ
       </p>
     </section>
   );
@@ -273,15 +278,13 @@ function keysOf(list: ReturnType<typeof answerSlots>): AnswerKey[] {
  */
 function BulkCard({ pen, onApply }: { pen: Answer; onApply: (weekdays: number[]) => void }) {
   const [weekdays, setWeekdays] = useState<number[]>([]);
-  const [done, setDone] = useState<string | null>(null);
   const target = weekdays.length
     ? `${[1, 2, 3, 4, 5, 6, 0].filter((d) => weekdays.includes(d)).map((d) => WEEKDAY[d]).join("・")}曜日`
     : "全部の日";
 
   function apply() {
     onApply(weekdays);
-    setDone(`${target}を${ANSWER_STYLE[pen].label}にしました`);
-    window.setTimeout(() => setDone(null), 1800);
+    showToast(`${target}を${ANSWER_STYLE[pen].label}にしました`);
   }
 
   return (
@@ -315,9 +318,6 @@ function BulkCard({ pen, onApply }: { pen: Answer; onApply: (weekdays: number[])
       >
         {target}を<span className="text-[20px]">{ANSWER_STYLE[pen].label}</span>にする
       </button>
-      <p className="h-5 text-center text-[14px] text-[var(--tint)]" aria-live="polite">
-        {done}
-      </p>
     </section>
   );
 }
@@ -424,7 +424,7 @@ function PlanPanel({ input, round }: { input: PlanInput; round: ScheduleRound })
         <div className="flex items-center justify-center gap-4">
           <StepButton label="減らす" onClick={() => setSettings({ ...settings, perGenre: Math.max(0, settings.perGenre - 1) })}>−</StepButton>
           <p className="min-w-[96px] text-center">
-            <span className="text-[34px] font-bold tabular-nums">{settings.perGenre}</span>
+            <RollingNumber value={settings.perGenre} className="text-[34px] font-bold tabular-nums" />
             <span className="text-[16px]"> コマ</span>
           </p>
           <StepButton label="増やす" onClick={() => setSettings({ ...settings, perGenre: Math.min(maxPerGenre, settings.perGenre + 1) })}>＋</StepButton>
@@ -736,17 +736,25 @@ function ResultView({
     <div className="space-y-4">
       <section className={`${groupClass} space-y-3 p-4`}>
         <div className="flex items-baseline justify-between gap-2">
-          <h2 className="text-[17px] font-bold">案</h2>
+          {/* 計算中の印から、できあがりのチェックへ (§12「動き」/ v1.36) */}
+          <h2 className="flex items-center gap-1.5 text-[17px] font-bold">
+            <CheckMark size={20} className="text-[#34c759]" />案
+          </h2>
           <span className="text-[13px] text-[var(--muted)] tabular-nums">
             {result.status === "optimal" ? "最適(差 0.5% 以内)" : "制限時間内で一番良い案"} ・ {(result.elapsedMs / 1000).toFixed(1)}秒
           </span>
         </div>
         <ul className="grid grid-cols-3 gap-2">
-          {result.perGenre.map((g) => {
+          {result.perGenre.map((g, i) => {
             const code = genreCode.get(g.genreId) ?? "?";
             const color = GENRE_COLORS[code as GenreCode];
             return (
-              <li key={g.genreId} className="rounded-lg px-2 py-1.5" style={{ backgroundColor: color?.bg, color: color?.fg }}>
+              // ジャンルごとのカードを少しずつずらして順に出す (§12「動き」/ v1.36)
+              <li
+                key={g.genreId}
+                className="rise-in rounded-lg px-2 py-1.5"
+                style={{ backgroundColor: color?.bg, color: color?.fg, ["--i" as string]: i }}
+              >
                 <span className="block text-[13px] font-bold">{code}</span>
                 <span className="block text-[12px] opacity-90 tabular-nums">
                   {g.slots}コマ・平均{g.slots ? (g.expected / g.slots).toFixed(1) : "0"}人

@@ -16,6 +16,7 @@ import { formatSpanRange, spansMidnight } from "@/lib/day-span";
 import { dbErrorMessage } from "@/lib/error-message";
 import { numberColor } from "@/lib/numbers";
 import { createClient } from "@/lib/supabase/client";
+import { showToast } from "@/lib/toast";
 import {
   finalizeTimeInput,
   formatDateLabel,
@@ -476,6 +477,7 @@ function EventEditor({
       onError(dbErrorMessage("保存できませんでした", error));
       return;
     }
+    showToast("日程を保存しました");
     onClose();
     router.refresh();
   }
@@ -689,6 +691,7 @@ function MembersTab({
       onError(dbErrorMessage("追加できませんでした", error));
       return;
     }
+    showToast("メンバーに追加しました");
     router.refresh();
   }
 

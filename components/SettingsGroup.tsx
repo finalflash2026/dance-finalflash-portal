@@ -125,7 +125,8 @@ export function SettingsGroup({
           className="fixed z-[70] overflow-hidden bg-[var(--background)] shadow-[0_10px_40px_rgba(0,0,0,0.35)]"
           style={{
             ...panelStyle,
-            transition: `all ${DURATION}ms cubic-bezier(0.32, 0.72, 0, 1)`,
+            // バネのような動き (少し行き過ぎて戻る。§12「動き」/ v1.36)
+            transition: `all ${DURATION}ms var(--ease-spring)`,
           }}
         >
           {/* 広がる途中はカードの見た目のまま。開ききったら中身に入れ替える */}
@@ -202,7 +203,7 @@ export function SettingsGroup({
 }
 
 /** 開閉の長さ (ms)。iOS の画面の出入りに近い速さ */
-const DURATION = 380;
+const DURATION = 500;
 
 function CardFace({
   icon,
