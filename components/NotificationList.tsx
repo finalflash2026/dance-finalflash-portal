@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useState } from "react";
 
 import { dbErrorMessage } from "@/lib/error-message";
@@ -8,23 +9,25 @@ import { formatAsTokyoTime } from "@/lib/time";
 import type { NotificationType } from "@/lib/types";
 
 /**
- * お知らせカード (SPEC.md §6.4-2 / v1.10)
+ * お知らせの一覧 (SPEC.md §6.7.13 / v1.36)
  *
- * **未読だけを新しい順に出し、タップで既読にしたらリストから消す。**
- * 既読が淡色で残り続けると、その下のカレンダーが遠くなるだけで読む価値が無い。
- * 未読が0件ならカードごと出さない。
+ * **押すと既読にして、関係する画面へ移る**。告知のように移る先が無いものは、
+ * その場で本文を開く。以前は押した瞬間に消えるだけで、どこにも行けず、
+ * 長い告知を読む前に押すと二度と読めなかった。
+ * 読んだものは「既読も表示」で見返せる (直近30件)。
  *
  * 生成はすべて DB のトリガとサーバー側で行うので、ここでは読み書きしかしない。
  * RLS は本人分の select/update しか許さない (`sel_notif` / `upd_notif`)。
  */
 
-/** サーバーからは**未読だけ**が渡ってくる (既読は画面に出さないため) */
 export interface NotificationRow {
   id: string;
   type: NotificationType;
   title: string;
   body: string | null;
   createdAt: string;
+  /** 読んだ時刻。未読は null */
+  readAt?: string | null;
 }
 
 const TYPE_LABELS: Record<NotificationType, string> = {
@@ -32,6 +35,12 @@ const TYPE_LABELS: Record<NotificationType, string> = {
   schedule_updated: "練習日程",
   attendance_updated: "出欠",
   announcement: "3役からの告知",
+};
+
+/** 押したときに移る先。無いものはその場で本文を開く */
+const DESTINATION: Partial<Record<NotificationType, string>> = {
+  number_added: "/number-cal",
+  schedule_updated: "/",
 };
 
 export function NotificationList({
@@ -42,88 +51,115 @@ export function NotificationList({
   /** お知らせの画面 (v1.31) では高さを固定せず、全部をそのまま並べる */
   fullHeight?: boolean;
 }) {
+  const router = useRouter();
   const [rows, setRows] = useState(initial);
+  const [showRead, setShowRead] = useState(false);
+  const [openId, setOpenId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  async function markRead(row: NotificationRow) {
-    // 先に画面から消す。既読化は失敗しても実害が無く、
-    // タップのたびに待たされるほうが体感で損なため
-    setRows((prev) => prev.filter((r) => r.id !== row.id));
+  const unread = rows.filter((r) => !r.readAt);
+  const visible = showRead ? rows : unread;
+  const readCount = rows.length - unread.length;
 
-    const supabase = createClient();
-    const { error: updateError } = await supabase
-      .from("notifications")
-      .update({ read_at: new Date().toISOString() })
-      .eq("id", row.id);
-
-    if (updateError) {
-      // 失敗したら戻す。消えたまま既読になっていない状態が一番たちが悪い
-      setError(dbErrorMessage("既読にできませんでした", updateError));
-      setRows((prev) =>
-        [...prev, row].sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
-      );
+  async function open(row: NotificationRow) {
+    if (!row.readAt) {
+      // 先に画面で既読にする。既読化は失敗しても実害が無く、待たせるほうが損なため
+      const now = new Date().toISOString();
+      setRows((prev) => prev.map((r) => (r.id === row.id ? { ...r, readAt: now } : r)));
+      const { error: updateError } = await createClient()
+        .from("notifications")
+        .update({ read_at: now })
+        .eq("id", row.id);
+      if (updateError) {
+        setError(dbErrorMessage("既読にできませんでした", updateError));
+        setRows((prev) => prev.map((r) => (r.id === row.id ? { ...r, readAt: null } : r)));
+      }
     }
+    const destination = DESTINATION[row.type];
+    if (destination) {
+      router.push(destination);
+      return;
+    }
+    // 移る先が無いもの (告知など) は、その場で本文を開く
+    setOpenId((current) => (current === row.id ? null : row.id));
   }
 
-  if (rows.length === 0) return null;
-
   return (
-    <section className="space-y-1">
-      <h2 className="text-sm font-bold">
-        お知らせ
-        <span className="ml-1 rounded-full bg-[var(--danger-solid)] px-1.5 text-[10px] font-bold text-white">
-          {rows.length}
-        </span>
-        <span className="ml-1 font-normal text-[10px] text-[var(--muted)]">
-          タップで消えます
-        </span>
-      </h2>
-
+    <section className="space-y-2">
       {error ? (
         <p role="alert" className="text-xs text-[var(--danger-fg)]">
           {error}
         </p>
       ) : null}
 
-      {/*
-       * **枠の高さを固定して中でスクロールさせる。**
-       * お知らせが増えるとカードが伸びて、下のカレンダーまで延々と
-       * スクロールする必要があった。件数に関わらずここの高さは変わらない。
-       */}
-      <ul
-        className={`h-scroll divide-y divide-[var(--separator)] overflow-y-auto rounded-xl bg-[var(--cell)] ${
-          fullHeight ? "" : "max-h-40"
-        }`}
-      >
-        {/* ここに並ぶのは未読だけなので、既読/未読の描き分けは要らない */}
-        {rows.map((row) => (
-          <li key={row.id}>
-            <button
-              type="button"
-              onClick={() => markRead(row)}
-              aria-label={`${row.title} を確認して消す`}
-              className="flex w-full items-start gap-2 px-3 py-2 text-left"
-            >
-              <span
-                aria-hidden
-                className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--accent)]"
-              />
-              <span className="min-w-0 flex-1">
-                <span className="block text-sm font-medium">{row.title}</span>
-                {row.body ? (
-                  // 告知は改行を含む本文なので、改行をそのまま見せる (§6.7.4)
-                  <span className="block whitespace-pre-wrap text-xs text-[var(--muted)]">
-                    {row.body}
+      {visible.length === 0 ? (
+        <p className="rounded-xl bg-[var(--cell)] px-4 py-6 text-center text-[15px] text-[var(--muted)]">
+          新しいお知らせはありません
+        </p>
+      ) : (
+        <ul
+          className={`h-scroll divide-y divide-[var(--separator)] overflow-y-auto rounded-xl bg-[var(--cell)] ${
+            fullHeight ? "" : "max-h-40"
+          }`}
+        >
+          {visible.map((row) => {
+            const isOpen = openId === row.id;
+            return (
+              <li key={row.id}>
+                <button
+                  type="button"
+                  onClick={() => open(row)}
+                  aria-expanded={DESTINATION[row.type] ? undefined : isOpen}
+                  className="flex w-full items-start gap-2.5 px-4 py-3 text-left active:bg-[var(--fill)]"
+                >
+                  <span
+                    aria-hidden
+                    className={`mt-2 h-2 w-2 shrink-0 rounded-full ${
+                      row.readAt ? "bg-transparent" : "bg-[var(--accent)]"
+                    }`}
+                  />
+                  <span className="min-w-0 flex-1">
+                    <span
+                      className={`block text-[16px] ${row.readAt ? "text-[var(--muted)]" : "font-semibold"}`}
+                    >
+                      {row.title}
+                    </span>
+                    {row.body ? (
+                      // 告知は改行を含む本文。閉じているときは2行まで (§6.7.4)
+                      <span
+                        className={`block whitespace-pre-wrap text-[14px] text-[var(--muted)] ${
+                          isOpen ? "" : "line-clamp-2"
+                        }`}
+                      >
+                        {row.body}
+                      </span>
+                    ) : null}
+                    <span className="mt-0.5 block text-[12px] text-[var(--muted)]">
+                      {TYPE_LABELS[row.type]}・{formatAsTokyoTime(row.createdAt)}
+                    </span>
                   </span>
-                ) : null}
-                <span className="block text-[10px] text-[var(--muted)]">
-                  {TYPE_LABELS[row.type]} / {formatAsTokyoTime(row.createdAt)}
-                </span>
-              </span>
-            </button>
-          </li>
-        ))}
-      </ul>
+                  {DESTINATION[row.type] ? (
+                    <span aria-hidden className="mt-1 shrink-0 text-[17px] text-[var(--muted)]">
+                      ›
+                    </span>
+                  ) : null}
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+
+      {readCount > 0 ? (
+        <button
+          type="button"
+          onClick={() => setShowRead((v) => !v)}
+          aria-pressed={showRead}
+          className="mx-auto block h-10 rounded-full px-4 text-[15px] text-[var(--tint)]"
+        >
+          {showRead ? "未読だけにする" : `既読も表示(${readCount})`}
+        </button>
+      ) : null}
     </section>
   );
 }

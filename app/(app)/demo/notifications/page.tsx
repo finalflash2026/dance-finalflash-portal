@@ -18,6 +18,14 @@ export default function DemoNotifications() {
             body: null,
             createdAt: new Date(Date.now() - 86_400_000).toISOString(),
           },
+          {
+            id: "nt3",
+            type: "announcement",
+            title: "鍵の返却について",
+            body: "練習のあと、部室の鍵は必ず守衛室に返してください。\n返し忘れが続いているので、最後に出る人が確認してください。",
+            createdAt: new Date(Date.now() - 3 * 86_400_000).toISOString(),
+            readAt: new Date(Date.now() - 2 * 86_400_000).toISOString(),
+          },
         ]}
       />
     </main>
