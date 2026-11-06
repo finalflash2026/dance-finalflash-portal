@@ -1,0 +1,57 @@
+# DB の毎日の書き出し (SPEC.md §13.3)。
+#
+# **このファイルは本体のリポジトリでは動かない。** バックアップ用の別リポジトリ
+# (dance-finalflash-ops。サークルのアカウントで非公開) の .github/workflows/backup.yml
+# に置いて使う。書き出したものは全員の情報を含む完全な DB なので、コードを見せたい
+# 相手が入る本体リポジトリには置かない。
+#
+# 準備: ops リポジトリの Settings → Secrets に SUPABASE_DB_URL を入れる。
+#   Supabase の Connect →「Session pooler」(ポート 5432) の URI。パスワード入り。
+#   直結 (db.<ref>.supabase.co) は IPv6 だけなので GitHub のランナーからつながらない。
+name: backup
+
+on:
+  schedule:
+    # JST 04:00 (UTC 19:00)
+    - cron: "0 19 * * *"
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  dump:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: 接続先を確かめる
+        env:
+          DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          # 未設定のまま成功扱いにしない (バックアップが無いのに緑になるのが最悪のため)
+          if [ -z "$DB_URL" ]; then
+            echo "::error::SUPABASE_DB_URL が未設定です"; exit 1
+          fi
+          case "$DB_URL" in
+            *:6543/*) echo "::error::Transaction pooler (6543) では書き出せません。Session pooler (5432) にしてください"; exit 1 ;;
+            *@db.*.supabase.co*) echo "::error::直結の URL は IPv6 だけでつながりません。Session pooler にしてください"; exit 1 ;;
+          esac
+
+      - name: 書き出す
+        env:
+          DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        timeout-minutes: 5
+        run: |
+          mkdir -p out
+          # ランナーの pg_dump は Supabase より古いことがあるので、公式のコンテナで動かす
+          docker run --rm -e DB_URL -v "$PWD/out:/out" postgres:17-alpine \
+            sh -c 'pg_dump "$DB_URL" --no-owner --no-privileges --schema=public --schema=auth \
+                     --file=/out/db.sql && gzip /out/db.sql'
+          ls -la out
+
+      - name: 保管する (90日)
+        uses: actions/upload-artifact@v4
+        with:
+          name: db-${{ github.run_id }}
+          path: out/db.sql.gz
+          retention-days: 90
