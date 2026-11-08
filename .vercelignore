@@ -1,0 +1,11 @@
+# vercel コマンドでデプロイするときに送らないもの (iOS の殻・手元だけの秘密・資料)
+ios
+native
+.env*
+!.env.example
+*.local.md
+screenshots
+prototypes
+tmp-preview
+docs
+PR_BODY.md
