@@ -295,7 +295,7 @@ export function Tour() {
       {/* 穴の空いた幕。影を外側に大きく広げて、穴の外を暗くする */}
       <div
         aria-hidden
-        className="pointer-events-none absolute rounded-2xl transition-all duration-300"
+        className="pointer-events-none absolute rounded-2xl transition-[top,left,width,height] duration-[420ms] ease-[var(--ease-smooth)]"
         style={{
           ...hole,
           boxShadow: "0 0 0 9999px rgba(0, 0, 0, 0.62)",

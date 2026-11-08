@@ -56,14 +56,14 @@ const THEME_COLORS: Record<ResolvedTheme, string> = {
  * 上端を塗ってしまう。Next のメタタグはこの script より前に置かれるため、
  * ここで querySelector すれば必ず見つかる。
  */
-export const THEME_INIT_SCRIPT = `try{var s=localStorage.getItem(${JSON.stringify(THEME_STORAGE_KEY)});var q=window.matchMedia("(prefers-color-scheme: dark)");var f=function(){var t=s==="light"?"light":s==="system"?(q.matches?"dark":"light"):"dark";if(t==="dark"){document.documentElement.dataset.theme="dark"}else{delete document.documentElement.dataset.theme}var m=document.querySelector('meta[name="theme-color"]');if(!m){m=document.createElement("meta");m.name="theme-color";document.head.appendChild(m)}m.content=t==="dark"?${JSON.stringify(THEME_COLORS.dark)}:${JSON.stringify(THEME_COLORS.light)}};f();q.addEventListener("change",function(){s=localStorage.getItem(${JSON.stringify(THEME_STORAGE_KEY)});if(s==="system")f()})}catch(e){}`;
+export const THEME_INIT_SCRIPT = `try{var s=localStorage.getItem(${JSON.stringify(THEME_STORAGE_KEY)});var q=window.matchMedia("(prefers-color-scheme: dark)");var f=function(){var t=s==="dark"?"dark":s==="system"?(q.matches?"dark":"light"):"light";if(t==="dark"){document.documentElement.dataset.theme="dark"}else{delete document.documentElement.dataset.theme}var m=document.querySelector('meta[name="theme-color"]');if(!m){m=document.createElement("meta");m.name="theme-color";document.head.appendChild(m)}m.content=t==="dark"?${JSON.stringify(THEME_COLORS.dark)}:${JSON.stringify(THEME_COLORS.light)}};f();q.addEventListener("change",function(){s=localStorage.getItem(${JSON.stringify(THEME_STORAGE_KEY)});if(s==="system")f()})}catch(e){}`;
 
 /**
  * `<html>` に反映する。ライトは属性を消す。
  *
- * **CSS 側の素の `:root` はライトのまま**にしてある(v1.17 で既定をダークに
- * 変えた後も)。ダークは属性が付いたときだけ効く形なので、
- * 既定を切り替えるのは上の script と readStoredTheme だけで済む。
+ * **CSS 側の素の `:root` はライト**。ダークは属性が付いたときだけ効く形なので、
+ * 既定を切り替えるのは上の script と readStoredTheme だけで済む
+ * (v1.17 でダーク、v1.39 でライトに戻した)。
  * CSS の役割を入れ替えると、全トークンを書き直すことになる。
  */
 export function applyTheme(choice: Theme): void {
@@ -93,19 +93,17 @@ export function resolveTheme(choice: Theme): ResolvedTheme {
 }
 
 /**
- * 保存済みの選択。**未設定・壊れた値はダーク扱い**(v1.17)。
+ * 保存済みの選択。**未設定・壊れた値はライト扱い**(v1.39。v1.17〜v1.38 はダーク)。
  *
- * 既定をダークにしたので、判定は「`light` と保存されているか」で見る。
- * `dark` かどうかで見ると、値が壊れていたときにライトへ落ちてしまう。
- *
- * 自分でライトを選んだ人は `light` が保存されているため、この変更では動かない。
+ * 判定は「`dark` と保存されているか」で見る。自分でダークを選んだ人は
+ * `dark` が保存されているので、この変更では変わらない。
  */
 export function readStoredTheme(): Theme {
   try {
     const stored = localStorage.getItem(THEME_STORAGE_KEY);
-    return stored === "light" || stored === "system" ? stored : "dark";
+    return stored === "dark" || stored === "system" ? stored : "light";
   } catch {
-    return "dark";
+    return "light";
   }
 }
 

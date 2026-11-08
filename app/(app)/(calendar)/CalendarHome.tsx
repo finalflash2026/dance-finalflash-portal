@@ -12,6 +12,7 @@ import { ClaimSheet } from "@/components/ClaimSheet";
 import { DayGrid, type DayBlock } from "@/components/DayGrid";
 import { DayTimeline, type TimelineEvent } from "@/components/DayTimeline";
 import { LabelCalendar } from "@/components/LabelCalendar";
+import { DaySwipe } from "@/components/motion/DaySwipe";
 import { Sheet } from "@/components/Sheet";
 import {
   GroupHeader,
@@ -217,6 +218,10 @@ export function CalendarHome({
     } catch {}
   }
 
+  /** DaySwipe から日を変えたか (入ってくる動きを変える) */
+  const swiped = useRef(false);
+  const swipedClass = useRef(false);
+
   function selectDate(date: DateString) {
     if (date === selectedDate) return;
     // 読み込んだ範囲の外、または**端の2週間**に入ったら、その日を中心に読み直す
@@ -226,6 +231,9 @@ export function CalendarHome({
       return;
     }
     setDirection(date > selectedDate ? "right" : "left");
+    // 滑らせて変えたときだけ、送り出した続きとして反対側から入れる
+    swipedClass.current = swiped.current;
+    swiped.current = false;
     setViewDirection(null);
     setSelectedDate(date);
     window.history.replaceState(
@@ -351,6 +359,13 @@ export function CalendarHome({
         </section>
 
         <section data-tour="day">
+          {/* 予定を左右に滑らせると前後の日へ (v1.39。iPhone のカレンダーと同じ) */}
+          <DaySwipe
+            onSwipe={(to) => {
+              swiped.current = true;
+              selectDate(addDays(selectedDate, to === "next" ? 1 : -1));
+            }}
+          >
           {/* 日を変えたら、滑らせた向きに合わせて中身を少しずらして入れ替える */}
           <div
             key={`${selectedDate}-${dayView}`}
@@ -360,9 +375,9 @@ export function CalendarHome({
                 : viewDirection === "left"
                   ? "view-in-left"
                   : direction === "right"
-                    ? "page-in-right"
+                    ? swipedClass.current ? "day-in-right" : "page-in-right"
                     : direction === "left"
-                      ? "page-in-left"
+                      ? swipedClass.current ? "day-in-left" : "page-in-left"
                       : ""
             }
           >
@@ -382,6 +397,7 @@ export function CalendarHome({
               />
             )}
           </div>
+          </DaySwipe>
         </section>
       </>
     ),
@@ -808,7 +824,7 @@ function CalendarHeader({
 function Collapse({ open, children }: { open: boolean; children: React.ReactNode }) {
   return (
     <div
-      className="grid transition-[grid-template-rows,opacity] duration-300 ease-[cubic-bezier(0.32,0.72,0,1)]"
+      className="grid transition-[grid-template-rows,opacity] duration-[420ms] ease-[var(--ease-smooth)]"
       style={{ gridTemplateRows: open ? "1fr" : "0fr", opacity: open ? 1 : 0 }}
       aria-hidden={!open}
       inert={!open}
@@ -965,7 +981,11 @@ function WeekStrip({
                   }`}
                 >
                   <span
+                    // 選んだときに作り直して、丸をふくらませる (v1.39)
+                    key={isSelected ? "selected" : "plain"}
                     className={`grid h-9 w-9 place-items-center rounded-full text-[17px] tabular-nums transition-colors duration-200 ${
+                      isSelected ? "select-pop " : ""
+                    }${
                       isSelected
                         ? isToday
                           ? "bg-[var(--accent)] font-semibold text-white"

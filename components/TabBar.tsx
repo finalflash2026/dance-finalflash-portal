@@ -146,8 +146,11 @@ function useNativeTabBar(tabs: ReturnType<typeof visibleTabs>, currentIndex: num
     let lastKey = "";
     let frame = 0;
     const send = () => {
+      // 起動アニメーションの幕の上にも出さない (幕が消えたら data-splash が立つ)
+      const splash = document.documentElement.dataset.splash;
       const dialogOpen =
-        document.querySelector('[role="dialog"][aria-modal="true"]') !== null;
+        document.querySelector('[role="dialog"][aria-modal="true"]') !== null ||
+        !(splash === "off" || splash === "done");
       const theme = document.documentElement.dataset.theme ?? "light";
       const key = `${currentIndex}|${dialogOpen}|${theme}`;
       if (key === lastKey) return;
@@ -168,7 +171,9 @@ function useNativeTabBar(tabs: ReturnType<typeof visibleTabs>, currentIndex: num
       frame = requestAnimationFrame(send);
     };
     const themeObserver = new MutationObserver(schedule);
-    themeObserver.observe(document.documentElement, { attributeFilter: ["data-theme"] });
+    themeObserver.observe(document.documentElement, {
+      attributeFilter: ["data-theme", "data-splash"],
+    });
     const dialogObserver = new MutationObserver(schedule);
     dialogObserver.observe(document.body, {
       childList: true,

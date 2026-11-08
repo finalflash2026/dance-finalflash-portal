@@ -227,26 +227,30 @@
  * 必要があり、得られる印象に見合わない。
  */
 /*
- * バネのような動き (v1.36 / SPEC §12「動き」)。減衰 0.72・0.35秒で落ち着く
- * 減衰振動を 0.5秒ぶん描いたもの (少し行き過ぎて戻る)。開閉に使う
+ * 動きの曲線 (v1.39 / SPEC §12「動き」)。iPhone のカレンダーに寄せて、
+ * **行き過ぎて戻る跳ねを付けない**。CSS の linear() でバネを描いたもの:
+ *   --ease-smooth … 減衰しきるバネ (iOS の既定)。入れ替え・滑らせる動き
+ *   --ease-spring … ほぼ跳ねない (減衰 0.82、行き過ぎ 1%)。開く窓・知らせ
  */
 :root {
-  --ease-spring: linear(0, 0.018, 0.065, 0.132, 0.212, 0.299, 0.389, 0.477, 0.561, 0.639, 0.71, 0.773, 0.828, 0.876, 0.916, 0.949, 0.975, 0.996, 1.011, 1.023, 1.031, 1.035, 1.038, 1.038, 1.037, 1.035, 1.033, 1.03, 1.026, 1.023, 1.019, 1.016, 1.013, 1.011, 1.008, 1.006, 1.004, 1.003, 1.002, 1.001, 1);
+  --ease-smooth: linear(0, 0.028, 0.094, 0.179, 0.272, 0.365, 0.453, 0.534, 0.606, 0.669, 0.724, 0.771, 0.811, 0.844, 0.872, 0.895, 0.915, 0.931, 0.944, 0.954, 0.963, 0.97, 0.976, 0.981, 0.985, 0.988, 0.99, 0.992, 0.994, 0.995, 0.996, 0.997, 0.997, 0.998, 0.998, 0.999, 1);
+  --ease-spring: linear(0, 0.025, 0.087, 0.171, 0.267, 0.366, 0.463, 0.553, 0.635, 0.708, 0.77, 0.823, 0.868, 0.904, 0.933, 0.955, 0.973, 0.986, 0.996, 1.002, 1.007, 1.009, 1.011, 1.011, 1.011, 1.01, 1.009, 1.008, 1.007, 1.006, 1.005, 1.004, 1.003, 1.003, 1.002, 1.002, 1.001, 1.001, 1.001, 1, 1);
 }
 
-/* 選んだ日を変えたときの入れ替え。ぼかしてから入れ替える (v1.36) */
+/*
+ * 画面・選んだ日の入れ替え。**ぼかさない** (v1.39。重い端末でカクつく)。
+ * 動かすのは transform と opacity だけ
+ */
 @keyframes page-in-from-right {
   from {
     opacity: 0;
-    filter: blur(6px);
-    transform: translate3d(16px, 0, 0);
+    transform: translate3d(28px, 0, 0);
   }
 }
 @keyframes page-in-from-left {
   from {
     opacity: 0;
-    filter: blur(6px);
-    transform: translate3d(-16px, 0, 0);
+    transform: translate3d(-28px, 0, 0);
   }
 }
 @keyframes fade-in {
@@ -256,46 +260,73 @@
 }
 @keyframes sheet-in {
   from {
-    opacity: 0;
-    transform: translate3d(0, 40px, 0);
+    transform: translate3d(0, 100%, 0);
   }
 }
 
 .page-in-right {
-  animation: page-in-from-right 0.22s ease-out;
+  animation: page-in-from-right 0.42s var(--ease-smooth);
 }
 .page-in-left {
-  animation: page-in-from-left 0.22s ease-out;
+  animation: page-in-from-left 0.42s var(--ease-smooth);
 }
-/*
- * 一覧・時間・部屋の切り替え (v1.31.13)。日を変えるときより大きく流し、
- * 少しだけ縮んだところから元の大きさへ戻す。印 (Segmented) と同じ曲線
- */
+/* 一覧・時間・部屋の切り替え (v1.31.13)。日を変えるときより大きく流す */
 @keyframes view-in-from-right {
   from {
     opacity: 0;
-    filter: blur(12px);
-    transform: translate3d(48px, 0, 0) scale(0.98);
+    transform: translate3d(56px, 0, 0);
   }
 }
 @keyframes view-in-from-left {
   from {
     opacity: 0;
-    filter: blur(12px);
-    transform: translate3d(-48px, 0, 0) scale(0.98);
+    transform: translate3d(-56px, 0, 0);
   }
 }
 .view-in-right {
-  animation: view-in-from-right 0.36s cubic-bezier(0.32, 0.72, 0, 1);
+  animation: view-in-from-right 0.46s var(--ease-smooth);
 }
 .view-in-left {
-  animation: view-in-from-left 0.36s cubic-bezier(0.32, 0.72, 0, 1);
+  animation: view-in-from-left 0.46s var(--ease-smooth);
+}
+/*
+ * 予定を滑らせて日を変えたとき (v1.39)。指で送り出した続きとして、
+ * 反対側から入ってくる (components/motion/DaySwipe.tsx)
+ */
+@keyframes day-in-from-right {
+  from {
+    opacity: 0.2;
+    transform: translate3d(42%, 0, 0);
+  }
+}
+@keyframes day-in-from-left {
+  from {
+    opacity: 0.2;
+    transform: translate3d(-42%, 0, 0);
+  }
+}
+.day-in-right {
+  animation: day-in-from-right 0.44s var(--ease-smooth);
+}
+.day-in-left {
+  animation: day-in-from-left 0.44s var(--ease-smooth);
+}
+/* 選んだ日の丸。小さい所からふくらむ (v1.39) */
+@keyframes select-pop {
+  from {
+    transform: scale(0.55);
+    opacity: 0.4;
+  }
+}
+.select-pop {
+  animation: select-pop 0.38s var(--ease-spring);
 }
 .backdrop-in {
   animation: fade-in 0.18s ease-out;
 }
+/* 下から出る窓。iOS のシートと同じく下端から上がってくる */
 .sheet-in {
-  animation: sheet-in 0.5s var(--ease-spring);
+  animation: sheet-in 0.5s var(--ease-smooth);
 }
 
 /* ---------- v1.36 の動き (SPEC §12「動き」) ---------- */
@@ -401,7 +432,10 @@
   .check-draw,
   .toast-in,
   .toast-out,
-  .rise-in {
+  .rise-in,
+  .day-in-right,
+  .day-in-left,
+  .select-pop {
     animation: none;
   }
 }

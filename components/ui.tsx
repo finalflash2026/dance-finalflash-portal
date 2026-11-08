@@ -71,7 +71,7 @@ export const groupClass =
 /** まとまりの上に置く小さな見出し */
 export function GroupHeader({ children }: { children: React.ReactNode }) {
   return (
-    <h2 className="px-4 pb-1.5 text-[13px] font-normal uppercase tracking-wide text-[var(--muted)]">
+    <h2 className="px-4 pb-1.5 text-[13px] font-normal text-[var(--muted)]">
       {children}
     </h2>
   );
@@ -132,7 +132,7 @@ export function Segmented<T extends string>({
        */}
       <span
         aria-hidden
-        className="absolute bottom-0.5 top-0.5 rounded-[7px] bg-[var(--background)] shadow-[0_1px_3px_rgba(0,0,0,0.12)] transition-transform duration-300 ease-[cubic-bezier(0.32,0.72,0,1)]"
+        className="absolute bottom-0.5 top-0.5 rounded-[7px] bg-[var(--background)] shadow-[0_1px_3px_rgba(0,0,0,0.12)] transition-transform duration-[420ms] ease-[var(--ease-smooth)]"
         style={{
           left: 2,
           width: `calc((100% - 4px) / ${options.length})`,
