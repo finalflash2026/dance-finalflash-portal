@@ -89,8 +89,9 @@ export function generateTempPassword(length = 12): string {
 /**
  * OB/OGへ移行する (SPEC §3.6)。
  *
- * 未来日の claims / 公式練 attendances / サブジャンルの削除とロール更新を
- * DB 関数 `graduate_to_ob` が1トランザクションで行う (0006 マイグレーション)。
+ * 未来日の claims / 公式練・スタ練の attendances / サブジャンルの削除とロール更新を
+ * DB 関数 `graduate_to_ob` が1トランザクションで行う
+ * (0006 マイグレーション。スタ練の分は 0019 で追加)。
  * **アプリ側で4本に分けて発行しないこと** —
  * 途中で失敗すると「OBなのに未来の申請が残る」状態になる。
  *
