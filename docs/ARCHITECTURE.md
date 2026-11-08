@@ -64,6 +64,10 @@
 | `middleware.ts` | **すべてのリクエストの入口の門番**。ログインしていなければ `/login` へ送る。ログイン状態(cookie)の更新もここ。購読URL・ヘルスチェック・Cron・画像などは通す |
 | `next.config.ts` | Next.js の設定(タブを行き来したときの画面の使い回し時間など) |
 | `vercel.json` | Vercel の設定。サーバーの地域(東京)と、Cron(毎晩3時のヘルスチェック・毎朝7時のリマインド) |
+| `capacitor.config.ts` | **iOS アプリ**の設定(SPEC §2.3)。アプリが開く URL(ふだんは本番)を決める |
+| `ios/` | iOS アプリの Xcode プロジェクト。中身は本番の Web を開く WebView 1枚なので、画面を変えるのに触る必要はない。`npm run ios:open` で Xcode が開く |
+| `native/www/` | iOS アプリに同梱する、開けなかったとき(圏外など)のページ |
+| `scripts/cap.ts` | `npm run ios:sync`(本番を開く設定にする)と `npm run ios:dev`(手元の dev をシミュレーターで開く) |
 | `tsconfig.json` / `eslint.config.mjs` / `postcss.config.mjs` | TypeScript・ESLint・Tailwind の設定 |
 | `.env.example` | 環境変数の見本(Supabase の URL や鍵、VAPID 鍵など)。**本物の値は `.env.local` と Vercel にだけ置き、コミットしない** |
 

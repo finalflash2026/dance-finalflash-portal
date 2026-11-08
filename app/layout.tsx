@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 
 import { ConfirmHost } from "@/components/ConfirmHost";
+import { NativeBridge } from "@/components/NativeBridge";
 import { SPLASH_INIT_SCRIPT, Splash } from "@/components/Splash";
 import { ToastHost } from "@/components/ToastHost";
 import { THEME_INIT_SCRIPT } from "@/lib/theme";
@@ -65,6 +66,8 @@ export default function RootLayout({
         <ConfirmHost />
         {/* 短い知らせ (成功したとき。v1.36) */}
         <ToastHost />
+        {/* iOS アプリの中でだけ動く (SPEC §2.3 / v1.37) */}
+        <NativeBridge />
       </body>
     </html>
   );

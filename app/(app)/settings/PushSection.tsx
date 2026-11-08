@@ -10,6 +10,7 @@ import {
   savePushSubscription,
   subscribePush,
 } from "@/lib/push-client";
+import { isNativeApp } from "@/lib/native";
 import { createClient } from "@/lib/supabase/client";
 
 /**
@@ -99,6 +100,8 @@ export function PushSection({ vapidPublicKey }: { vapidPublicKey: string }) {
   const [denied, setDenied] = useState(false);
   const [standalone, setStandalone] = useState(true);
   const [ios, setIos] = useState(false);
+  // iOS アプリ (Capacitor) の WebView には Web Push が無い (SPEC §2.3 / v1.37)
+  const [native, setNative] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -149,6 +152,7 @@ export function PushSection({ vapidPublicKey }: { vapidPublicKey: string }) {
   useEffect(() => {
     setStandalone(isStandalone());
     setIos(isIos());
+    setNative(isNativeApp());
     setDenied(
       typeof Notification !== "undefined" && Notification.permission === "denied",
     );
@@ -285,7 +289,15 @@ export function PushSection({ vapidPublicKey }: { vapidPublicKey: string }) {
 
       {status === "unsupported" ? (
         <div className="rounded-lg border border-[var(--border)] px-3 py-3 text-sm">
-          {ios && !standalone ? (
+          {native ? (
+            <>
+              <p className="font-bold">アプリでは通知は届きません</p>
+              <p className="mt-1 text-[var(--muted)]">
+                通知を受け取るには、Safari でこのサイトを開き、共有ボタン →
+                「ホーム画面に追加」から開いてオンにしてください。
+              </p>
+            </>
+          ) : ios && !standalone ? (
             <>
               <p className="font-bold">ホーム画面に追加すると使えます</p>
               <p className="mt-1 text-[var(--muted)]">

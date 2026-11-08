@@ -11,9 +11,16 @@
     "test": "tsx --test \"lib/**/*.test.ts\"",
     "tune:schedule": "tsx scripts/tune-schedule.ts",
     "seed:demo": "tsx scripts/seed-demo.ts",
-    "set-passphrase": "tsx --env-file-if-exists=.env.local scripts/set-passphrase.ts"
+    "set-passphrase": "tsx --env-file-if-exists=.env.local scripts/set-passphrase.ts",
+    "ios:sync": "tsx --env-file-if-exists=.env.local scripts/cap.ts sync",
+    "ios:dev": "tsx --env-file-if-exists=.env.local scripts/cap.ts dev",
+    "ios:open": "cap open ios"
   },
   "dependencies": {
+    "@capacitor/app": "^8.1.2",
+    "@capacitor/browser": "^8.0.5",
+    "@capacitor/core": "^8.6.0",
+    "@capacitor/ios": "^8.6.0",
     "@supabase/ssr": "^0.12.4",
     "@supabase/supabase-js": "^2.112.2",
     "bcryptjs": "^3.0.3",
@@ -28,6 +35,7 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@capacitor/cli": "^8.6.0",
     "@eslint/eslintrc": "^3",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",

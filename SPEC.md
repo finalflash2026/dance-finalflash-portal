@@ -11,6 +11,7 @@
 | v1.5 | タブ①に**「今日の練習場所」施錠状況ボード**を追加(room_status新設。○=開錠済/×=施錠中、既定×、誰でも切替可。§6.1.1) |
 | v1.6 | **OB/OGロールを追加**。卒業者はアカウント削除ではなくOBへ移行し、タブ②③(ナンバー・マイカレンダー)のみ利用可能に。縦イベでのナンバー参加を継続できる(§3.6) |
 | v1.7 | **仕様変更2件**。①空き申請の時間粒度を**15分刻み→10分刻み**に変更(§6.1)。UI で丸めるだけでなく`claims`のCHECK制約でDB側でも強制する(クライアントからRLS経由で直接insertする設計のため、UIだけでは回避できてしまう)。②**タブ③のミニカレンダーをドット表示→予定ラベル表示**に変更(§6.0/§6.4)。タブ①②はドットのまま。あわせて`room_status.updated_at`をUPDATE時に更新するトリガを追加(§6.1.1の「3時間以上経過」判定が既定値のままでは機能しないため) |
+| v1.37 | **iOS アプリ**(§2.3)。Capacitor の殻(`ios/`)が本番の Web を開く。画面はすべて Web と同じコードで、Web をデプロイすればアプリにもそのまま出る(アプリの出し直しが要るのは殻を変えたときだけ)。開発中は `npm run ios:dev` で手元の `npm run dev` をシミュレーターで開く。Google でのログインはアプリ内の Safari で行い、`ffcalendar://` でアプリへ戻す(§3.7)。通知はアプリでは届かない(Web Push が WKWebView で使えないため)。配布(TestFlight / App Store)は年額の費用が掛かるので懸念事項に置く |
 | v1.36.1 | 毎日のバックアップのワークフローの見本を `docs/ops/backup.yml` に置く(§13.3)。本番をサークルのアカウントへ移すときに、ops リポジトリへ入れる |
 | v1.36 | **使用感の見直し**(想定ユーザーになりきった振り返りから)。①**動き**(§12): 開閉はバネのような動き、数字は縦に転がって変わる、表示の切り替えはぼかして入れ替える、完了はチェックが描かれる、成功は短い知らせ(トースト)、結果のカードは順に現れる、計算中の印は完了でチェックに変わる。端末で「視差効果を減らす」がオンなら動かさない。②**出欠に「出席」を答えられる**(§6.4.2)。答えていない人は「未回答」と出し、出欠表でも区別する(以前は答えていない人も出席に数えていて、コレオが表を信じきれなかった)。migration 0024。③**割り振りの案をコマ割りの下書きに入れる**(§6.8.4)。④**お知らせを押すと関係する画面へ移る**、既読も「既読も表示」で見返せる(§6.7.13)。⑤登録の「期」に、今いる期の候補を並べる(§3.2)。⑥? に「言葉の意味」(コマ・空き申請・スタ練など)。⑦サブジャンルを変えるときに、今日から先の予定にだけ反映されることを一言出す(§6.4.1) |
 | v1.35 | ①**週の帯を日曜始まりに戻す**(§6.7.13。v1.33.1 の「今日を左から2番目」をやめる)。月表示を畳んだときと同じ並びの方が、行き来しても位置を見失わない。②**カレンダーは前後どこまでも滑らせられる**。読み込む範囲を前後2か月に広げ、端の週に近づいたらその日を中心に読み直す。③**締切の欄から中身(メモ・リンク)を開ける**(§6.7.2)。リンクの無い集金なども押すと詳細(金額・払い方などのメモ)が出る。④**ナンバーの出欠表**(§6.3)。コレオ・主催が、全部の日程とメンバーごとの出欠(理由つき)を1枚の表で見られる。⑤**日程調整をデモ環境で試せる**(§6.8.4)。再来月(デモでは12月)の回を受付中にし、候補は DB の予約枠から作る。回答は端末に保存する(DB に保存するのは次の段階)。⑥**デモ用 DB に練習場所の予約の見本を足す**(§14.2)。日程調整の月とその次の月は、予約枠だけ(コマ割り前)にする。取込の見本 CSV も置く |
@@ -165,6 +166,23 @@ VAPID_SUBJECT=mailto:...          # 配信事業者への連絡先 (Web Push の
 
 ---
 
+### 2.3 iOS アプリ(v1.37)
+- **Capacitor の殻が本番の Web を開く。** `ios/` は Xcode のプロジェクトで、中身は WKWebView 1枚。画面・API・DB はすべて Web と同じものを使う。
+  - **Web と開発がずれない**: Web を `main` に出せば、アプリは次に開いたときから新しい画面になる。アプリを出し直すのは `ios/`・`capacitor.config.ts`・`native/`・`@capacitor/*` を変えたときだけ。
+  - サーバーで画面を組み立てる作り(Server Component・cookie のログイン・API)なので、静的に書き出してアプリに同梱する形は取らない。
+- 開く先は `capacitor.config.ts` が `npm run ios:sync` の時点で決める。`CAP_SERVER_URL` → `APP_BASE_URL` → 本番の既定(`https://finalflash-portal-demo.vercel.app`)の順。
+- コマンド(`scripts/cap.mjs`):
+  - `npm run ios:sync` … 本番を開く設定にして `ios/` へ反映する。
+  - `npm run ios:dev` … 手元の `npm run dev`(`http://localhost:3000`)を開く設定にしてシミュレーターで起動する。保存すれば Web と同じく画面が更新される。実機なら `npm run ios:dev -- --device`(同じ Wi-Fi の Mac の IP を使う)。
+  - `npm run ios:open` … Xcode で開く。**dev のあとは `ios:sync` で本番に戻してからアーカイブする。**
+- 開けないとき(圏外など)は同梱の `native/www/offline.html` を出し、「再読み込み」で開き直す。
+- アプリかどうかは `lib/native.ts` の `isNativeApp()` で見分ける(Capacitor が `window.Capacitor` を差し込む)。User-Agent の末尾にも ` ffCalendarApp` が付く。
+- **アプリで変わること**
+  - Google でのログイン: Google は WKWebView の中でのログインを拒むので、アプリ内の Safari(`@capacitor/browser`)で開く。戻り先は `/auth/app-callback` で、ここは**セッションを作らずに** `ffcalendar://auth/callback?code=…` へ渡すだけ。アプリがそれを受けて WebView で `/auth/callback?code=…` を開き、そこでセッションを作る(PKCE の鍵は WebView の cookie にあるので、コードだけ盗られても使えない)。Supabase の Redirect URLs に `/auth/app-callback` を足す。
+  - 通知: WKWebView には Web Push が無い。設定画面では「アプリでは通知は届きません」と出し、Safari でホーム画面に追加する方法を案内する。APNs でのネイティブ通知は Apple Developer Program が要るので、配布と一緒に決める。
+  - 左端からのスワイプで前の画面に戻れる。webcal: やサイト外のリンクは Safari やカレンダーのアプリで開く。
+- **配布(TestFlight / App Store)は Apple Developer Program(年額)が要る**(§0 の「外部の有料サービスを使わない」に関わる)。`docs/major-update.md` の懸念事項。それまでは、Xcode から自分の iPhone へ入れて試す(無料のアカウントだと7日で入れ直し)。
+
 ## 3. ロールと認証
 
 ### 3.1 ロール
@@ -202,6 +220,7 @@ VAPID_SUBJECT=mailto:...          # 配信事業者への連絡先 (Web Push の
 - Google で登録するには Supabase の「Allow new users to sign up」を**オン**にする必要がある(オフのままだと初めての人が Google でログインできない)。そのため、**プロフィールの無い人(合言葉を通していない人)には何も見せない**ようにする: `profiles`・`user_subgenres`・`user_subgenre_periods` の閲覧条件を「プロフィールがある人」(`app_role() is not null`)に締める(migration 0023)。他のテーブルは、もともと役割・本人・所属で絞ってある。
 - メールアドレスは Supabase Auth が持つ。画面には出さない。
 - 設定(ダッシュボード側。手作業): Google Cloud で OAuth クライアント(ウェブ)を作り、承認済みのリダイレクト URI に `https://{プロジェクト}.supabase.co/auth/v1/callback` を入れる。Supabase の Authentication → Providers → Google にクライアント ID と シークレットを入れる。Authentication → URL Configuration の Site URL と Redirect URLs にアプリの URL(`https://…/auth/callback`)を入れる。
+- **iOS アプリから**(v1.37 / §2.3): アプリ内の Safari で Google を開き、戻り先を `/auth/app-callback` にする。ここはコードを `ffcalendar://auth/callback` へ渡すだけで、セッションはアプリの WebView が `/auth/callback` で作る。Redirect URLs に `https://…/auth/app-callback` も入れる。
 
 ### 3.4 ロール昇格
 - ログイン済みユーザーが `/api/role/elevate` に「折衝パスワード」or「管理者パスワード」を送る → bcrypt照合 → service roleで `profiles.role` を更新。

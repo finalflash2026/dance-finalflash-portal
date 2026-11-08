@@ -18,7 +18,8 @@ import { SUPABASE_ANON_KEY, SUPABASE_URL, hasSupabaseEnv } from "@/lib/env";
 
 /** 未ログインでもアクセスできるパス */
 // /auth/callback は Google でログインしたあとの戻り先 (§3.7 / v1.34)
-const PUBLIC_PATHS = ["/login", "/signup", "/auth/callback"];
+// /auth/app-callback は iOS アプリのログインで、アプリ内の Safari が開く (§2.3 / v1.37)
+const PUBLIC_PATHS = ["/login", "/signup", "/auth/callback", "/auth/app-callback"];
 /** 認証を要求しない API (トークン自体が鍵 / cron 用) */
 const PUBLIC_API_PREFIXES = ["/api/auth", "/api/cal", "/api/health", "/api/cron"];
 

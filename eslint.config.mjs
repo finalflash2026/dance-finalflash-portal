@@ -18,6 +18,9 @@ const eslintConfig = [
       "out/**",
       "build/**",
       "next-env.d.ts",
+      // iOS アプリ: 生成物と同梱のページ (SPEC §2.3)
+      "ios/**",
+      "native/**",
     ],
   },
 ];

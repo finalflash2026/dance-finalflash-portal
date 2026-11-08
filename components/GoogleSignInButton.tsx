@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 
+import { isNativeApp } from "@/lib/native";
 import { createClient } from "@/lib/supabase/client";
 
 /**
@@ -9,6 +10,9 @@ import { createClient } from "@/lib/supabase/client";
  *
  * Google の画面へ移り、戻り先 (/auth/callback) でセッションを作る。
  * 初めての人はそのあと登録の続き (/welcome) へ進む。
+ *
+ * iOS アプリでは Google が WebView でのログインを拒むので、アプリ内の Safari で
+ * 開く。戻り先は /auth/app-callback で、そこからアプリへ戻る (SPEC §2.3 / v1.37)。
  */
 export function GoogleSignInButton() {
   const [pending, setPending] = useState(false);
@@ -17,15 +21,36 @@ export function GoogleSignInButton() {
   async function signIn() {
     setPending(true);
     setError(null);
+    const failed = () => {
+      setPending(false);
+      setError("Google でログインできませんでした。もう一度試してください。");
+    };
+
+    if (isNativeApp()) {
+      const { data, error: oauthError } = await createClient().auth.signInWithOAuth({
+        provider: "google",
+        options: {
+          redirectTo: `${window.location.origin}/auth/app-callback`,
+          skipBrowserRedirect: true,
+        },
+      });
+      if (oauthError || !data.url) return failed();
+      const { Browser } = await import("@capacitor/browser");
+      // 途中で閉じられたら押せる状態に戻す
+      const finished = await Browser.addListener("browserFinished", () => {
+        setPending(false);
+        void finished.remove();
+      });
+      await Browser.open({ url: data.url, presentationStyle: "popover" }).catch(failed);
+      return;
+    }
+
     const { error: oauthError } = await createClient().auth.signInWithOAuth({
       provider: "google",
       options: { redirectTo: `${window.location.origin}/auth/callback` },
     });
     // 成功すると Google の画面へ移るので、ここに戻るのは失敗したときだけ
-    if (oauthError) {
-      setPending(false);
-      setError("Google でログインできませんでした。もう一度試してください。");
-    }
+    if (oauthError) failed();
   }
 
   return (
