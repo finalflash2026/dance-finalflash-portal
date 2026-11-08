@@ -84,3 +84,20 @@ test("通知の ID は同じ tag なら同じ正の整数", () => {
   assert.notEqual(notificationId("today-2026-11-09"), notificationId("today-2026-11-10"));
   assert.ok(notificationId("x") > 0 && notificationId("x") <= 0x7fffffff);
 });
+
+test("大きいウィジェット用に、近い締切と鍵・日程調整を添える", () => {
+  const digest = buildAppDigest(
+    [
+      event({ kind: "deadline", date: "2026-11-12", title: "締切: 2ジャン登録フォーム", allDay: true, dueTime: "23:59:00" }),
+      event({ kind: "deadline", date: "2026-12-30", title: "締切: 先すぎる締切", allDay: true }),
+    ],
+    TODAY,
+    `${TODAY}T08:00`,
+    { round: { title: "1月の日程調整", deadline: "2026-12-15" }, keys: { unlocked: 2, holder: "22BREAKたろう" } },
+  );
+  assert.deepEqual(digest.dashboard.deadlines, [
+    { title: "2ジャン登録フォーム", date: "2026-11-12", dueTime: "23:59", important: false },
+  ]);
+  assert.equal(digest.dashboard.keys?.unlocked, 2);
+  assert.equal(digest.dashboard.round?.title, "1月の日程調整");
+});

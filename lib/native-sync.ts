@@ -63,7 +63,9 @@ async function run(): Promise<void> {
   const digest = (await res.json()) as AppDigest;
   lastSync = Date.now();
 
-  await FFNative.setDigest({ digest: { today: digest.today, days: digest.days } });
+  await FFNative.setDigest({
+    digest: { today: digest.today, days: digest.days, dashboard: digest.dashboard },
+  });
   await scheduleNotifications(digest);
 }
 

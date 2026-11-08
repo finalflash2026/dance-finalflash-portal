@@ -23,6 +23,7 @@
 		BE77ADAF5562EBAD2C628AED /* NativeTabBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 09A62D1DB5B3E8E89535EF28 /* NativeTabBar.swift */; };
 		E8E03F4FB1BE61A377693A7C /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9420949282AB92AA28A975D3 /* AppDelegate.swift */; };
 		EE5028C8611DDB77C8D08233 /* MainViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B7E94E5F9BD4A8A171DAB9F /* MainViewController.swift */; };
+		F051A9F151C92DFE5293A43D /* NativeHeader.swift in Sources */ = {isa = PBXBuildFile; fileRef = C18A4E4D09D8CF111CBE1619 /* NativeHeader.swift */; };
 		F15DE01AD8877ECD8C1C8471 /* Digest.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4372B5908D8F022B5A88DB1D /* Digest.swift */; };
 /* End PBXBuildFile section */
 
@@ -71,6 +72,7 @@
 		9B7E94E5F9BD4A8A171DAB9F /* MainViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainViewController.swift; sourceTree = "<group>"; };
 		B76BF4992852331C05E278F7 /* Widget.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Widget.entitlements; sourceTree = "<group>"; };
 		BC6305F27C5676CAE24CAFA2 /* App.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = App.entitlements; sourceTree = "<group>"; };
+		C18A4E4D09D8CF111CBE1619 /* NativeHeader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NativeHeader.swift; sourceTree = "<group>"; };
 		CFB98775BBA3EACCAB9D253B /* FFWidget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FFWidget.swift; sourceTree = "<group>"; };
 		ED2016878D44EAA9692D059F /* SceneDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SceneDelegate.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -121,6 +123,7 @@
 				6E22BC9FF34995629DD3BBD0 /* FFNativePlugin.swift */,
 				70FBD15B60B003AAE2FE5530 /* Info.plist */,
 				9B7E94E5F9BD4A8A171DAB9F /* MainViewController.swift */,
+				C18A4E4D09D8CF111CBE1619 /* NativeHeader.swift */,
 				09A62D1DB5B3E8E89535EF28 /* NativeTabBar.swift */,
 				7E5BBB12596EE01767A6151A /* public */,
 				ED2016878D44EAA9692D059F /* SceneDelegate.swift */,
@@ -291,6 +294,7 @@
 				F15DE01AD8877ECD8C1C8471 /* Digest.swift in Sources */,
 				6450E5A45A02C5C6F71D5697 /* FFNativePlugin.swift in Sources */,
 				EE5028C8611DDB77C8D08233 /* MainViewController.swift in Sources */,
+				F051A9F151C92DFE5293A43D /* NativeHeader.swift in Sources */,
 				BE77ADAF5562EBAD2C628AED /* NativeTabBar.swift in Sources */,
 				67740B5377F807ABF1532F55 /* SceneDelegate.swift in Sources */,
 			);

@@ -19,9 +19,9 @@ struct ScheduleWidget: Widget {
                 .containerBackground(for: .widget) { Color("WidgetBackground") }
         }
         .configurationDisplayName("今日の予定")
-        .description("今日と次の練習・イベント・締切")
+        .description("今日と次の予定。大きいサイズは締切・日程調整・鍵も")
         .supportedFamilies([
-            .systemSmall, .systemMedium,
+            .systemSmall, .systemMedium, .systemLarge, .systemExtraLarge,
             .accessoryRectangular, .accessoryInline, .accessoryCircular,
         ])
     }
@@ -132,6 +132,7 @@ struct ScheduleView: View {
             case .accessoryCircular: CircularView(entry: entry)
             case .accessoryRectangular: RectangularView(entry: entry)
             case .systemMedium: MediumView(entry: entry)
+            case .systemLarge, .systemExtraLarge: LargeView(entry: entry)
             default: SmallView(entry: entry)
             }
         }
@@ -271,6 +272,137 @@ private struct CircularView: View {
     }
 }
 
+
+/// 大きいサイズ (v1.41)。ホームの要約: 今日の残り・次の日・近い締切・日程調整・鍵
+private struct LargeView: View {
+    let entry: Entry
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .firstTextBaseline) {
+                Text(DateFormatter.dayLabel.string(from: entry.date))
+                    .font(.headline.weight(.bold))
+                    .foregroundStyle(.red)
+                    .widgetAccentable()
+                Spacer()
+                if entry.todayCount > 0 {
+                    Text("今日 \(entry.todayCount)件")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+
+            if entry.digest == nil {
+                Spacer()
+                EmptyMessage(text: "アプリを開いてログインしてください")
+                Spacer()
+            } else {
+                Section(title: "これから") {
+                    let rows = entry.upcomingRows(limit: 4)
+                    if rows.isEmpty {
+                        EmptyMessage(text: "予定はありません")
+                    } else {
+                        ForEach(Array(rows.enumerated()), id: \.offset) { _, row in
+                            if let header = row.header {
+                                Text(header)
+                                    .font(.caption2.weight(.semibold))
+                                    .foregroundStyle(.secondary)
+                            }
+                            ItemRow(item: row.item, now: entry.date)
+                        }
+                    }
+                }
+
+                if let deadlines = entry.digest?.dashboard?.deadlines, !deadlines.isEmpty {
+                    Section(title: "近い締切") {
+                        ForEach(deadlines.prefix(2), id: \.self) { deadline in
+                            HStack(spacing: 6) {
+                                Text(daysLeft(deadline.date, from: entry.date))
+                                    .font(.caption.weight(.semibold).monospacedDigit())
+                                    .foregroundStyle(.red)
+                                    .frame(width: 44, alignment: .leading)
+                                    .widgetAccentable()
+                                Text(deadline.title)
+                                    .font(.caption.weight(.semibold))
+                                    .lineLimit(1)
+                                Spacer(minLength: 0)
+                                if deadline.important {
+                                    Text("大事")
+                                        .font(.caption2.weight(.bold))
+                                        .foregroundStyle(.red)
+                                }
+                            }
+                        }
+                    }
+                }
+
+                Spacer(minLength: 0)
+
+                HStack(spacing: 8) {
+                    if let round = entry.digest?.dashboard?.round {
+                        Chip(symbol: "calendar.badge.checkmark",
+                             text: "\(round.title) \(daysLeft(round.deadline, from: entry.date))")
+                    }
+                    if let keys = entry.digest?.dashboard?.keys {
+                        Chip(symbol: "key.fill", text: keysText(keys))
+                    }
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+    }
+
+    private func keysText(_ keys: Digest.Dashboard.Keys) -> String {
+        var text = "開錠 \(keys.unlocked)部屋"
+        if let holder = keys.holder { text += "・部室 \(holder)" }
+        if let saved = entry.digest?.savedAt {
+            text += " (\(DateFormatter.hourMinute.string(from: saved))時点)"
+        }
+        return text
+    }
+}
+
+private struct Section<Content: View>: View {
+    let title: String
+    @ViewBuilder let content: Content
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 5) {
+            Text(title)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.secondary)
+            content
+        }
+    }
+}
+
+private struct Chip: View {
+    let symbol: String
+    let text: String
+
+    var body: some View {
+        HStack(spacing: 4) {
+            Image(systemName: symbol).font(.caption2)
+            Text(text).font(.caption2.weight(.medium)).lineLimit(1)
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 5)
+        .background(.fill.tertiary, in: Capsule())
+    }
+}
+
+/// "今日" / "明日" / "あと5日"
+private func daysLeft(_ ymd: String, from now: Date) -> String {
+    guard let date = DateFormatter.ymd.date(from: ymd) else { return "" }
+    let calendar = Calendar.tokyo
+    let days = calendar.dateComponents([.day], from: calendar.startOfDay(for: now), to: date).day ?? 0
+    switch days {
+    case ..<1: return "今日"
+    case 1: return "明日"
+    default: return "あと\(days)日"
+    }
+}
+
 // MARK: - Parts
 
 private struct Header: View {
@@ -384,6 +516,14 @@ private extension DateFormatter {
         return formatter
     }()
 
+    static let hourMinute: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.calendar = .tokyo
+        formatter.timeZone = Calendar.tokyo.timeZone
+        formatter.dateFormat = "H:mm"
+        return formatter
+    }()
+
     static let dayNumber: DateFormatter = {
         let formatter = DateFormatter()
         formatter.calendar = .tokyo
@@ -406,6 +546,11 @@ private extension Digest {
                          title: "秋ナンバー", location: "アリーナB", important: false),
                 ]),
             ],
+            dashboard: Dashboard(
+                round: Dashboard.Round(title: "1月の日程調整", deadline: today),
+                keys: Dashboard.Keys(unlocked: 1, holder: "22BREAKたろう"),
+                deadlines: [Dashboard.Deadline(title: "合宿費の集金", date: today, dueTime: nil, important: true)]
+            ),
             savedAt: nil
         )
     }

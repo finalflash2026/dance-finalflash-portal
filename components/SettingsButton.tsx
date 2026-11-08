@@ -101,6 +101,7 @@ export function SettingsButton() {
         aria-label="設定"
         className={BUTTON_CLASS}
         data-tour="settings"
+        data-header-action="settings"
       >
         <GearIcon />
       </Link>

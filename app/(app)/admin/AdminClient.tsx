@@ -206,7 +206,7 @@ export function AdminClient({
                     strokeWidth="2.4"
                     strokeLinecap="round"
                     strokeLinejoin="round"
-                    className={`shrink-0 text-[var(--muted)] transition-transform duration-300 ease-[var(--ease-smooth)] ${
+                    className={`shrink-0 text-[var(--muted)] transition-transform duration-200 ease-[var(--ease-smooth)] ${
                       expanded === user.userId ? "rotate-90" : ""
                     }`}
                   >

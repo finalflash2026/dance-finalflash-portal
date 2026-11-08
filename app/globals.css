@@ -224,7 +224,7 @@
 /* 押したときにガラスが少し縮んで明るくなる (iOS 26 のボタンと同じ手触り) */
 .glass-press {
   transition:
-    transform 0.32s var(--ease-spring),
+    transform 0.24s var(--ease-spring),
     filter 0.2s ease-out;
 }
 .glass-press:active {
@@ -263,6 +263,9 @@
  * 必要があり、得られる印象に見合わない。
  */
 /*
+ * 長さ (v1.40): 入れ替えは 0.3秒前後、開く窓は 0.4秒。動きの質 (バネ・ふくらみ) は残し、
+ * 待たせる時間だけ削る (0.4〜0.5秒ではもっさりして見えた)
+ *
  * 動きの曲線 (v1.39 / SPEC §12「動き」)。iPhone のカレンダーに寄せて、
  * **行き過ぎて戻る跳ねを付けない**。CSS の linear() でバネを描いたもの:
  *   --ease-smooth … 減衰しきるバネ (iOS の既定)。入れ替え・滑らせる動き
@@ -301,10 +304,10 @@
 }
 
 .page-in-right {
-  animation: page-in-from-right 0.42s var(--ease-smooth);
+  animation: page-in-from-right 0.3s var(--ease-smooth);
 }
 .page-in-left {
-  animation: page-in-from-left 0.42s var(--ease-smooth);
+  animation: page-in-from-left 0.3s var(--ease-smooth);
 }
 /* 一覧・時間・部屋の切り替え (v1.31.13)。日を変えるときより大きく流す */
 @keyframes view-in-from-right {
@@ -320,10 +323,10 @@
   }
 }
 .view-in-right {
-  animation: view-in-from-right 0.46s var(--ease-smooth);
+  animation: view-in-from-right 0.32s var(--ease-smooth);
 }
 .view-in-left {
-  animation: view-in-from-left 0.46s var(--ease-smooth);
+  animation: view-in-from-left 0.32s var(--ease-smooth);
 }
 /*
  * 予定を滑らせて日を変えたとき (v1.39)。指で送り出した続きとして、
@@ -342,10 +345,10 @@
   }
 }
 .day-in-right {
-  animation: day-in-from-right 0.44s var(--ease-smooth);
+  animation: day-in-from-right 0.32s var(--ease-smooth);
 }
 .day-in-left {
-  animation: day-in-from-left 0.44s var(--ease-smooth);
+  animation: day-in-from-left 0.32s var(--ease-smooth);
 }
 /* 選んだ日の丸。小さい所からふくらむ (v1.39) */
 @keyframes select-pop {
@@ -355,14 +358,14 @@
   }
 }
 .select-pop {
-  animation: select-pop 0.38s var(--ease-spring);
+  animation: select-pop 0.3s var(--ease-spring);
 }
 .backdrop-in {
   animation: fade-in 0.18s ease-out;
 }
 /* 下から出る窓。iOS のシートと同じく下端から上がってくる */
 .sheet-in {
-  animation: sheet-in 0.5s var(--ease-smooth);
+  animation: sheet-in 0.4s var(--ease-smooth);
 }
 
 /* ---------- v1.36 の動き (SPEC §12「動き」) ---------- */
@@ -383,10 +386,10 @@
   }
 }
 .roll-up {
-  animation: roll-from-below 0.42s var(--ease-spring);
+  animation: roll-from-below 0.32s var(--ease-spring);
 }
 .roll-down {
-  animation: roll-from-above 0.42s var(--ease-spring);
+  animation: roll-from-above 0.32s var(--ease-spring);
 }
 
 /* 完了のチェックが描かれる (CheckMark)。線の長さを pathLength=1 にそろえる */
@@ -402,7 +405,7 @@
   }
 }
 .check-pop {
-  animation: check-pop 0.45s var(--ease-spring);
+  animation: check-pop 0.36s var(--ease-spring);
 }
 .check-draw {
   stroke-dasharray: 1;
@@ -423,7 +426,7 @@
   }
 }
 .toast-in {
-  animation: toast-in 0.45s var(--ease-spring);
+  animation: toast-in 0.36s var(--ease-spring);
 }
 .toast-out {
   animation: toast-out 0.2s ease-in forwards;
@@ -437,8 +440,8 @@
   }
 }
 .rise-in {
-  animation: rise-in 0.5s var(--ease-spring) both;
-  animation-delay: calc(var(--i, 0) * 70ms);
+  animation: rise-in 0.4s var(--ease-spring) both;
+  animation-delay: calc(var(--i, 0) * 50ms);
 }
 
 /* 動きに酔う人・OSで動きを減らす設定の人には出さない */
@@ -579,4 +582,12 @@ html[data-splash="off"] #app-splash {
  */
 html.native-app [data-web-tabbar] {
   display: none;
+}
+/*
+ * 右上の丸ボタンと戻るも、アプリでは iOS 26 の本物の Liquid Glass のボタンが
+ * 同じ位置に重なる (v1.41 / components/NativeHeader.tsx)。場所は空けたまま隠し、
+ * ネイティブのボタンが押されたらこの要素を押す
+ */
+html.native-app [data-header-action] {
+  visibility: hidden;
 }

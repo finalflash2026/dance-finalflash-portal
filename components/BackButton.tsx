@@ -84,6 +84,8 @@ export function BackButton() {
         type="button"
         onClick={() => (inAppNavigations > 0 ? router.back() : router.push(target.href))}
         className={CLASS_NAME}
+        data-header-action="back"
+        data-header-label={target.label}
       >
         {content}
       </button>
@@ -92,13 +94,25 @@ export function BackButton() {
   // 設定はどこからでも開けるので、右上の ✕ と同じく入る前の画面へ戻る
   if (pathname === "/settings" || pathname === "/demo/settings") {
     return (
-      <button type="button" onClick={() => closeSettings(router)} className={CLASS_NAME}>
+      <button
+        type="button"
+        onClick={() => closeSettings(router)}
+        className={CLASS_NAME}
+        data-header-action="back"
+        data-header-label={target.label}
+      >
         {content}
       </button>
     );
   }
   return (
-    <Link href={target.href} prefetch className={CLASS_NAME}>
+    <Link
+      href={target.href}
+      prefetch
+      className={CLASS_NAME}
+      data-header-action="back"
+      data-header-label={target.label}
+    >
       {content}
     </Link>
   );

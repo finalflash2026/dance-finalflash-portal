@@ -22,8 +22,30 @@ struct Digest: Codable {
         let items: [Item]
     }
 
+    /// ホームの要約 (大きいウィジェット用。v1.41)
+    struct Dashboard: Codable {
+        struct Round: Codable {
+            let title: String
+            let deadline: String
+        }
+        struct Keys: Codable {
+            let unlocked: Int
+            let holder: String?
+        }
+        struct Deadline: Codable, Hashable {
+            let title: String
+            let date: String
+            let dueTime: String?
+            let important: Bool
+        }
+        let round: Round?
+        let keys: Keys?
+        let deadlines: [Deadline]
+    }
+
     let today: String
     let days: [Day]
+    var dashboard: Dashboard?
     /// アプリが受け取った時刻
     var savedAt: Date?
 }

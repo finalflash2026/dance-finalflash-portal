@@ -1,7 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
+import { GOOGLE_CLIENT_ID, GOOGLE_IOS_CLIENT_ID } from "@/lib/env";
+import { createNonce, loadGoogleIdentity } from "@/lib/google-signin";
 import { APP_AUTH_CALLBACK, APP_URL_SCHEME, appUrlToPath, isNativeApp } from "@/lib/native";
 import { createClient } from "@/lib/supabase/client";
 
@@ -18,14 +20,91 @@ import { createClient } from "@/lib/supabase/client";
 export function GoogleSignInButton() {
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  /** Web で Google 公式のボタンを出せたか (出せなければ今までのボタン) */
+  const [officialButton, setOfficialButton] = useState(false);
+  const officialRef = useRef<HTMLDivElement>(null);
+
+  const failed = () => {
+    setPending(false);
+    setError("Google でログインできませんでした。もう一度試してください。");
+  };
+
+  /** ID トークンをセッションに換え、ホームへ (プロフィールが無ければレイアウトが /welcome へ送る) */
+  async function finishWithIdToken(idToken: string, rawNonce: string) {
+    const { error: idError } = await createClient().auth.signInWithIdToken({
+      provider: "google",
+      token: idToken,
+      nonce: rawNonce,
+    });
+    if (idError) return failed();
+    window.location.assign("/");
+  }
+
+  // Web: Google 公式のボタン (v1.41)
+  useEffect(() => {
+    if (!GOOGLE_CLIENT_ID || isNativeApp()) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const [google, nonce] = await Promise.all([loadGoogleIdentity(), createNonce()]);
+        if (cancelled || !officialRef.current) return;
+        google.accounts.id.initialize({
+          client_id: GOOGLE_CLIENT_ID,
+          nonce: nonce.hashed,
+          ux_mode: "popup",
+          use_fedcm_for_button: true,
+          callback: ({ credential }) => {
+            if (!credential) return failed();
+            setPending(true);
+            void finishWithIdToken(credential, nonce.raw);
+          },
+        });
+        const dark = document.documentElement.dataset.theme === "dark";
+        google.accounts.id.renderButton(officialRef.current, {
+          type: "standard",
+          theme: dark ? "filled_black" : "outline",
+          size: "large",
+          text: "signin_with",
+          shape: "pill",
+          logo_alignment: "center",
+          width: Math.min(400, officialRef.current.clientWidth || 320),
+          locale: "ja",
+        });
+        setOfficialButton(true);
+      } catch {
+        // 読み込めなければ今までのボタン (Supabase 経由) のまま
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // finishWithIdToken / failed は state の setter だけを使うので依存に入れない
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   async function signIn() {
     setPending(true);
     setError(null);
-    const failed = () => {
-      setPending(false);
-      setError("Google でログインできませんでした。もう一度試してください。");
-    };
+
+    // アプリ: iOS 用のクライアントで Google に直接聞く (v1.41)
+    if (isNativeApp() && GOOGLE_IOS_CLIENT_ID) {
+      try {
+        const nonce = await createNonce();
+        const { FFNative } = await import("@/lib/native-plugin");
+        const result = await FFNative.googleSignIn({
+          clientId: GOOGLE_IOS_CLIENT_ID,
+          nonce: nonce.hashed,
+        });
+        if (!result.idToken) {
+          setPending(false);
+          return;
+        }
+        await finishWithIdToken(result.idToken, nonce.raw);
+      } catch {
+        failed();
+      }
+      return;
+    }
 
     if (isNativeApp()) {
       // Supabase から直接 ffcalendar:// へ戻し、iOS の OAuth の画面がそれを受け取る
@@ -63,6 +142,15 @@ export function GoogleSignInButton() {
 
   return (
     <div className="space-y-2">
+      {/* Google 公式のボタンはここに描かれる (Web で設定があるとき。v1.41) */}
+      <div
+        ref={officialRef}
+        className={officialButton ? "flex h-12 w-full justify-center" : "hidden"}
+      />
+      {officialButton && pending ? (
+        <p className="text-center text-sm text-[var(--muted)]">ログインしています…</p>
+      ) : null}
+      {officialButton ? null : (
       <button
         type="button"
         onClick={signIn}
@@ -77,6 +165,7 @@ export function GoogleSignInButton() {
         </svg>
         {pending ? "Google に移動しています…" : "Google でログイン"}
       </button>
+      )}
       {error ? (
         <p role="alert" className="text-sm text-[var(--danger-fg)]">
           {error}

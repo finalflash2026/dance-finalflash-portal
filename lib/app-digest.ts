@@ -54,11 +54,26 @@ export interface DigestNotification {
   path: string;
 }
 
+/**
+ * ホームの要約 (大きいウィジェット用。v1.41)。鍵は受け取った時点のもの
+ * (ウィジェットはその時刻を添えて出す)
+ */
+export interface DigestDashboard {
+  round: { title: string; deadline: DateString } | null;
+  keys: { unlocked: number; holder: string | null } | null;
+  deadlines: { title: string; date: DateString; dueTime: string | null; important: boolean }[];
+}
+
 export interface AppDigest {
   today: DateString;
   days: DigestDay[];
   notifications: DigestNotification[];
+  dashboard: DigestDashboard;
 }
+
+/** 大きいウィジェットに出す締切の数と先の日数 */
+const DASHBOARD_DEADLINES = 4;
+const DASHBOARD_DEADLINE_DAYS = 14;
 
 /**
  * @param events today-1 〜 today+DIGEST_DAYS+7 の予定 (締切を含む)。
@@ -69,6 +84,7 @@ export function buildAppDigest(
   events: readonly MyEvent[],
   today: DateString,
   now: string,
+  extras: Pick<DigestDashboard, "round" | "keys"> = { round: null, keys: null },
 ): AppDigest {
   const last = addDays(today, DIGEST_DAYS - 1);
   const plain = events.filter((event) => event.kind !== "deadline");
@@ -145,10 +161,23 @@ export function buildAppDigest(
   }
 
   notifications.sort((a, b) => a.at.localeCompare(b.at));
+
+  const dashboardDeadlines = rows
+    .filter((row) => row.due_date >= today && row.due_date <= addDays(today, DASHBOARD_DEADLINE_DAYS))
+    .sort((a, b) => a.due_date.localeCompare(b.due_date) || (a.due_time ?? "24").localeCompare(b.due_time ?? "24"))
+    .slice(0, DASHBOARD_DEADLINES)
+    .map((row) => ({
+      title: row.title,
+      date: row.due_date,
+      dueTime: row.due_time ? row.due_time.slice(0, 5) : null,
+      important: row.important,
+    }));
+
   return {
     today,
     days,
     notifications: notifications.slice(0, DIGEST_MAX_NOTIFICATIONS),
+    dashboard: { ...extras, deadlines: dashboardDeadlines },
   };
 }
 

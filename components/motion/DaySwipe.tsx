@@ -94,7 +94,7 @@ export function DaySwipe({
       const far = Math.abs(dx) > width / 4;
       const sameWay = flung ? Math.sign(velocity) === Math.sign(dx) || dx === 0 : true;
       if (cancelled || !(far || flung) || !sameWay) {
-        setX(0, "transform 0.4s var(--ease-smooth)");
+        setX(0, "transform 0.3s var(--ease-smooth)");
         return;
       }
       const direction = (flung ? velocity : dx) < 0 ? "next" : "prev";
@@ -106,13 +106,13 @@ export function DaySwipe({
       // 指の勢いのまま送り出し、出きったところで日を変える
       const out = direction === "next" ? -width * 0.42 : width * 0.42;
       el.style.opacity = "0";
-      setX(out, "transform 0.16s ease-out, opacity 0.16s ease-out");
+      setX(out, "transform 0.12s ease-out, opacity 0.12s ease-out");
       window.setTimeout(() => {
         el.style.transition = "none";
         el.style.opacity = "";
         el.style.transform = "";
         onSwipeRef.current(direction);
-      }, 160);
+      }, 120);
     }
 
     const onUp = () => finish(false);

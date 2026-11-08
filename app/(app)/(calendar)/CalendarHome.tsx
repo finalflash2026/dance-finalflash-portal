@@ -824,7 +824,7 @@ function CalendarHeader({
 function Collapse({ open, children }: { open: boolean; children: React.ReactNode }) {
   return (
     <div
-      className="grid transition-[grid-template-rows,opacity] duration-[420ms] ease-[var(--ease-smooth)]"
+      className="grid transition-[grid-template-rows,opacity] duration-[320ms] ease-[var(--ease-smooth)]"
       style={{ gridTemplateRows: open ? "1fr" : "0fr", opacity: open ? 1 : 0 }}
       aria-hidden={!open}
       inert={!open}

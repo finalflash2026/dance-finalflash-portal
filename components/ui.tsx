@@ -132,7 +132,7 @@ export function Segmented<T extends string>({
        */}
       <span
         aria-hidden
-        className="absolute bottom-0.5 top-0.5 rounded-[7px] glass-thumb transition-transform duration-[420ms] ease-[var(--ease-smooth)]"
+        className="absolute bottom-0.5 top-0.5 rounded-[7px] glass-thumb transition-transform duration-[320ms] ease-[var(--ease-smooth)]"
         style={{
           left: 2,
           width: `calc((100% - 4px) / ${options.length})`,

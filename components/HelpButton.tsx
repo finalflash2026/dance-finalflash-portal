@@ -175,6 +175,7 @@ export function HelpButton() {
         onClick={() => setOpen(true)}
         className={BUTTON_CLASS}
         data-tour="help"
+        data-header-action="help"
       >
         <span aria-hidden className="text-[20px] font-bold leading-none">
           ?

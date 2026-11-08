@@ -41,7 +41,7 @@ export function StaffNav({ showAdmin }: { showAdmin: boolean }) {
         {/* 選択の印は1枚だけ置いて滑らせる (Segmented と同じ) */}
         <span
           aria-hidden
-          className="absolute bottom-0.5 top-0.5 rounded-[8px] glass-thumb transition-transform duration-[420ms] ease-[var(--ease-smooth)]"
+          className="absolute bottom-0.5 top-0.5 rounded-[8px] glass-thumb transition-transform duration-[320ms] ease-[var(--ease-smooth)]"
           style={{
             left: 2,
             width: `calc((100% - 4px) / ${items.length})`,

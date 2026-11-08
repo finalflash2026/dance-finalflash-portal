@@ -11,6 +11,7 @@
 | v1.5 | タブ①に**「今日の練習場所」施錠状況ボード**を追加(room_status新設。○=開錠済/×=施錠中、既定×、誰でも切替可。§6.1.1) |
 | v1.6 | **OB/OGロールを追加**。卒業者はアカウント削除ではなくOBへ移行し、タブ②③(ナンバー・マイカレンダー)のみ利用可能に。縦イベでのナンバー参加を継続できる(§3.6) |
 | v1.7 | **仕様変更2件**。①空き申請の時間粒度を**15分刻み→10分刻み**に変更(§6.1)。UI で丸めるだけでなく`claims`のCHECK制約でDB側でも強制する(クライアントからRLS経由で直接insertする設計のため、UIだけでは回避できてしまう)。②**タブ③のミニカレンダーをドット表示→予定ラベル表示**に変更(§6.0/§6.4)。タブ①②はドットのまま。あわせて`room_status.updated_at`をUPDATE時に更新するトリガを追加(§6.1.1の「3時間以上経過」判定が既定値のままでは機能しないため) |
+| v1.41 | ①**アプリの右上の丸ボタンと戻るを本物の Liquid Glass に**(§2.3.1。iOS 26 の `UIButton.Configuration.glass()`)。Web のブラウザは今のまま ②**大きいウィジェット**(§2.3.1)。今日と次の予定・近い締切・日程調整・鍵の状況を1枚で ③**Google でのログインで、Google の画面に Supabase の名前(`xxxx.supabase.co`)を出さない**(§3.7)。Google とのやりとりを自分たちで行い、受け取った ID トークンを Supabase に渡す(`signInWithIdToken`)。Web は Google 公式のボタン(Google Identity Services)、アプリは iOS 用の OAuth クライアントで直接聞く。どちらも費用はかからない。設定が無い環境では今までの形(Supabase 経由)のまま |
 | v1.40 | ①**アプリの Google ログインを iOS の OAuth 専用の画面(ASWebAuthenticationSession)に**(§2.3)。Supabase から `ffcalendar://auth/callback` へ直接戻す。アプリ内の Safari ではアプリへの転送が止まり、ブラウザの中でサイトが開いていた ②**起動アニメーションを軽く**(§6.7.10)。光線は最初に1枚の絵に描き、絵ごと拡大して噴き出させる。動きは Web Animations で transform と opacity だけ ③**日程調整の回答はコマを押すたびに ○→△→×→未回答**(§6.8.2)。まとめて付けるボタンは控えめに |
 | v1.39 | ⓪**アプリの下のタブバーを iOS 純正(UITabBar)に**(§2.3.1) ①**既定のテーマをライトに戻す**(§12)。自分でダークを選んだ人はダークのまま ②**動きを iPhone のカレンダーに寄せる**(§12)。開閉は行き過ぎないバネ(iOS の既定と同じ減衰しきる形)、切り替えはぼかさずに滑らせる(重くてカクつくため)、**その日の予定を左右に滑らせると指に付いて動き、前後の日へ移る**、選んだ日の丸はふくらんで現れる ③unslop(heydamir/unslop の Claude スキル)で画面を見直した。まとまりの見出しの大文字・字間を外し、ツアーの `transition-all` をやめる ④**操作の層を Liquid Glass に**(§12)。右上の丸ボタン・戻る・窓の閉じる・トースト・切り替えの印。内容(カード・一覧・主ボタン)は不透明のまま ⑤**運営の画面をまとめる**(§7)。折衝・割り振り・イベント・管理者を上の1本の切り替えでつなぎ、設定の入口は「運営の画面を開く」1つに。見た目を他の画面にそろえる(枠線のカード→地の色のまとまり、枠で囲んだ役割の札→色の文字、▼→ › 、見出しの大きさ、重複していた「設定へ戻る」を外す) |
 | v1.38 | **iOS アプリのネイティブ機能**(§2.3.1)。①下のタブバーを iOS の **Liquid Glass**(iOS 26 以降。それより前はすりガラス)で描く。押すと軽く振動する ②**端末の中で予約する通知**(今日の予定・締切)。サーバーからの送信が要らないので、Apple Developer Program が無くても届く。アプリの通知の設定でカテゴリごとに切れる ③**ウィジェット**(ホーム画面の小・中、ロック画面)に今日と次の予定。データは `GET /api/app/digest` |
@@ -199,11 +200,12 @@ VAPID_SUBJECT=mailto:...          # 配信事業者への連絡先 (Web Push の
   - 通知を押すと関係する画面を開く。
   - 通知の設定(§6.6)は、アプリでは「今日の予定」「締切」の2つを端末ごとに切り替える(端末に保存。サーバーには送らない)。初めてログインしたときに通知の許可を聞く。
   - 告知・鍵・掲示板など**その場で起きたことの通知**は、サーバーから送る APNs が要る。Apple Developer Program を持ってから(§2.3 の配布と一緒に決める)。
-- **ウィジェット**(`ios/App/Widget/`): ホーム画面の小・中、ロック画面(横長・丸)。今日の予定と次の予定を出す。押すとアプリのその日のカレンダーを開く(`ffcalendar://open?path=…`)。
+- **右上の丸ボタンと戻る(本物の Liquid Glass。v1.41)**: アプリでは、ベル・?・歯車と左上の戻るを **iOS 26 の `UIButton.Configuration.glass()`** で描く(`ios/App/App/NativeHeader.swift`。iOS 26 より前は灰色のボタン)。Web のボタン(`[data-header-action]`)は場所を空けたまま隠し、ネイティブのボタンが押されたら Web の同じボタンを押す(戻る先の決め方・設定の開け閉め・使い方の窓は Web の動きのまま)。出すボタン・戻るの文字・未読の数は `components/NativeHeader.tsx` が Web の画面から読んで `FFNative.setHeader` で伝える。窓が開いている間と起動アニメーションの間はしまう。**ガラスを真似た CSS(`.glass`)は Web のブラウザ向け**で、アプリの中の本物に置き換えられる所は本物を使う。
+- **ウィジェット**(`ios/App/Widget/`): ホーム画面の小・中・**大**(iPad は特大も)、ロック画面(横長・1行・丸)。小・中は今日の予定と次の予定。**大はホームの要約**(v1.41): これからの予定(今日の残りと次の日、4件まで)・近い締切(14日先まで2件)・日程調整の締切・鍵の状況(開錠している部屋の数と部室の鍵の持ち主。アプリが受け取った時刻を添える。ウィジェットはその場で取り直さないため)。押すとアプリのその日のカレンダーを開く(`ffcalendar://open?path=…`)。
   - データはアプリが digest を受け取ったときに App Group(`group.com.finalflash.ffcalendar`)へ書き、ウィジェットを更新させる。ウィジェット自身はサーバーへ取りにいかない(ログインの情報を持たせない)。
   - 時刻の区切り(予定の始まりと終わり・日付の変わり目)で表示を進める。
   - 実機に入れるには、App Group を使える Apple のアカウントが要る(無料のアカウントでは使えないことがある)。
-- `GET /api/app/digest`(ログイン必須): `{ today, days: [{ date, items }], notifications: [{ id, at, title, body, path }] }`。`items` は自分の予定(§6.4 と同じ `getMyEvents`)と締切。他人の情報は含めない。組み立ては `lib/app-digest.ts`(DB を触らない。テストあり)。
+- `GET /api/app/digest`(ログイン必須): `{ today, days: [{ date, items }], notifications: [{ id, at, title, body, path }], dashboard: { round, keys, deadlines } }`(`dashboard` は v1.41。OB には鍵と日程調整を入れない)。`items` は自分の予定(§6.4 と同じ `getMyEvents`)と締切。他人の情報は含めない。組み立ては `lib/app-digest.ts`(DB を触らない。テストあり)。
 - **Xcode のプロジェクトは `ios/App/project.yml` から作る**(xcodegen)。target を足すときは yml を直して `npm run ios:project`。`App.xcodeproj` を Xcode で直接いじった変更は、作り直すと消える。
 
 ## 3. ロールと認証
@@ -244,6 +246,14 @@ VAPID_SUBJECT=mailto:...          # 配信事業者への連絡先 (Web Push の
 - メールアドレスは Supabase Auth が持つ。画面には出さない。
 - 設定(ダッシュボード側。手作業): Google Cloud で OAuth クライアント(ウェブ)を作り、承認済みのリダイレクト URI に `https://{プロジェクト}.supabase.co/auth/v1/callback` を入れる。Supabase の Authentication → Providers → Google にクライアント ID と シークレットを入れる。Authentication → URL Configuration の Site URL と Redirect URLs にアプリの URL(`https://…/auth/callback`)を入れる。
 - **iOS アプリから**(v1.37 / §2.3): アプリ内の Safari で Google を開き、戻り先を `/auth/app-callback` にする。ここはコードを `ffcalendar://auth/callback` へ渡すだけで、セッションはアプリの WebView が `/auth/callback` で作る。Redirect URLs に `https://…/auth/app-callback` も入れる。
+
+- **ID トークンで渡す形(v1.41)**: Supabase 経由(`signInWithOAuth`)だと、Google の画面に戻り先の `xxxx.supabase.co` が出る(変えるには Supabase の有料の独自ドメインが要る)。そこで **Google とのやりとりは自分たちで行い、Google が返す ID トークンを `supabase.auth.signInWithIdToken({ provider: "google", token, nonce })` に渡す**。Google の画面に出るのは、このサイトのドメインと同意画面のアプリ名(ff Calendar)になる。
+  - **Web**: Google 公式のボタン(Google Identity Services。`NEXT_PUBLIC_GOOGLE_CLIENT_ID` = ウェブ用の OAuth クライアント)。Google Cloud のクライアントの「承認済みの JavaScript 生成元」にサイトの URL を入れる。
+  - **iOS アプリ**: iOS 用の OAuth クライアント(`NEXT_PUBLIC_GOOGLE_IOS_CLIENT_ID`。バンドル ID `com.finalflash.ffcalendar`。秘密の鍵は無い)で、OAuth 専用の画面から Google に直接聞く(PKCE)。コードと ID トークンの引き換えはアプリ(ネイティブ)が行う(`FFNative.googleSignIn`)。
+  - **nonce**: 毎回乱数を作り、Google には SHA-256 した値、Supabase には元の値を渡す(使い回しを防ぐ)。
+  - Supabase の Google の設定の「Client IDs」に、ウェブ用と iOS 用の両方のクライアント ID を並べる(ID トークンの宛先の確認に使う)。
+  - ログインのあとは、プロフィールがあればホーム、無ければ `/welcome`(今までと同じ。`(app)` のレイアウトが振り分ける)。
+  - 環境変数が無いときは今までの形(Supabase 経由)で動く。
 
 ### 3.4 ロール昇格
 - ログイン済みユーザーが `/api/role/elevate` に「折衝パスワード」or「管理者パスワード」を送る → bcrypt照合 → service roleで `profiles.role` を更新。
@@ -1927,6 +1937,7 @@ VTIMEZONE: TZID=Asia/Tokyo (+0900固定, STANDARDのみ)
 - **その日の予定は左右に滑らせると指に付いて動き、離すと前後の日へ移る**(v1.39。iPhone のカレンダーの日表示と同じ)。幅の4分の1を越えるか、速く弾いたら移り、足りなければ戻る。縦のスクロールが始まったら横には動かさない。横にスクロールする表(部屋ごと)の中では効かせない。この中ではタブの横スワイプ(§12 タブバー)も効かせない。
 - 選んだ日の丸は、選んだときに小さい所からふくらんで現れる。
 - 動かすのは `transform` と `opacity` だけ。**ぼかし(`filter: blur`)は使わない**(v1.39。重い端末でカクつく)。
+- **長さ(v1.40)**: 入れ替え・滑らせる動きは 0.3秒前後、下から出る窓は 0.4秒。バネ・ふくらみなどの質は残し、待たせる時間だけ削る(0.4〜0.5秒ではもっさりして見えた)。
 - **数字が変わるときは縦に転がす**(あと何日・回答したコマ数・コマ数の −/＋・出席の人数)。どちらへ変わったかが目で追える。
 - **表示の切り替え**(一覧/時間/部屋・選んだ日)は、押した向きへ滑らせて入れ替える(v1.39 でぼかしをやめた)。
 - **完了はチェックが描かれる**(出欠の登録・回答を全部終えた・計算が終わった)。成功したことを伝える短い知らせ(トースト)を画面の下に出し、少しして縮んで消える。

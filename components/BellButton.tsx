@@ -20,6 +20,9 @@ export function BellButton({ unread }: { unread: number }) {
       aria-label={unread > 0 ? `お知らせ(未読${unread}件)` : "お知らせ"}
       className={`${BUTTON_CLASS} relative`}
       data-tour="bell"
+      // iOS アプリでは本物のガラスのボタンが代わりに押す (components/NativeHeader.tsx)
+      data-header-action="bell"
+      data-header-badge={unread}
     >
       <svg
         width="21"

@@ -5,6 +5,7 @@ import { BellButton } from "@/components/BellButton";
 import { HeaderIdentity } from "@/components/HeaderIdentity";
 import { HelpButton } from "@/components/HelpButton";
 import { LaunchPrompts } from "@/components/LaunchPrompts";
+import { NativeHeader } from "@/components/NativeHeader";
 import { PageTransition } from "@/components/PageTransition";
 import { PullToRefresh } from "@/components/PullToRefresh";
 import { ServiceWorkerRegistrar } from "@/components/ServiceWorkerRegistrar";
@@ -104,6 +105,8 @@ export default async function AppLayout({
       </RoomsProvider>
 
       <TabBar role={role} />
+      {/* iOS アプリでは右上の丸ボタンと戻るを本物の Liquid Glass に (v1.41) */}
+      <NativeHeader />
 
       {/* 初回ツアーと、起動時の案内 (ホーム画面への追加・通知。§6.7.9) */}
       <Tour />
