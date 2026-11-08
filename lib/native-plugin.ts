@@ -23,6 +23,11 @@ export interface FFNativePlugin {
   }): Promise<void>;
   setDigest(options: { digest: unknown }): Promise<void>;
   clearDigest(): Promise<void>;
+  /** OAuth の画面を開き、戻り先 (callbackScheme://…) の URL を返す。閉じられたら cancelled */
+  authenticate(options: {
+    url: string;
+    callbackScheme: string;
+  }): Promise<{ url?: string; cancelled?: boolean }>;
   addListener(
     event: "tabSelect",
     listener: (data: { id: string }) => void,

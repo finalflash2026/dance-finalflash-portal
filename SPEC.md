@@ -11,6 +11,7 @@
 | v1.5 | タブ①に**「今日の練習場所」施錠状況ボード**を追加(room_status新設。○=開錠済/×=施錠中、既定×、誰でも切替可。§6.1.1) |
 | v1.6 | **OB/OGロールを追加**。卒業者はアカウント削除ではなくOBへ移行し、タブ②③(ナンバー・マイカレンダー)のみ利用可能に。縦イベでのナンバー参加を継続できる(§3.6) |
 | v1.7 | **仕様変更2件**。①空き申請の時間粒度を**15分刻み→10分刻み**に変更(§6.1)。UI で丸めるだけでなく`claims`のCHECK制約でDB側でも強制する(クライアントからRLS経由で直接insertする設計のため、UIだけでは回避できてしまう)。②**タブ③のミニカレンダーをドット表示→予定ラベル表示**に変更(§6.0/§6.4)。タブ①②はドットのまま。あわせて`room_status.updated_at`をUPDATE時に更新するトリガを追加(§6.1.1の「3時間以上経過」判定が既定値のままでは機能しないため) |
+| v1.40 | ①**アプリの Google ログインを iOS の OAuth 専用の画面(ASWebAuthenticationSession)に**(§2.3)。Supabase から `ffcalendar://auth/callback` へ直接戻す。アプリ内の Safari ではアプリへの転送が止まり、ブラウザの中でサイトが開いていた |
 | v1.39 | ⓪**アプリの下のタブバーを iOS 純正(UITabBar)に**(§2.3.1) ①**既定のテーマをライトに戻す**(§12)。自分でダークを選んだ人はダークのまま ②**動きを iPhone のカレンダーに寄せる**(§12)。開閉は行き過ぎないバネ(iOS の既定と同じ減衰しきる形)、切り替えはぼかさずに滑らせる(重くてカクつくため)、**その日の予定を左右に滑らせると指に付いて動き、前後の日へ移る**、選んだ日の丸はふくらんで現れる ③unslop(heydamir/unslop の Claude スキル)で画面を見直した。まとまりの見出しの大文字・字間を外し、ツアーの `transition-all` をやめる ④**操作の層を Liquid Glass に**(§12)。右上の丸ボタン・戻る・窓の閉じる・トースト・切り替えの印。内容(カード・一覧・主ボタン)は不透明のまま ⑤**運営の画面をまとめる**(§7)。折衝・割り振り・イベント・管理者を上の1本の切り替えでつなぎ、設定の入口は「運営の画面を開く」1つに。見た目を他の画面にそろえる(枠線のカード→地の色のまとまり、枠で囲んだ役割の札→色の文字、▼→ › 、見出しの大きさ、重複していた「設定へ戻る」を外す) |
 | v1.38 | **iOS アプリのネイティブ機能**(§2.3.1)。①下のタブバーを iOS の **Liquid Glass**(iOS 26 以降。それより前はすりガラス)で描く。押すと軽く振動する ②**端末の中で予約する通知**(今日の予定・締切)。サーバーからの送信が要らないので、Apple Developer Program が無くても届く。アプリの通知の設定でカテゴリごとに切れる ③**ウィジェット**(ホーム画面の小・中、ロック画面)に今日と次の予定。データは `GET /api/app/digest` |
 | v1.37 | **iOS アプリ**(§2.3)。Capacitor の殻(`ios/`)が本番の Web を開く。画面はすべて Web と同じコードで、Web をデプロイすればアプリにもそのまま出る(アプリの出し直しが要るのは殻を変えたときだけ)。開発中は `npm run ios:dev` で手元の `npm run dev` をシミュレーターで開く。Google でのログインはアプリ内の Safari で行い、`ffcalendar://` でアプリへ戻す(§3.7)。通知はアプリでは届かない(Web Push が WKWebView で使えないため)。配布(TestFlight / App Store)は年額の費用が掛かるので懸念事項に置く |
@@ -180,7 +181,7 @@ VAPID_SUBJECT=mailto:...          # 配信事業者への連絡先 (Web Push の
 - 開けないとき(圏外など)は同梱の `native/www/offline.html` を出し、「再読み込み」で開き直す。
 - アプリかどうかは `lib/native.ts` の `isNativeApp()` で見分ける(Capacitor が `window.Capacitor` を差し込む)。User-Agent の末尾にも ` ffCalendarApp` が付く。
 - **アプリで変わること**
-  - Google でのログイン: Google は WKWebView の中でのログインを拒むので、アプリ内の Safari(`@capacitor/browser`)で開く。戻り先は `/auth/app-callback` で、ここは**セッションを作らずに** `ffcalendar://auth/callback?code=…` へ渡すだけ。アプリがそれを受けて WebView で `/auth/callback?code=…` を開き、そこでセッションを作る(PKCE の鍵は WebView の cookie にあるので、コードだけ盗られても使えない)。Supabase の Redirect URLs に `/auth/app-callback` を足す。
+  - Google でのログイン(v1.40): Google は WKWebView の中でのログインを拒むので、**iOS の OAuth 専用の画面(`ASWebAuthenticationSession`)**で開く(`FFNative.authenticate`)。戻り先は `ffcalendar://auth/callback` で、Supabase から直接アプリへ戻る。この画面は戻り先に来た時点で自動で閉じ、アプリの WebView が `/auth/callback?code=…` を開いてセッションを作る(PKCE の鍵は WebView の cookie にあるので、コードだけ盗られても使えない)。Supabase の Redirect URLs に `ffcalendar://auth/callback` を入れる。v1.37〜v1.39 はアプリ内の Safari と `/auth/app-callback` を使ったが、サーバーからアプリへの転送をブラウザが止め、ブラウザの中でサイトが開いてしまった(`/auth/app-callback` は古いアプリのために残す)。
   - 通知: WKWebView には Web Push が無いので、アプリは端末の中で予約する通知を使う(§2.3.1 / v1.38)。
   - 左端からのスワイプで前の画面に戻れる。webcal: やサイト外のリンクは Safari やカレンダーのアプリで開く。
 - **配布(TestFlight / App Store)は Apple Developer Program(年額)が要る**(§0 の「外部の有料サービスを使わない」に関わる)。`docs/major-update.md` の懸念事項。それまでは、Xcode から自分の iPhone へ入れて試す(無料のアカウントだと7日で入れ直し)。

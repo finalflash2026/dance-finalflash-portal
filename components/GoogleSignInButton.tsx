@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 
-import { isNativeApp } from "@/lib/native";
+import { APP_AUTH_CALLBACK, APP_URL_SCHEME, appUrlToPath, isNativeApp } from "@/lib/native";
 import { createClient } from "@/lib/supabase/client";
 
 /**
@@ -11,8 +11,9 @@ import { createClient } from "@/lib/supabase/client";
  * Google の画面へ移り、戻り先 (/auth/callback) でセッションを作る。
  * 初めての人はそのあと登録の続き (/welcome) へ進む。
  *
- * iOS アプリでは Google が WebView でのログインを拒むので、アプリ内の Safari で
- * 開く。戻り先は /auth/app-callback で、そこからアプリへ戻る (SPEC §2.3 / v1.37)。
+ * iOS アプリでは Google が WebView でのログインを拒むので、iOS の OAuth 専用の画面
+ * (ASWebAuthenticationSession) で開き、Supabase から ffcalendar:// で直接戻す
+ * (SPEC §2.3 / v1.40)。
  */
 export function GoogleSignInButton() {
   const [pending, setPending] = useState(false);
@@ -27,21 +28,28 @@ export function GoogleSignInButton() {
     };
 
     if (isNativeApp()) {
+      // Supabase から直接 ffcalendar:// へ戻し、iOS の OAuth の画面がそれを受け取る
+      // (v1.40。アプリ内の Safari ではアプリへの転送が止まり、ブラウザでサイトが開いていた)
       const { data, error: oauthError } = await createClient().auth.signInWithOAuth({
         provider: "google",
-        options: {
-          redirectTo: `${window.location.origin}/auth/app-callback`,
-          skipBrowserRedirect: true,
-        },
+        options: { redirectTo: APP_AUTH_CALLBACK, skipBrowserRedirect: true },
       });
       if (oauthError || !data.url) return failed();
-      const { Browser } = await import("@capacitor/browser");
-      // 途中で閉じられたら押せる状態に戻す
-      const finished = await Browser.addListener("browserFinished", () => {
-        setPending(false);
-        void finished.remove();
-      });
-      await Browser.open({ url: data.url, presentationStyle: "popover" }).catch(failed);
+      try {
+        const { FFNative } = await import("@/lib/native-plugin");
+        const result = await FFNative.authenticate({
+          url: data.url,
+          callbackScheme: APP_URL_SCHEME,
+        });
+        if (!result.url) {
+          setPending(false);
+          return;
+        }
+        // PKCE の鍵はこの WebView の cookie にあるので、ここでセッションに換える
+        window.location.assign(appUrlToPath(result.url) ?? "/login?error=google");
+      } catch {
+        failed();
+      }
       return;
     }
 

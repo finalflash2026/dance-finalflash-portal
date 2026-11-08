@@ -1,3 +1,4 @@
+import AuthenticationServices
 import Capacitor
 import UIKit
 import WidgetKit
@@ -12,7 +13,11 @@ final class FFNativePlugin: CAPPlugin, CAPBridgedPlugin {
         CAPPluginMethod(name: "setTabBar", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "setDigest", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "clearDigest", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "authenticate", returnType: CAPPluginReturnPromise),
     ]
+
+    /// 進行中のログイン (終わるまで持っておかないと途中で消える)
+    private var authSession: ASWebAuthenticationSession?
 
     private var tabController: NativeTabBar? {
         (bridge?.viewController as? MainViewController)?.tabs
@@ -60,5 +65,45 @@ final class FFNativePlugin: CAPPlugin, CAPBridgedPlugin {
         DigestStore.clear()
         WidgetCenter.shared.reloadAllTimelines()
         call.resolve()
+    }
+
+    /// Google などでのログイン (SPEC.md §2.3 / §3.7 / v1.40)。
+    ///
+    /// iOS の OAuth 専用の画面 (ASWebAuthenticationSession) で開き、戻り先の
+    /// `ffcalendar://` に来た時点で自動で閉じて、その URL を返す。
+    /// アプリ内の Safari (SFSafariViewController) と違い、サーバーから
+    /// アプリへの転送をブラウザが拒んで、ブラウザの中でサイトが開いてしまうことがない。
+    @objc func authenticate(_ call: CAPPluginCall) {
+        guard let raw = call.getString("url"), let url = URL(string: raw),
+              let scheme = call.getString("callbackScheme") else {
+            return call.reject("ログインの URL がありません")
+        }
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            let session = ASWebAuthenticationSession(url: url, callbackURLScheme: scheme) { [weak self] callbackURL, error in
+                self?.authSession = nil
+                if let callbackURL {
+                    call.resolve(["url": callbackURL.absoluteString])
+                } else if let error = error as? ASWebAuthenticationSessionError, error.code == .canceledLogin {
+                    call.resolve(["cancelled": true])
+                } else {
+                    call.reject(error?.localizedDescription ?? "ログインできませんでした")
+                }
+            }
+            session.presentationContextProvider = self
+            // Safari の Google のログイン状態を使えるようにする
+            session.prefersEphemeralWebBrowserSession = false
+            self.authSession = session
+            if !session.start() {
+                self.authSession = nil
+                call.reject("ログインの画面を開けませんでした")
+            }
+        }
+    }
+}
+
+extension FFNativePlugin: ASWebAuthenticationPresentationContextProviding {
+    func presentationAnchor(for session: ASWebAuthenticationSession) -> ASPresentationAnchor {
+        bridge?.viewController?.view.window ?? ASPresentationAnchor()
     }
 }
