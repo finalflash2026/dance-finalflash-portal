@@ -6,6 +6,7 @@ import { useState } from "react";
 
 import { ErrorMessage, buttonClass, inputClass } from "@/components/ui";
 import { numberColor } from "@/lib/numbers";
+import { useCanWrite } from "@/lib/role";
 import { createClient } from "@/lib/supabase/client";
 
 /**
@@ -39,6 +40,7 @@ export function NumberList({
   const [name, setName] = useState("");
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(loadError);
+  const canWrite = useCanWrite();
 
   async function create(event: React.FormEvent) {
     event.preventDefault();
@@ -116,30 +118,33 @@ export function NumberList({
         )}
       </section>
 
-      <form
-        onSubmit={create}
-        className="space-y-2 rounded-xl border border-[var(--border)] p-3"
-      >
-        <h2 className="text-sm font-bold">ナンバーを作る</h2>
-        <p className="text-xs text-[var(--muted)]">
-          作った人が主催になります。メンバーの追加と日程の登録は主催のみ行えます
-        </p>
-        <input
-          aria-label="ナンバー名"
-          value={name}
-          placeholder="例: 初心者BREAK"
-          disabled={pending}
-          onChange={(e) => setName(e.target.value)}
-          className={inputClass}
-        />
-        <button
-          type="submit"
-          disabled={pending || name.trim().length === 0}
-          className={buttonClass}
+      {/* 閲覧のみ (v1.30) はナンバーを作らない。所属の一覧だけ見せる */}
+      {canWrite ? (
+        <form
+          onSubmit={create}
+          className="space-y-2 rounded-xl border border-[var(--border)] p-3"
         >
-          作成する
-        </button>
-      </form>
+          <h2 className="text-sm font-bold">ナンバーを作る</h2>
+          <p className="text-xs text-[var(--muted)]">
+            作った人が主催になります。メンバーの追加と日程の登録は主催のみ行えます
+          </p>
+          <input
+            aria-label="ナンバー名"
+            value={name}
+            placeholder="例: 初心者BREAK"
+            disabled={pending}
+            onChange={(e) => setName(e.target.value)}
+            className={inputClass}
+          />
+          <button
+            type="submit"
+            disabled={pending || name.trim().length === 0}
+            className={buttonClass}
+          >
+            作成する
+          </button>
+        </form>
+      ) : null}
     </>
   );
 }

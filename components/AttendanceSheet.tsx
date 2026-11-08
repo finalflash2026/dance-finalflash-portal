@@ -12,7 +12,9 @@ import {
   type AttendanceRow,
   type Participant,
 } from "@/lib/attendance";
+import { OFF_ROSTER_ROLES } from "@/lib/constants";
 import { formatSpanRange } from "@/lib/day-span";
+import { useCanWrite } from "@/lib/role";
 import { createClient } from "@/lib/supabase/client";
 import {
   finalizeTimeInput,
@@ -143,8 +145,11 @@ export function AttendanceSheet({
     load();
   }, [load]);
 
+  const canWrite = useCanWrite();
   const me = participants?.find((p) => p.userId === currentUserId) ?? null;
-  const isParticipant = me !== null;
+  // 閲覧のみ (v1.30) は公式練・スタ練の参加者からは外れているが、
+  // ナンバーには所属が残ることがある。見えていても答えさせない
+  const isParticipant = me !== null && canWrite;
 
   async function save(status: AttendanceStatus, timeValue: string | null) {
     if (target.kind === "info") return;
@@ -494,10 +499,11 @@ async function loadGenreParticipants(
     ? `main_genre_id.eq.${genreId},user_id.in.(${subIds.join(",")})`
     : `main_genre_id.eq.${genreId}`;
 
+  // 現役だけ。閲覧のみ (v1.30) はジャンルを持っていても参加者に出さない
   const { data, error } = await supabase
     .from("profiles")
     .select("user_id, username, generation")
-    .neq("role", "ob")
+    .not("role", "in", OFF_ROSTER_ROLES)
     .or(filter);
 
   if (error) {

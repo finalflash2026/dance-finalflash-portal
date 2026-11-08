@@ -11,7 +11,11 @@ export type DateString = string;
 /** 'HH:MM'。DB から返る 'HH:MM:SS' は lib/time.ts の normalizeTime で丸める */
 export type TimeString = string;
 
-export type Role = "ob" | "member" | "coordinator" | "admin";
+/**
+ * `viewer` は「閲覧のみ」(v1.30)。引退した人が全体を見続けるための権限で、
+ * 書き込みは一切できず、名簿・出欠・通知にも載らない (SPEC §3.7)。
+ */
+export type Role = "ob" | "member" | "coordinator" | "admin" | "viewer";
 export type SlotStatus = "genre" | "open" | "unavailable";
 export type ReservationStatus = "active" | "cancelled";
 export type ImportFileStatus = "pending" | "confirmed";

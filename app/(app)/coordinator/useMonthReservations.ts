@@ -75,8 +75,10 @@ export function useMonthReservations(month: DateString) {
         .gte("date", startOfMonth(month))
         .lte("date", endOfMonth(month))
         .order("date"),
-      // 対象期のチェックボックスに出す候補。OB も含めて実在する期だけを出す
-      supabase.from("profiles").select("generation"),
+      // 対象期のチェックボックスに出す候補。OB も含めて実在する期だけを出す。
+      // **閲覧のみ (v1.30) は外す** — 引退した代が見るためだけに残っていると、
+      // 誰も練習しない期が候補に並ぶ
+      supabase.from("profiles").select("generation").neq("role", "viewer"),
     ]);
 
     setLoading(false);

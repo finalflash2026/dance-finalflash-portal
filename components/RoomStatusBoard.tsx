@@ -4,6 +4,7 @@ import { useCallback, useState } from "react";
 
 import { BoardMessages } from "@/components/BoardMessages";
 import type { BoardMessage } from "@/lib/board-messages";
+import { useCanWrite } from "@/lib/role";
 import { useRooms } from "@/lib/rooms";
 import { createClient } from "@/lib/supabase/client";
 import { useLiveRefresh } from "@/lib/use-live-refresh";
@@ -61,6 +62,7 @@ export function RoomStatusBoard({
   const [fetchedAt, setFetchedAt] = useState<Date | null>(null);
   const [pendingRoomId, setPendingRoomId] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const canWrite = useCanWrite();
 
   const refresh = useCallback(async () => {
     const supabase = createClient();
@@ -175,17 +177,27 @@ export function RoomStatusBoard({
 
           return (
             <li key={room.id}>
+              {/*
+                閲覧のみ (v1.30) は押せないだけで、**薄くはしない**。
+                ○× は見るために置いているので、読みにくくなっては意味が無い
+              */}
               <button
                 type="button"
                 onClick={() => toggle(room.id, unlocked)}
-                disabled={pendingRoomId === room.id}
-                aria-label={`${room.name} を${unlocked ? "施錠中" : "開錠済"}に切り替える`}
+                disabled={!canWrite || pendingRoomId === room.id}
+                aria-label={
+                  canWrite
+                    ? `${room.name} を${unlocked ? "施錠中" : "開錠済"}に切り替える`
+                    : `${room.name}: ${unlocked ? "開錠済" : "施錠中"}`
+                }
                 aria-pressed={unlocked}
-                className={`flex w-full items-center gap-1.5 rounded-lg border px-2 py-1 text-left disabled:opacity-40 ${
+                className={`flex w-full items-center gap-1.5 rounded-lg border px-2 py-1 text-left disabled:cursor-default ${
                   unlocked
                     ? "border-[var(--success-fg)] bg-[var(--success-bg)]"
                     : "border-[var(--border)] bg-[var(--surface)]"
-                } ${stale ? "opacity-60" : ""}`}
+                } ${stale ? "opacity-60" : ""} ${
+                  pendingRoomId === room.id ? "opacity-40" : ""
+                }`}
               >
                 <span
                   className={`shrink-0 text-base font-bold ${

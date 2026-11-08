@@ -5,7 +5,12 @@ import { useState } from "react";
 
 import { ErrorMessage, Field, inputClass, secondaryButtonClass } from "@/components/ui";
 import { buildUsernameFromGenreId } from "@/lib/auth/username";
-import { GENRES, GENRE_BY_ID, ROLE_LABELS } from "@/lib/constants";
+import {
+  GENRES,
+  GENRE_BY_ID,
+  ROLE_LABELS,
+  isActiveMember,
+} from "@/lib/constants";
 import type { Role } from "@/lib/types";
 
 /**
@@ -28,12 +33,17 @@ export interface AdminUser {
   role: Role;
 }
 
-/** 在籍の絞り込み。既定は「現役のみ」(SPEC §3.6: 名簿検索の既定) */
-type Enrollment = "active" | "ob" | "all";
+/**
+ * 在籍の絞り込み。既定は「現役のみ」(SPEC §3.6: 名簿検索の既定)。
+ * 閲覧のみ (v1.30) は現役に混ぜない。数は少ないが、名簿に紛れると
+ * 一括OB化や権限の確認で見落とす
+ */
+type Enrollment = "active" | "ob" | "viewer" | "all";
 
 const ENROLLMENT_LABELS: Record<Enrollment, string> = {
   active: "現役のみ",
   ob: "OBのみ",
+  viewer: "閲覧のみ",
   all: "全員",
 };
 
@@ -66,7 +76,9 @@ export function AdminClient({
         ? true
         : enrollment === "ob"
           ? u.role === "ob"
-          : u.role !== "ob",
+          : enrollment === "viewer"
+            ? u.role === "viewer"
+            : isActiveMember(u.role),
     )
     .filter((u) => generation === null || u.generation === generation)
     .filter((u) => genreId === null || u.mainGenreId === genreId)
@@ -127,7 +139,7 @@ export function AdminClient({
 
         <ChipRow
           label="在籍"
-          items={(["active", "ob", "all"] as const).map((value) => ({
+          items={(["active", "ob", "viewer", "all"] as const).map((value) => ({
             key: value,
             label: ENROLLMENT_LABELS[value],
             on: enrollment === value,
@@ -335,15 +347,18 @@ function PassphraseSection({
 }
 
 function RoleBadge({ role }: { role: Role }) {
-  // OB は名簿に残り続けるので、現役と一目で区別が付く必要がある (SPEC §3.6)
+  // OB は名簿に残り続けるので、現役と一目で区別が付く必要がある (SPEC §3.6)。
+  // 閲覧のみ (v1.30) は破線にして、名簿に居ても数に入らない人だと分かるようにする
   const style =
     role === "ob"
       ? "border-[var(--ob)] text-[var(--ob)]"
-      : role === "admin"
-        ? "border-[var(--accent)] text-[var(--accent)]"
-        : role === "coordinator"
-          ? "border-[var(--info)] text-[var(--info)]"
-          : "border-[var(--border)] text-[var(--muted)]";
+      : role === "viewer"
+        ? "border-dashed border-[var(--muted)] text-[var(--muted)]"
+        : role === "admin"
+          ? "border-[var(--accent)] text-[var(--accent)]"
+          : role === "coordinator"
+            ? "border-[var(--info)] text-[var(--info)]"
+            : "border-[var(--border)] text-[var(--muted)]";
 
   return (
     <span
@@ -439,7 +454,8 @@ function EditPanel({
     }
 
     const graduating = role === "ob" && user.role !== "ob";
-    const restoring = user.role === "ob" && role !== "ob";
+    const toViewer = role === "viewer" && user.role !== "viewer";
+    const restoring = user.role === "ob" && role !== "ob" && role !== "viewer";
 
     const lines = [`${user.username} の情報を変更します。`];
     if (nextUsername !== user.username) {
@@ -451,6 +467,17 @@ function EditPanel({
       lines.push(
         "\nOB/OGへ移行すると、この人の未来の空き申請と公式練の出欠が削除され、" +
           "サブジャンルの設定が消えます。ナンバー所属・過去の履歴・購読URLは残ります。",
+      );
+      if (user.role === "coordinator" || user.role === "admin") {
+        lines.push(`\n同時に${ROLE_LABELS[user.role]}の権限も外れます。`);
+      }
+    }
+    if (toViewer) {
+      lines.push(
+        "\n閲覧のみにすると、全体カレンダー・ナンバー・マイカレンダーは見られますが、" +
+          "書き込み(空き申請・出欠・鍵の連絡・連絡欄・ナンバーの作成など)は一切できなくなります。" +
+          "\n名簿・出欠の参加者・通知の宛先からも外れます。" +
+          "\nこの人の未来の空き申請・出欠とサブジャンルの設定は削除されます。",
       );
       if (user.role === "coordinator" || user.role === "admin") {
         lines.push(`\n同時に${ROLE_LABELS[user.role]}の権限も外れます。`);
@@ -614,7 +641,7 @@ function EditPanel({
         hint={
           isSelf
             ? "自分自身の権限は変更できません (最後の3役が消えるのを防ぐため)"
-            : "OB/OGにすると全体カレンダーと公式練が見えなくなります"
+            : "OB/OGにすると全体カレンダーと公式練が見えなくなります。閲覧のみは、全部見られるが書き込みできず名簿にも載りません (引退した人向け)"
         }
       >
         <select
@@ -623,7 +650,7 @@ function EditPanel({
           onChange={(e) => setRole(e.target.value as Role)}
           className={`${inputClass} disabled:opacity-50`}
         >
-          {(["member", "coordinator", "admin", "ob"] as const).map((value) => (
+          {(["member", "coordinator", "admin", "ob", "viewer"] as const).map((value) => (
             <option key={value} value={value}>
               {ROLE_LABELS[value]}
             </option>
@@ -707,13 +734,17 @@ function BulkGraduateSection({
   const [generation, setGeneration] = useState<string>("");
   const [pending, setPending] = useState(false);
 
+  // 現役だけ。閲覧のみ (v1.30) は外す — 引退した人を先に閲覧のみにしておくと、
+  // その代を一括でOB化しても閲覧のみのまま残る (API 側でも外している)
   const generations = [
-    ...new Set(users.filter((u) => u.role !== "ob").map((u) => u.generation)),
+    ...new Set(
+      users.filter((u) => isActiveMember(u.role)).map((u) => u.generation),
+    ),
   ].sort((a, b) => a - b);
 
   const targets = users.filter(
     (u) =>
-      u.role !== "ob" &&
+      isActiveMember(u.role) &&
       String(u.generation) === generation &&
       u.userId !== currentUserId,
   );
