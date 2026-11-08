@@ -70,9 +70,12 @@ import { useSlotPeriods } from "./useSlotPeriods";
 export function SlotStep({
   month,
   onMonthChange: setMonth,
+  header,
 }: {
   month: DateString;
   onMonthChange: (month: DateString) => void;
+  /** 月の切り替えのすぐ下に置くもの (割り振りの欄。v1.45) */
+  header?: React.ReactNode;
 }) {
   const roomById = useRoomById();
   const {
@@ -555,16 +558,9 @@ export function SlotStep({
     <div className="space-y-4">
       <MonthNav month={month} onChange={setMonth} disabled={pending} />
 
-      <ViewToggle view={view} onChange={setView} disabled={pending} />
+      {header}
 
-      <MonthGenerationPicker
-        candidates={generations}
-        value={monthGenerations}
-        genreSlotCount={derived.count}
-        mixed={derived.mixed}
-        disabled={pending || loading}
-        onToggle={toggleMonthGeneration}
-      />
+      <ViewToggle view={view} onChange={setView} disabled={pending} />
 
       <ErrorMessage>{error ?? periods.error}</ErrorMessage>
 
@@ -582,21 +578,41 @@ export function SlotStep({
         disabled={pending}
       />
 
+      {/*
+        対象期とコマの時間は月に1度決めれば済むので、畳んでおく (v1.45)。
+        表を開いてすぐ埋め始められるように
+      */}
+      <details className="group rounded-2xl bg-[var(--cell)] px-4 py-3">
+        <summary className="flex cursor-pointer list-none items-center justify-between gap-2 text-[15px] font-semibold [&::-webkit-details-marker]:hidden">
+          <span>対象期とコマの時間</span>
+          <span aria-hidden className="text-[var(--muted)] transition-transform group-open:rotate-90">›</span>
+        </summary>
+        <div className="mt-3 space-y-4">
+        <MonthGenerationPicker
+          candidates={generations}
+          value={monthGenerations}
+          genreSlotCount={derived.count}
+          mixed={derived.mixed}
+          disabled={pending || loading}
+          onToggle={toggleMonthGeneration}
+        />
+        <PeriodPanel
+          month={month}
+          base={periods.table.base}
+          snapshot={periods.snapshot}
+          onChange={(base) =>
+            periods.setTable((current) => ({ ...current, base }))
+          }
+          onSave={(base) => {
+            void periods.saveBase(base);
+          }}
+          disabled={pending}
+        />
+        </div>
+      </details>
+
       {view === "grid" ? (
         <>
-          <PeriodPanel
-            month={month}
-            base={periods.table.base}
-            snapshot={periods.snapshot}
-            onChange={(base) =>
-              periods.setTable((current) => ({ ...current, base }))
-            }
-            onSave={(base) => {
-              void periods.saveBase(base);
-            }}
-            disabled={pending}
-          />
-
           {reservations.length === 0 ? (
             <p className="rounded-2xl bg-[var(--cell)] px-4 py-3 text-center text-sm text-[var(--muted)]">
               {loading

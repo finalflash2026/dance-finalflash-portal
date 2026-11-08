@@ -511,14 +511,19 @@ export function PlanPanel({ input, round }: { input: PlanInput; round: ScheduleR
     <div className="space-y-4">
       <div className="grid grid-cols-3 gap-2">
         <Stat label="回答した人" value={`${answered}/${input.members.length}`} />
-        <Stat
-          label="締切"
-          sub={formatDateLabel(round.deadline)}
-          value={(() => {
-            const days = daysBetween(todayInTokyo(), round.deadline);
-            return days < 0 ? "締切済み" : days === 0 ? "今日" : `あと${days}日`;
-          })()}
-        />
+        {round.id ? (
+          <Stat
+            label="締切"
+            sub={formatDateLabel(round.deadline)}
+            value={(() => {
+              const days = daysBetween(todayInTokyo(), round.deadline);
+              return days < 0 ? "締切済み" : days === 0 ? "今日" : `あと${days}日`;
+            })()}
+          />
+        ) : (
+          // 日程調整をしていない月 (v1.45)。全員 ○ として割り振る
+          <Stat label="日程調整" value="なし" sub="全員 ○ で計算" />
+        )}
         <Stat label="予約したコマ" value={`${total}`} />
       </div>
 

@@ -21,8 +21,8 @@ import { SlotStep } from "./SlotStep";
  *
  * ①取込 → ②コマ割り → ③公開 の順に進む前提だが、
  * 後から個別に直すことも多いので行き来は自由にしている。
- * 日程調整の回があるときは、②の表の上に「{n}月の回答から案を作る」を出し、
- * 同じ画面の中で割り振りの案を作って下書きに入れられる (v1.43)。
+ * ②の月の切り替えの下に「◯月の割り振り」を置き、予約枠のある月なら
+ * いつでも自動で割り振って下書きに入れられる (v1.45)。
  *
  * **この画面だけは PC を前提に組む** (v1.28)。他の画面はスマホ最優先だが、
  * 折衝の作業は1か月ぶんの表を見渡しながら進めるもので、実際に折衝係も
@@ -111,52 +111,56 @@ export function CoordinatorClient({
       </div>
 
       {step === "slots" ? (
-        <div className="space-y-4">
-          {plan && planInput ? (
-            // 見本 (Supabase の無い環境)。回は決まった見本の月
-            <div className="max-w-3xl space-y-3">
-              <button
-                type="button"
-                aria-expanded={planOpen}
-                onClick={() => {
-                  const next = !planOpen;
-                  setPlanOpen(next);
-                  if (next) setMonth(plan.round.month as DateString);
-                }}
-                className="flex h-11 items-center gap-2 rounded-xl bg-[var(--cell)] px-4 text-[15px] font-semibold text-[var(--tint)] active:opacity-70"
-              >
-                <span>{planMonthLabel}の回答から案を作る</span>
-                <span aria-hidden className={`text-[16px] transition-transform ${planOpen ? "rotate-90" : ""}`}>
-                  ›
-                </span>
-              </button>
-              {planOpen ? (
-                <DraftDoneContext.Provider
-                  value={(drafted) => {
-                    setMonth(drafted as DateString);
-                    setPlanOpen(false);
-                    setSlotRevision((r) => r + 1);
-                    window.scrollTo({ top: 0 });
+        <SlotStep
+          key={slotRevision}
+          month={month}
+          onMonthChange={setMonth}
+          header={
+            plan && planInput ? (
+              // 見本 (Supabase の無い環境)。回は決まった見本の月
+              <div className="max-w-3xl space-y-3">
+                <button
+                  type="button"
+                  aria-expanded={planOpen}
+                  onClick={() => {
+                    const next = !planOpen;
+                    setPlanOpen(next);
+                    if (next) setMonth(plan.round.month as DateString);
                   }}
+                  className="flex h-11 items-center gap-2 rounded-xl bg-[var(--cell)] px-4 text-[15px] font-semibold text-[var(--tint)] active:opacity-70"
                 >
-                  <PlanPanel input={planInput} round={plan.round} />
-                </DraftDoneContext.Provider>
-              ) : null}
-            </div>
-          ) : (
-            // 表で選んでいる月の日程調整 (始める・締め切る・案を作る。v1.44)
-            <RoundPanel
-              key={month}
-              month={month}
-              initialPlanOpen={planOpen}
-              onDrafted={() => {
-                setSlotRevision((r) => r + 1);
-                window.scrollTo({ top: 0 });
-              }}
-            />
-          )}
-          <SlotStep key={slotRevision} month={month} onMonthChange={setMonth} />
-        </div>
+                  <span>{planMonthLabel}の回答から案を作る</span>
+                  <span aria-hidden className={`text-[16px] transition-transform ${planOpen ? "rotate-90" : ""}`}>
+                    ›
+                  </span>
+                </button>
+                {planOpen ? (
+                  <DraftDoneContext.Provider
+                    value={(drafted) => {
+                      setMonth(drafted as DateString);
+                      setPlanOpen(false);
+                      setSlotRevision((r) => r + 1);
+                      window.scrollTo({ top: 0 });
+                    }}
+                  >
+                    <PlanPanel input={planInput} round={plan.round} />
+                  </DraftDoneContext.Provider>
+                ) : null}
+              </div>
+            ) : (
+              // 表で選んでいる月の日程調整 (始める・締め切る・案を作る。v1.44)
+              <RoundPanel
+                key={month}
+                month={month}
+                initialPlanOpen={planOpen}
+                onDrafted={() => {
+                  setSlotRevision((r) => r + 1);
+                  window.scrollTo({ top: 0 });
+                }}
+              />
+            )
+          }
+        />
       ) : (
         <div className="max-w-2xl" data-tour="coord-body">
           {step === "import" ? (

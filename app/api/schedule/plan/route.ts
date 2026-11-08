@@ -5,6 +5,7 @@ import { z } from "zod";
 import { requireRole } from "@/lib/auth/guard";
 import { hasSupabaseEnv } from "@/lib/env";
 import { plan } from "@/lib/scheduling/plan";
+import { fillUnanswered } from "@/lib/scheduling/fill";
 import { getRoundForMonth, loadMonthInput } from "@/lib/scheduling/live";
 import type { PlanInput } from "@/lib/scheduling/types";
 import type { DateString } from "@/lib/types";
@@ -99,6 +100,7 @@ export async function POST(request: Request) {
 
   solverPromise ??= highsLoader();
   const solver = await solverPromise;
-  const result = plan(input, parsed.data.settings, solver);
+  // 回答の無い人は全部 ○ と数える (日程調整をしない月でも割り振れる。v1.45)
+  const result = plan(fillUnanswered(input), parsed.data.settings, solver);
   return NextResponse.json(result);
 }
