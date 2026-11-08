@@ -84,6 +84,41 @@ export function AdminClient({
       {/* 戻るは左上の戻るボタン、ほかの運営の画面へは上の切り替えから (v1.39) */}
       <h1 className="text-[28px] font-bold leading-tight">管理者</h1>
 
+      {/* 人数の要約 (v1.42)。押すとその人たちに絞り込む */}
+      <div className="grid grid-cols-4 gap-2" aria-label="人数">
+        {(
+          [
+            { label: "現役", count: users.filter((u) => u.role !== "ob").length, on: () => setEnrollment("active") },
+            { label: "OB/OG", count: users.filter((u) => u.role === "ob").length, on: () => setEnrollment("ob") },
+            { label: "折衝", count: users.filter((u) => u.role === "coordinator").length, color: "text-[var(--info)]" },
+            { label: "3役", count: users.filter((u) => u.role === "admin").length, color: "text-[var(--accent)]" },
+          ] as { label: string; count: number; on?: () => void; color?: string }[]
+        ).map((tile) => {
+          const body = (
+            <>
+              <span className={`block text-[24px] font-bold leading-none tabular-nums ${tile.color ?? ""}`}>
+                {tile.count}
+              </span>
+              <span className="mt-1 block text-[12px] text-[var(--muted)]">{tile.label}</span>
+            </>
+          );
+          return tile.on ? (
+            <button
+              key={tile.label}
+              type="button"
+              onClick={tile.on}
+              className="rounded-2xl bg-[var(--cell)] px-3 py-3 text-left active:opacity-70"
+            >
+              {body}
+            </button>
+          ) : (
+            <div key={tile.label} className="rounded-2xl bg-[var(--cell)] px-3 py-3">
+              {body}
+            </div>
+          );
+        })}
+      </div>
+
       <ErrorMessage>{error}</ErrorMessage>
       {notice ? (
         <p className="rounded-lg bg-[var(--surface)] px-3 py-2 text-sm">
@@ -170,8 +205,16 @@ export function AdminClient({
             該当するユーザーがいません
           </p>
         ) : (
+          // 期ごとに見出しで区切る (新しい期が上。v1.42)
+          <div className="space-y-4">
+            {groupByGeneration(filtered).map(([gen, members]) => (
+              <section key={gen} aria-label={`${gen}期`}>
+                <h3 className="sticky top-0 z-10 flex items-baseline gap-2 bg-[var(--background)] px-1 pb-1.5 pt-1">
+                  <span className="text-[15px] font-semibold tabular-nums">{gen}期</span>
+                  <span className="text-[13px] tabular-nums text-[var(--muted)]">{members.length}人</span>
+                </h3>
           <ul className="divide-y divide-[var(--separator)] overflow-hidden rounded-2xl bg-[var(--cell)]">
-            {filtered.map((user) => (
+            {members.map((user) => (
               <li key={user.userId}>
                 <button
                   type="button"
@@ -235,6 +278,9 @@ export function AdminClient({
               </li>
             ))}
           </ul>
+              </section>
+            ))}
+          </div>
         )}
       </section>
 
@@ -339,6 +385,17 @@ function PassphraseSection({
       </button>
     </section>
   );
+}
+
+/** 期ごとにまとめる。新しい期が上、期の中はユーザーID順 */
+function groupByGeneration(list: AdminUser[]): [number, AdminUser[]][] {
+  const map = new Map<number, AdminUser[]>();
+  for (const user of list) {
+    (map.get(user.generation) ?? map.set(user.generation, []).get(user.generation)!).push(user);
+  }
+  return [...map.entries()]
+    .sort(([a], [b]) => b - a)
+    .map(([gen, members]) => [gen, members.sort((x, y) => x.username.localeCompare(y.username, "ja"))]);
 }
 
 function RoleBadge({ role }: { role: Role }) {

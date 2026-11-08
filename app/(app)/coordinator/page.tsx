@@ -5,6 +5,8 @@ import { canUseCoordinator } from "@/lib/auth/guard";
 import { getCurrentProfile } from "@/lib/auth/session";
 import { hasSupabaseEnv } from "@/lib/env";
 
+import { liveDemoRound } from "@/lib/scheduling/round";
+import { loadLiveRoundInput } from "@/lib/scheduling/live";
 import { CoordinatorClient } from "./CoordinatorClient";
 
 /**
@@ -26,5 +28,17 @@ export default async function CoordinatorPage() {
     notFound();
   }
 
-  return <CoordinatorClient />;
+  // 割り振り (②) に使う日程調整の回と回答 (§6.8 / v1.42)
+  const round = liveDemoRound();
+  const planInput = await loadLiveRoundInput(round);
+  return (
+    <CoordinatorClient
+      plan={{
+        round,
+        input: planInput,
+        me: profile!.user_id,
+        storageKey: `schedule-answers:${round.month}:${profile!.user_id}`,
+      }}
+    />
+  );
 }

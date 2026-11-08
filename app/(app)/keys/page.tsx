@@ -49,6 +49,8 @@ export default async function KeysPage() {
   return (
     <main className="mx-auto max-w-2xl space-y-4 px-4 py-3">
       <h1 className="text-[28px] font-bold leading-tight">鍵と連絡</h1>
+      {/* ホームの2枚の入口から、それぞれの欄へ来る (v1.42) */}
+      <div id="room" className="scroll-mt-4" />
       <RoomStatusBoard
         today={today}
         roomIds={[
@@ -60,6 +62,7 @@ export default async function KeysPage() {
         initialMessages={toBoardMessages(messageRows.filter((row) => row.scope === "room"))}
         currentUserId={profile.user_id}
       />
+      <div id="club-key" className="scroll-mt-4" />
       <ClubKeyBoard
         initialRows={toKeyHolderRows(keyResult.data)}
         currentUserId={profile.user_id}

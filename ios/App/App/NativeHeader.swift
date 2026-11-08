@@ -124,6 +124,13 @@ final class NativeHeader {
         onTap?(id)
     }
 
+    /// Web の画面と一緒に上へ流す (Web のボタンはページと一緒に動くため。重ならないように)
+    func follow(scrollOffset y: CGFloat) {
+        let shift = CGAffineTransform(translationX: 0, y: -max(0, y))
+        backButton.transform = shift
+        rightStack.transform = shift
+    }
+
     func setVisible(_ visible: Bool, animated: Bool) {
         guard visible != self.visible || !animated else { return }
         self.visible = visible

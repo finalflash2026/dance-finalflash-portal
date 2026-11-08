@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
 
 import { CheckMark } from "@/components/motion/CheckMark";
 import { RollingNumber } from "@/components/motion/RollingNumber";
@@ -366,7 +366,13 @@ export function SchedulePlanClient({
   );
 }
 
-function PlanPanel({ input, round }: { input: PlanInput; round: ScheduleRound }) {
+/**
+ * 下書きを作ったあとに呼ぶ (折衝ワークフローの中で使うとき。v1.42)。
+ * 無ければ折衝ワークフローの③へ移る
+ */
+export const DraftDoneContext = createContext<((month: string) => void) | null>(null);
+
+export function PlanPanel({ input, round }: { input: PlanInput; round: ScheduleRound }) {
   const [settings, setSettings] = useState<PlanSettings>(() => ({
     ...DEFAULT_SETTINGS,
     perGenre: defaultPerGenre(input),
@@ -807,6 +813,7 @@ function ResultView({
  */
 function DraftButton({ input, result, month }: { input: PlanInput; result: PlanResult; month: string }) {
   const router = useRouter();
+  const onDone = useContext(DraftDoneContext);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const byId = new Map(input.candidates.map((c) => [c.id, c]));
@@ -840,7 +847,8 @@ function DraftButton({ input, result, month }: { input: PlanInput; result: PlanR
       return;
     }
     showToast(`${monthLabel}の下書きを ${body.created}コマ作りました`);
-    router.push(`/coordinator?month=${month}&step=2`);
+    if (onDone) onDone(month);
+    else router.push(`/coordinator?month=${month}&step=slots`);
   }
 
   return (

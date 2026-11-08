@@ -1,6 +1,19 @@
+"use client";
+
+import { useMemo } from "react";
+
+import { demoRound } from "@/lib/scheduling/round";
+import { scenario } from "@/lib/scheduling/scenarios";
+import { addMonths, startOfMonth, todayInTokyo } from "@/lib/time";
+
 import { CoordinatorClient } from "../../coordinator/CoordinatorClient";
 
-/** 折衝ワークフローのデモ (SPEC §14.1 / v1.31.13)。予約枠・コマは lib/supabase/demo-data.ts の見本 */
+/** 見本の折衝ワークフロー。割り振り (②) は見本の回答で (v1.42) */
 export default function DemoCoordinator() {
-  return <CoordinatorClient />;
+  const input = useMemo(
+    () => scenario(addMonths(startOfMonth(todayInTokyo()), 1), "term", 1101),
+    [],
+  );
+  const round = useMemo(() => demoRound(), []);
+  return <CoordinatorClient plan={{ round, input }} />;
 }

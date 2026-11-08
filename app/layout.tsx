@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 
 import { ConfirmHost } from "@/components/ConfirmHost";
 import { NativeBridge } from "@/components/NativeBridge";
+import { ResumeRefresh } from "@/components/ResumeRefresh";
 import { SPLASH_INIT_SCRIPT, Splash } from "@/components/Splash";
 import { ToastHost } from "@/components/ToastHost";
 import { NATIVE_INIT_SCRIPT } from "@/lib/native";
@@ -71,6 +72,8 @@ export default function RootLayout({
         <ToastHost />
         {/* iOS アプリの中でだけ動く (SPEC §2.3 / v1.37) */}
         <NativeBridge />
+        {/* 戻ってきたら取り直す・ログアウトで前回の内容を消す (v1.42) */}
+        <ResumeRefresh />
       </body>
     </html>
   );

@@ -5,11 +5,19 @@ import UIKit
 final class MainViewController: CAPBridgeViewController {
     let tabs = NativeTabBar()
     let header = NativeHeader()
+    private var scrollObservation: NSKeyValueObservation?
 
     override func capacitorDidLoad() {
         // 左端からのスワイプで前の画面に戻る (Safari と同じ)
         webView?.allowsBackForwardNavigationGestures = true
+        // リンクの長押しで出るプレビューを止める (押すと Safari で開いてしまう。v1.42)
+        webView?.allowsLinkPreview = false
         bridge?.registerPluginInstance(FFNativePlugin())
+        // 右上のボタンをページのスクロールに合わせて動かす (v1.42)
+        scrollObservation = webView?.scrollView.observe(\.contentOffset, options: [.new]) { [weak self] scrollView, _ in
+            let y = scrollView.contentOffset.y + scrollView.adjustedContentInset.top
+            DispatchQueue.main.async { self?.header.follow(scrollOffset: y) }
+        }
     }
 
     override func viewDidLoad() {

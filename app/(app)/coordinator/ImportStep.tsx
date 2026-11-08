@@ -234,7 +234,7 @@ export function ImportStep({
         <div className="space-y-2 rounded-lg bg-[var(--surface)] px-3 py-2 text-sm">
           <p>{result}</p>
           <button type="button" onClick={onNext} className={buttonClass}>
-            ② コマ割りへ進む →
+            次へ進む
           </button>
         </div>
       ) : null}

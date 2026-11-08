@@ -13,7 +13,7 @@ const SCREENS = [
   { href: "/demo/number", title: "ナンバー詳細(主催)", note: "日程・メンバーの編集" },
   { href: "/demo/number?member=1", title: "ナンバー詳細(メンバー)", note: "閲覧と出欠" },
   { href: "/schedule", title: "日程調整の回答", note: "出られる日を ○/△/× で答える" },
-  { href: "/schedule/plan", title: "日程調整の割り振り(折衝・3役)", note: "150人の見本の回答から、ジャンルの割り振り案を作る" },
+  { href: "/coordinator?step=plan", title: "日程調整の割り振り(折衝・3役)", note: "150人の見本の回答から、ジャンルの割り振り案を作る" },
   { href: "/demo/settings", title: "設定", note: "カレンダーに追加・通知・外観モード・権限" },
   { href: "/demo/manage", title: "イベントと締切(管理)", note: "イベント・締切・告知の登録" },
 ];

@@ -1,3 +1,11 @@
+"use client";
+
+import { useEffect, useState } from "react";
+
+import { type HomeSnapshot, readHomeSnapshot } from "@/lib/home-cache";
+
+import { CalendarHome } from "./CalendarHome";
+
 /**
  * カレンダー画面 (/ と /me) のローディング表示
  * (SPEC.md §12「ローディング中はスケルトン表示」)
@@ -16,6 +24,26 @@
  *     (SPEC §7) 必要があり、境界の下に置くとこれが成立しない。
  */
 export default function Loading() {
+  /*
+   * **前に見た内容があればそれを出す** (v1.42 / §13.1)。サーバーの内容が届けば
+   * Next がそのまま差し替える。端末の記憶はサーバーの描画とそろえるため描いたあとで読む
+   */
+  const [snapshot, setSnapshot] = useState<HomeSnapshot | null>(null);
+  useEffect(() => {
+    setSnapshot(readHomeSnapshot());
+  }, []);
+  if (snapshot) {
+    return (
+      <main className="mx-auto max-w-2xl space-y-4 px-4 py-2" aria-busy="true">
+        <span className="sr-only">新しい内容を読み込んでいます</span>
+        {/* 取り直し中の細い帯 */}
+        <div aria-hidden className="fixed inset-x-0 top-0 z-50 h-0.5 overflow-hidden">
+          <div className="progress-indeterminate h-full w-1/3 bg-[var(--tint)]" />
+        </div>
+        <CalendarHome {...snapshot} stale />
+      </main>
+    );
+  }
   return (
     <main
       className="mx-auto max-w-2xl space-y-4 px-4 py-4"

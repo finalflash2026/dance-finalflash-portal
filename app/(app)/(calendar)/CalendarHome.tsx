@@ -13,6 +13,7 @@ import { DayGrid, type DayBlock } from "@/components/DayGrid";
 import { DayTimeline, type TimelineEvent } from "@/components/DayTimeline";
 import { LabelCalendar } from "@/components/LabelCalendar";
 import { DaySwipe } from "@/components/motion/DaySwipe";
+import { saveHomeSnapshot } from "@/lib/home-cache";
 import { Sheet } from "@/components/Sheet";
 import {
   GroupHeader,
@@ -120,6 +121,7 @@ export function CalendarHome({
   keysSummary,
   keysHref = "/keys",
   scheduleRound = null,
+  stale = false,
 }: {
   /** 読み込んである範囲 (表示中の月の前後1か月) */
   rangeStart: DateString;
@@ -142,8 +144,20 @@ export function CalendarHome({
   keysHref?: string;
   /** 受付中の日程調整 (§6.8 / v1.32.2)。あればホームの一番上にカードを出す */
   scheduleRound?: ScheduleRound | null;
+  /** 端末に残した前回の内容を出している (読み込み中。v1.42)。残し直さない */
+  stale?: boolean;
 }) {
   const router = useRouter();
+  // 表示した内容を端末に残す (次に開いたとき、読み込み中に出す。§13.1 / v1.42)
+  useEffect(() => {
+    if (stale || keysHref !== "/keys") return; // デモの見本 (/demo) は残さない
+    saveHomeSnapshot({
+      rangeStart, rangeEnd, initialDate, today, events, blocksByDate, genreCodes,
+      isOb, currentUserId, upcomingDeadlines, keysSummary, scheduleRound,
+    });
+    // 同じ描画の内容なので、どれかが変わったときだけ残し直せばよい
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [stale, events, blocksByDate, upcomingDeadlines, keysSummary]);
   const [selectedDate, setSelectedDate] = useState(initialDate);
   /** 日を変えた向き。中身を滑らせて入れ替えるのに使う */
   const [direction, setDirection] = useState<"left" | "right" | null>(null);
@@ -713,39 +727,46 @@ function FreeRoomsToday({
 
 // ---------- 鍵まわりの入口 ----------
 
+/**
+ * 鍵の入口 (v1.42)。「練習場所」と「部室の鍵」の2枚を横に並べる。
+ * 押すと鍵と連絡の画面のそれぞれの欄へ移る
+ */
 function KeysEntry({ summary, href }: { summary: KeysSummary; href: string }) {
+  const tile =
+    "flex min-w-0 flex-col gap-1.5 rounded-2xl bg-[var(--cell)] px-4 py-3.5 active:opacity-70";
   return (
-    <Link
-      href={href}
-      prefetch
-      data-tour="room-board"
-      className={`${groupClass} flex items-center gap-3 px-4 py-3`}
-    >
-      <svg
-        viewBox="0 0 24 24"
-        width="20"
-        height="20"
-        fill="none"
-        stroke="var(--tint)"
-        strokeWidth="1.9"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        aria-hidden
-        className="shrink-0"
-      >
-        <circle cx="7.5" cy="15.5" r="4.5" />
-        <path d="M10.7 12.3L20 3M16 7l3 3M14 9l2 2" />
-      </svg>
-      <span className="min-w-0 flex-1">
-        <span className="block text-[16px]">練習場所の鍵・部室の鍵・連絡</span>
-        <span className="block truncate text-[13px] text-[var(--muted)]">
-          開錠 {summary.unlocked}部屋 / 部室の鍵: {summary.holder ?? "未登録"}
+    <div className="grid grid-cols-2 gap-2" data-tour="room-board">
+      <Link href={`${href}#room`} prefetch className={tile}>
+        <span className="flex items-center gap-1.5 text-[13px] text-[var(--muted)]">
+          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+            <path d="M3 21h18M5 21V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16M14 12h.01" />
+          </svg>
+          練習場所
         </span>
-      </span>
-      <span aria-hidden className="text-[var(--muted)]">
-        ›
-      </span>
-    </Link>
+        <span className="flex items-baseline gap-1">
+          <span
+            className={`text-[26px] font-bold leading-none tabular-nums ${
+              summary.unlocked > 0 ? "text-[#34c759]" : ""
+            }`}
+          >
+            {summary.unlocked}
+          </span>
+          <span className="text-[14px] font-semibold">部屋 開錠</span>
+        </span>
+      </Link>
+      <Link href={`${href}#club-key`} prefetch className={tile}>
+        <span className="flex items-center gap-1.5 text-[13px] text-[var(--muted)]">
+          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+            <circle cx="7.5" cy="15.5" r="4.5" />
+            <path d="M10.7 12.3L20 3M16 7l3 3M14 9l2 2" />
+          </svg>
+          部室の鍵
+        </span>
+        <span className="truncate text-[16px] font-semibold leading-tight">
+          {summary.holder ?? "未登録"}
+        </span>
+      </Link>
+    </div>
   );
 }
 

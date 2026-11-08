@@ -8,14 +8,13 @@ import { rememberNavDirection } from "@/lib/nav-direction";
 /**
  * 運営の画面の切り替え (SPEC.md §7 / v1.39)
  *
- * 折衝・割り振り・イベント・管理者の4画面を、上の1本の切り替えでつなぐ。
+ * 折衝 (割り振りを含む。v1.42)・イベント・管理者の画面を、上の1本の切り替えでつなぐ。
  * 以前は設定の中にボタンが4つ並び、画面どうしは行き来できなかった。
  * 置き場所はレイアウト (画面の入れ替えの外) なので、移っても動かない。
  * 運営の画面でだけ出る。
  */
 const ITEMS = [
   { href: "/coordinator", label: "折衝" },
-  { href: "/schedule/plan", label: "割り振り" },
   { href: "/manage", label: "イベント" },
   { href: "/admin", label: "管理者", adminOnly: true },
 ] as const;
@@ -23,7 +22,6 @@ const ITEMS = [
 /** デモ (/demo/…) を直接開いたときも、どの画面か分かるように */
 const DEMO_PATHS: Record<string, string> = {
   "/demo/coordinator": "/coordinator",
-  "/demo/schedule/plan": "/schedule/plan",
   "/demo/manage": "/manage",
   "/demo/admin": "/admin",
 };
