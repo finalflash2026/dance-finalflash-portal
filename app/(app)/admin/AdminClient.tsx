@@ -465,7 +465,7 @@ function EditPanel({
     }
     if (graduating) {
       lines.push(
-        "\nOB/OGへ移行すると、この人の未来の空き申請と公式練の出欠が削除され、" +
+        "\nOB/OGへ移行すると、この人の未来の空き申請と公式練・スタ練の出欠が削除され、" +
           "サブジャンルの設定が消えます。ナンバー所属・過去の履歴・購読URLは残ります。",
       );
       if (user.role === "coordinator" || user.role === "admin") {
@@ -754,7 +754,7 @@ function BulkGraduateSection({
     if (
       !window.confirm(
         `${generation}期の${targets.length}人をOB/OGへ移行します。\n\n${names}\n\n` +
-          "全員の未来の空き申請と公式練の出欠が削除され、サブジャンルの設定が消えます。\n" +
+          "全員の未来の空き申請と公式練・スタ練の出欠が削除され、サブジャンルの設定が消えます。\n" +
           "ナンバー所属・過去の履歴・購読URLは残ります。",
       )
     ) {
