@@ -20,6 +20,11 @@ targets:
   App:
     type: application
     platform: iOS
+    # 自動署名で App Group を有効にする (ウィジェットと予定を共有。SPEC §2.3.1)
+    attributes:
+      SystemCapabilities:
+        com.apple.ApplicationGroups.iOS:
+          enabled: 1
     sources:
       - path: App
         excludes:
@@ -59,6 +64,10 @@ targets:
   Widget:
     type: app-extension
     platform: iOS
+    attributes:
+      SystemCapabilities:
+        com.apple.ApplicationGroups.iOS:
+          enabled: 1
     deploymentTarget: "17.0"
     sources:
       - path: Widget
