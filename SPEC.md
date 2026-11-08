@@ -11,6 +11,7 @@
 | v1.5 | タブ①に**「今日の練習場所」施錠状況ボード**を追加(room_status新設。○=開錠済/×=施錠中、既定×、誰でも切替可。§6.1.1) |
 | v1.6 | **OB/OGロールを追加**。卒業者はアカウント削除ではなくOBへ移行し、タブ②③(ナンバー・マイカレンダー)のみ利用可能に。縦イベでのナンバー参加を継続できる(§3.6) |
 | v1.7 | **仕様変更2件**。①空き申請の時間粒度を**15分刻み→10分刻み**に変更(§6.1)。UI で丸めるだけでなく`claims`のCHECK制約でDB側でも強制する(クライアントからRLS経由で直接insertする設計のため、UIだけでは回避できてしまう)。②**タブ③のミニカレンダーをドット表示→予定ラベル表示**に変更(§6.0/§6.4)。タブ①②はドットのまま。あわせて`room_status.updated_at`をUPDATE時に更新するトリガを追加(§6.1.1の「3時間以上経過」判定が既定値のままでは機能しないため) |
+| v1.30 | **「閲覧のみ」の権限を追加**(§3.1 / §3.7 / §5.2)。OB にすると全体カレンダーが見えなくなるが、作った人や前任の保守担当は引退後も全体を見たい。かといって現役のまま残ると名簿・出欠・通知に載り続けて邪魔になる。そこで①**全部見られるが何も書けない**(書き込みは DB の restrictive ポリシーで止める。既存のポリシーには触らず上に重ねた)、②**名簿・出欠の参加者・通知の宛先・対象期の候補に載らない**、③**合言葉による昇格もできない**(引退した代は合言葉を知っているため)権限を用意した。3役が管理画面から切り替え、切り替え時に未来の空き申請・出欠・サブジャンルを消す(`make_viewer`)。期を指定した一括OB化の対象からは外す |
 | v1.29.4 | 連絡の窓の調整3件(§6.1.3)。①**「書き込むと現役全員に通知が届きます」を消した** — 一言を書くだけの欄に毎回ついてまわって場所を取る(文字数は上限が近いときだけ出す)。②**窓の高さを 78dvh → 54dvh** に(縦に長すぎた)。③**キーボードが出たときに窓が上へ滑っていく**のを直した。iOS は表示領域だけを縮めて上にずらすので、`visualViewport` の上端と高さに窓を貼り直す。入力欄がキーボードのすぐ上に来て、窓が勝手に動かなくなる |
 | v1.29.3 | 連絡の窓の作り直し(§6.1.3)。①**窓の高さを先に決めた** — 中身なりだと連絡が0〜2件のときに指1本ぶんの高さしかなく、開いたことすら分かりにくかった。②**入力欄を1行から始めて、打つぶんだけ伸ばす**ようにした(上限5行)。③**送信を入力欄の中の紙飛行機、閉じるを右下の ×** に。文字のボタンを2つ並べると幅を取るうえ、どちらが送信なのか読まないと分からない |
 | v1.29.2 | **区切りの合わない古いコマが残っているセルを ○ にしない**(§6.2 Step2)。コマの時間を後から変えると前の区切りのコマが残り、表では「ぴったり一致するコマが無い」ため ○ に見えていた。押すと排他制約で弾かれ、**ジャンルを置けないのに空きに見える**状態になっていた(実例: 10/12 会議室1 の 18:50〜20:00 に、つなぐ前に作った `18:50〜19:30` と `19:30〜20:00` の LOCK が残っていた)。⚠ を出して中身を説明し、押したら確認のうえ置き換える |
@@ -148,10 +149,12 @@ VAPID_SUBJECT=mailto:...          # 配信事業者への連絡先 (Web Push の
 | `member` | 現役サークル生 | 上記 + タブ①(全体カレンダー・空き申請・施錠ボード)、公式練の出欠 |
 | `coordinator` | 折衝係 + 3役 | 上記 + CSV取込、予約枠/コマの作成編集、公開 |
 | `admin` | 3役のみ | 上記 + 全ユーザーの削除/情報変更/パスワードリセット/ロール変更、合言葉変更 |
+| `viewer` | 引退した人(閲覧のみ・v1.30) | **全部見られるが、何も書けない**。名簿・出欠の参加者・通知の宛先に載らない。§3.7 |
 
 - 現役側の権限は `admin ⊃ coordinator ⊃ member` の包含で判定する(例: coordinator要求箇所は `role IN ('coordinator','admin')`)。
-- `ob` は包含関係の**外**にあり、memberより制限が強い。**OBはcoordinator/adminになれない**(roleの一値として排他表現しているため構造的に不可能)。
-- 「現役のみ許可」の判定は `public.app_role() <> 'ob'` を用いる。
+- `ob` と `viewer` は包含関係の**外**にある。**どちらも coordinator/admin になれない**(合言葉が正しくても拒否)。
+- 「現役のみ許可」(読む側)の判定は `public.app_role() <> 'ob'` を用いる。`viewer` は読むことはできるのでこれで通す。**書き込みは別途 restrictive ポリシーで `viewer` を止める**(§3.7)。
+- 名簿・出欠の参加者・通知の宛先を引くクエリは `role not in ('ob','viewer')` で絞る(アプリ側は `OFF_ROSTER_ROLES`)。**1か所でも `<> 'ob'` のまま残すと、閲覧のみがそこにだけ現れる。**
 
 ### 3.2 アカウント登録(サインアップ)
 - **Supabaseの一般サインアップは無効化**し(ダッシュボード: Authentication → Sign In / Up → "Allow new users to sign up" OFF)、登録は必ず自前API `/api/auth/signup` 経由で行う(内部で Admin API `auth.admin.createUser` を使用)。これにより合言葉検証を強制できる。
@@ -205,6 +208,37 @@ VAPID_SUBJECT=mailto:...          # 配信事業者への連絡先 (Web Push の
 | 名簿への掲載 | される(現役がナンバーに誘えるようにするため。**「OB/OG」バッジを表示**し、名簿検索に「現役のみ/OBのみ/全員」フィルタを設ける。既定は「現役のみ」) |
 | 折衝・管理者への昇格 | **不可**(合言葉を入力しても拒否) |
 | お知らせ | ナンバー関連のみ受信(`schedule_updated` は配信対象外。出欠の通知は v1.11 で廃止) |
+
+### 3.7 閲覧のみ(v1.30)
+**背景**: OB にすると全体カレンダーが見えなくなる(§3.6)。しかし、作った人や前任の保守担当は引退後も全体を見ておきたい。かといって現役のまま残ると、**名簿・出欠の参加者・通知の宛先に載り続けて現役の邪魔になる**。そこで「見るだけ」の権限を別に用意する。
+
+**条件は2つ**:
+1. **現役の邪魔をしない** — 書き込みは一切できない
+2. **名簿に載らない** — 出欠の参加者・通知の宛先・対象期の候補・ナンバーに誘う名簿に出ない
+
+**切り替え**: 3役が管理画面から `role` を「閲覧のみ」にする。**自分自身の権限は変えられない**(最後の3役が消えるのを防ぐ既存の仕組み)ので、本人ではなく別の3役が行う。
+- 切り替えるとき、OB への移行と同じく**未来の空き申請・出欠・サブジャンルを消す**(DB 関数 `make_viewer` が1トランザクションで行う)。残すと、見るだけの人の名前が未来の申請や出欠に載ったままになる。
+  - OB への移行と違い**スタ練の出欠も消す**(スタ練の出欠は v1.24 で後から足したもの)。
+  - ナンバーの所属とその出欠は残す(OB と同じ)。
+- **期を指定した一括OB化の対象から外す。** 引退した人を先に閲覧のみにしておけば、その代を一括で OB にしても閲覧のみのまま残る(画面・API の両方で外す)。
+
+**禁止は DB に持たせる。** 画面のボタンを隠すだけでは、API や Supabase を直接叩かれると書けてしまう。0018 で、メンバーが書き込める表すべてに**restrictive(制限)ポリシー**を重ねて `viewer` の insert / update / delete を止める。
+- **既存のポリシーには触らない。** restrictive ポリシーは既にある許可のポリシーと AND で効く。本番で動いている規則を1本ずつ書き換えるより、上に重ねるほうが壊しにくい。
+- 対象: 空き申請・出欠・施錠状況・連絡欄・部室の鍵・スタ練・ナンバー(本体/メンバー/日程)・2・3ジャン。通知の既読・プッシュ購読・表示名は本人だけの設定で現役に影響しないので外す。
+- 条件は `app_role() is distinct from 'viewer'`。プロフィールの無いユーザー(`app_role()` が null)を巻き込まないため。
+
+**閲覧のみができること / できないこと**
+| 項目 | 閲覧のみ |
+|---|---|
+| タブ① 全体カレンダー | **可**(施錠状況・部室の鍵・連絡欄も読める) |
+| 空き申請 / 施錠の切り替え / 部室の鍵 / 連絡欄の書き込み | 不可(ボタン・入力欄を出さない。施錠ボードは ○× を読めるよう薄くせずに押せなくするだけ) |
+| 出欠 | 不可(答える欄を出さない) |
+| タブ② ナンバー | 所属の一覧は見られる。作成・編集・スタ練の設定は不可 |
+| タブ③ マイカレンダー | 可 |
+| 名簿・出欠の参加者・通知の宛先・対象期の候補 | **載らない** |
+| お知らせ・プッシュ通知 | 届かない(宛先から外れる。設定画面にも通知の欄を出さない) |
+| 折衝・管理者への昇格 | **不可**。引退した代は合言葉を知っているので、開けておくと引き継いだはずの3役に自分で戻れてしまう |
+| 管理画面の名簿 | 「閲覧のみ」の絞り込みで出る。バッジは破線 |
 
 ## 4. マスタデータ
 
@@ -324,7 +358,7 @@ create table public.profiles (
   generation smallint not null,           -- 期
   main_genre_id smallint not null references public.genres(id),
   display_name text not null,             -- 名前部分
-  role text not null default 'member' check (role in ('ob','member','coordinator','admin')),
+  role text not null default 'member' check (role in ('ob','member','coordinator','admin','viewer')),  -- viewer は v1.30 (§3.7)
   created_at timestamptz not null default now()
 );
 
@@ -655,6 +689,32 @@ revoke all on function public.graduate_to_ob(uuid[]) from public;
 revoke all on function public.graduate_to_ob(uuid[]) from anon, authenticated;
 grant execute on function public.graduate_to_ob(uuid[]) to service_role;
 
+-- ---------- 閲覧のみへの切り替え(v1.30 / §3.7) ----------
+-- graduate_to_ob と同じく未来の活動を消してからロールを変える。
+-- 違いは**スタ練の出欠も消す**こと(スタ練の出欠は v1.24 で後から足した)。
+create or replace function public.make_viewer(p_user_ids uuid[])
+returns int language plpgsql as $$
+declare
+  v_today date := (now() at time zone 'Asia/Tokyo')::date;
+  v_count int;
+begin
+  delete from public.claims c using public.slots s
+   where c.slot_id = s.id and c.user_id = any(p_user_ids) and s.date >= v_today;
+  delete from public.attendances a using public.slots s
+   where a.slot_id = s.id and a.user_id = any(p_user_ids) and s.date >= v_today;
+  delete from public.attendances a using public.genre_practices g
+   where a.genre_practice_id = g.id and a.user_id = any(p_user_ids) and g.date >= v_today;
+  delete from public.user_subgenres where user_id = any(p_user_ids);
+  update public.profiles set role = 'viewer'
+   where user_id = any(p_user_ids) and role <> 'viewer';
+  get diagnostics v_count = row_count;
+  return v_count;
+end;
+$$;
+revoke all on function public.make_viewer(uuid[]) from public;
+revoke all on function public.make_viewer(uuid[]) from anon, authenticated;
+grant execute on function public.make_viewer(uuid[]) to service_role;
+
 -- ---------- 設定(合言葉ハッシュ等) ----------
 create table public.app_settings (
   key text primary key,                    -- 'signup_pass' / 'coordinator_pass' / 'admin_pass'
@@ -906,6 +966,25 @@ create policy mod_nevents on public.number_events for all to authenticated
                  where n.id = number_id and n.owner_id = auth.uid()))
   with check (exists (select 1 from public.numbers n
                       where n.id = number_id and n.owner_id = auth.uid()));
+
+-- ---------- 閲覧のみは書けない(v1.30 / §3.7) ----------
+-- 上の許可ポリシーには触らず、restrictive (AND で効く) を重ねる。
+-- メンバーが自分で書き込める表すべてに insert / update / delete の3本を置く。
+do $$
+declare t text;
+begin
+  foreach t in array array['claims','attendances','room_status','board_messages',
+    'club_key_holders','genre_practices','numbers','number_members','number_events',
+    'user_subgenres'] loop
+    execute format('create policy no_viewer_insert on public.%I as restrictive
+      for insert to authenticated with check (public.app_role() is distinct from ''viewer'')', t);
+    execute format('create policy no_viewer_update on public.%I as restrictive
+      for update to authenticated using (public.app_role() is distinct from ''viewer'')
+      with check (public.app_role() is distinct from ''viewer'')', t);
+    execute format('create policy no_viewer_delete on public.%I as restrictive
+      for delete to authenticated using (public.app_role() is distinct from ''viewer'')', t);
+  end loop;
+end $$;
 
 -- =========================================================
 -- シード

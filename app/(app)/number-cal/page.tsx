@@ -3,7 +3,11 @@ import { redirect } from "next/navigation";
 import { SetupNotice } from "@/components/SetupNotice";
 import type { StudioPractice } from "@/components/StudioPracticeSection";
 import { getCurrentProfile } from "@/lib/auth/session";
-import { GENRE_BY_ID } from "@/lib/constants";
+import {
+  GENRE_BY_ID,
+  OFF_ROSTER_ROLES,
+  isActiveMember,
+} from "@/lib/constants";
 import { hasSupabaseEnv } from "@/lib/env";
 import { createClient } from "@/lib/supabase/server";
 import { normalizeTime, todayInTokyo } from "@/lib/time";
@@ -32,7 +36,9 @@ export default async function NumberTabPage() {
   }
 
   const today = todayInTokyo();
-  const isOb = profile.role === "ob";
+  // スタ練を設定できるのは現役だけ。OB に加えて閲覧のみ (v1.30) も外す —
+  // このタブは「予定を作る側」の画面で、見るだけの人に出す欄が無い
+  const isOb = !isActiveMember(profile.role);
   const supabase = await createClient();
 
   const [numbersResult, practicesResult, generationsResult] = await Promise.all([
@@ -56,7 +62,10 @@ export default async function NumberTabPage() {
     // 折衝のコマ割りエディタと同じ考え方で、居ない期を選ばせても意味が無い
     isOb
       ? Promise.resolve({ data: [], error: null })
-      : supabase.from("profiles").select("generation").neq("role", "ob"),
+      : supabase
+          .from("profiles")
+          .select("generation")
+          .not("role", "in", OFF_ROSTER_ROLES),
   ]);
 
   const generations = [

@@ -25,8 +25,11 @@ const schema = z.object({
   rolePassword: z.string().min(1, "パスワードを入力してください"),
 });
 
-/** 包含関係の順位。ob は現役の外側なのでここには含めない (SPEC §3.1) */
-const RANK: Record<Exclude<Role, "ob">, number> = {
+/** 昇格できるロール。OB と閲覧のみは現役の外側 (SPEC §3.1) */
+type ActiveRole = Exclude<Role, "ob" | "viewer">;
+
+/** 包含関係の順位。ob・viewer は現役の外側なのでここには含めない (SPEC §3.1) */
+const RANK: Record<ActiveRole, number> = {
   member: 1,
   coordinator: 2,
   admin: 3,
@@ -65,6 +68,16 @@ export async function POST(request: Request) {
     );
   }
 
+  // 閲覧のみも昇格不可 (v1.30)。引退した代は合言葉を知っているので、
+  // ここを開けておくと引き継いだはずの3役に自分で戻れてしまう。
+  // 戻す必要があるときは、現役の3役が管理画面から変える
+  if (profile.role === "viewer") {
+    return Response.json(
+      { error: "閲覧のみのアカウントは権限を追加できません。3役に依頼してください" },
+      { status: 403 },
+    );
+  }
+
   const parsed = schema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) {
     return Response.json(
@@ -97,7 +110,7 @@ export async function POST(request: Request) {
     ]),
   );
 
-  let matched: Exclude<Role, "ob"> | null = null;
+  let matched: ActiveRole | null = null;
   for (const candidate of CANDIDATES) {
     const hash = hashByKey.get(candidate.key);
     if (hash && (await bcrypt.compare(parsed.data.rolePassword, hash))) {
@@ -111,7 +124,7 @@ export async function POST(request: Request) {
   }
 
   // 現ロールより下位への変更はしない
-  const current = profile.role as Exclude<Role, "ob">;
+  const current = profile.role as ActiveRole;
   if (RANK[matched] <= RANK[current]) {
     return Response.json({
       role: current,

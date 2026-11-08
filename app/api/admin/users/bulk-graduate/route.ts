@@ -67,7 +67,10 @@ export async function POST(request: Request) {
     Profile,
     "user_id" | "username" | "role"
   >[];
-  const pending = before.filter((p) => p.role !== "ob");
+  // **閲覧のみ (v1.30) も外す。** 引退した人を閲覧のみにしてから
+  // その代を一括でOB化すると、閲覧のみのはずの人までOBになって
+  // 全体カレンダーが見えなくなる (画面側でも外しているが、API でも守る)
+  const pending = before.filter((p) => p.role !== "ob" && p.role !== "viewer");
 
   if (pending.length === 0) {
     return Response.json({ updated: 0, message: "移行対象がありませんでした" });

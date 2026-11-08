@@ -9,6 +9,7 @@ import {
 } from "@/lib/club-key";
 import { BoardMessages } from "@/components/BoardMessages";
 import type { BoardMessage } from "@/lib/board-messages";
+import { useCanWrite } from "@/lib/role";
 import { createClient } from "@/lib/supabase/client";
 import { useLiveRefresh } from "@/lib/use-live-refresh";
 import { formatAsTokyoDateTime } from "@/lib/time";
@@ -43,6 +44,7 @@ export function ClubKeyBoard({
   const [rows, setRows] = useState(initialRows);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const canWrite = useCanWrite();
 
   const refresh = useCallback(async () => {
     const supabase = createClient();
@@ -132,14 +134,17 @@ export function ClubKeyBoard({
          * 「私が持っています」は事実の申告に読め、既に自分が持っている人が
          * 押してよいのか迷う。
          */}
-        <button
-          type="button"
-          onClick={claim}
-          disabled={pending || isMine}
-          className="glass shrink-0 rounded-2xl px-3.5 py-2 text-xs font-bold disabled:text-[var(--muted)] disabled:opacity-60"
-        >
-          {isMine ? "自分が所持中" : "所持中に変更"}
-        </button>
+        {/* 閲覧のみ (v1.30) は鍵を受け取らないので、ボタンごと出さない */}
+        {canWrite ? (
+          <button
+            type="button"
+            onClick={claim}
+            disabled={pending || isMine}
+            className="glass shrink-0 rounded-2xl px-3.5 py-2 text-xs font-bold disabled:text-[var(--muted)] disabled:opacity-60"
+          >
+            {isMine ? "自分が所持中" : "所持中に変更"}
+          </button>
+        ) : null}
       </div>
 
       {rows.length > 1 ? (

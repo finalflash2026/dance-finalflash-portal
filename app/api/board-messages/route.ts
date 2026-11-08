@@ -2,6 +2,7 @@ import { after } from "next/server";
 import { z } from "zod";
 
 import { getCurrentProfile } from "@/lib/auth/session";
+import { canWrite } from "@/lib/constants";
 import { hasSupabaseEnv } from "@/lib/env";
 import { activeMemberIds, sendPush } from "@/lib/push";
 import { createClient } from "@/lib/supabase/server";
@@ -43,6 +44,14 @@ export async function POST(request: Request) {
   const profile = await getCurrentProfile();
   if (!profile) {
     return Response.json({ error: "ログインしてください" }, { status: 401 });
+  }
+  // 閲覧のみ (v1.30) は書けない。RLS でも止まるが、ここで弾けば
+  // 「permission denied」ではなく理由の分かる日本語を返せる (§13.2)
+  if (!canWrite(profile.role)) {
+    return Response.json(
+      { error: "閲覧のみのアカウントでは操作できません" },
+      { status: 403 },
+    );
   }
 
   const parsed = schema.safeParse(await request.json().catch(() => null));

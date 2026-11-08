@@ -7,6 +7,7 @@ import { TabBar } from "@/components/TabBar";
 import { getCurrentProfile } from "@/lib/auth/session";
 import { ROLE_LABELS } from "@/lib/constants";
 import { hasSupabaseEnv } from "@/lib/env";
+import { RoleProvider } from "@/lib/role";
 import { RoomsProvider } from "@/lib/rooms";
 import { ROOMS } from "@/lib/constants";
 import { fetchRooms } from "@/lib/rooms-server";
@@ -59,13 +60,16 @@ export default async function AppLayout({
         <SettingsButton />
       </header>
 
-      <RoomsProvider rooms={rooms}>
-        <PullToRefresh>
-          <SwipeTabs role={role}>
-            <PageTransition>{children}</PageTransition>
-          </SwipeTabs>
-        </PullToRefresh>
-      </RoomsProvider>
+      {/* 閲覧のみ (v1.30) に書き込みのボタンを出さないため、ロールを配る */}
+      <RoleProvider role={role}>
+        <RoomsProvider rooms={rooms}>
+          <PullToRefresh>
+            <SwipeTabs role={role}>
+              <PageTransition>{children}</PageTransition>
+            </SwipeTabs>
+          </PullToRefresh>
+        </RoomsProvider>
+      </RoleProvider>
 
       <TabBar role={role} />
 
