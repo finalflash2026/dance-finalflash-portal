@@ -14,32 +14,30 @@ final class FFNativePlugin: CAPPlugin, CAPBridgedPlugin {
         CAPPluginMethod(name: "clearDigest", returnType: CAPPluginReturnPromise),
     ]
 
-    private var tabBar: GlassTabBar? {
-        (bridge?.viewController as? MainViewController)?.tabBar
+    private var tabController: NativeTabBar? {
+        (bridge?.viewController as? MainViewController)?.tabs
     }
 
-    /// { visible, selected, tabs: [{ id, label, symbol }], accent, accentForeground, dark }
+    /// { visible, selected, tabs: [{ id, label, symbol }], tint, dark }
     @objc func setTabBar(_ call: CAPPluginCall) {
         let visible = call.getBool("visible", false)
-        let tabs = (call.getArray("tabs", JSObject.self) ?? []).compactMap { object -> GlassTabBar.Tab? in
+        let tabs = (call.getArray("tabs", JSObject.self) ?? []).compactMap { object -> NativeTabBar.Tab? in
             guard let id = object["id"] as? String, let label = object["label"] as? String else { return nil }
-            return GlassTabBar.Tab(id: id, label: label, symbol: object["symbol"] as? String ?? "circle")
+            return NativeTabBar.Tab(id: id, label: label, symbol: object["symbol"] as? String ?? "circle")
         }
         let selected = call.getString("selected")
-        let accent = call.getString("accent").flatMap(UIColor.init(css:))
-        let accentForeground = call.getString("accentForeground").flatMap(UIColor.init(css:))
-        let dark = call.getBool("dark", true)
+        let tint = call.getString("tint").flatMap(UIColor.init(css:))
+        let dark = call.getBool("dark", false)
 
         DispatchQueue.main.async { [weak self] in
-            guard let self, let bar = self.tabBar else { return call.resolve() }
-            bar.onSelect = { [weak self] tab in
+            guard let self, let controller = self.tabController else { return call.resolve() }
+            controller.onSelect = { [weak self] tab in
                 self?.notifyListeners("tabSelect", data: ["id": tab.id])
             }
             if !tabs.isEmpty {
-                bar.update(tabs: tabs, selectedId: selected, accent: accent,
-                           accentForeground: accentForeground, dark: dark)
+                controller.update(tabs: tabs, selectedId: selected, tint: tint, dark: dark)
             }
-            bar.setVisible(visible && !tabs.isEmpty, animated: true)
+            controller.setVisible(visible && !tabs.isEmpty, animated: true)
             call.resolve()
         }
     }

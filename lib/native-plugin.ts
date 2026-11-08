@@ -17,8 +17,8 @@ export interface FFNativePlugin {
     visible: boolean;
     selected?: string;
     tabs?: NativeTab[];
-    accent?: string;
-    accentForeground?: string;
+    /** 選んでいるタブの色 (CSS の色) */
+    tint?: string;
     dark?: boolean;
   }): Promise<void>;
   setDigest(options: { digest: unknown }): Promise<void>;

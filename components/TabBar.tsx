@@ -129,7 +129,7 @@ function TabNav({
 /**
  * iOS アプリのタブバー (SPEC.md §2.3.1 / v1.38)。
  *
- * 見た目はネイティブ (Liquid Glass) に任せ、**何を出すか・どれを選んでいるかは
+ * 見た目は iOS 純正のタブバー (Liquid Glass) に任せ、**何を出すか・どれを選んでいるかは
  * ここで決めて伝える**。押されたらネイティブから `tabSelect` が来るので、
  * Web のタブを押したときと同じように移る。
  */
@@ -160,8 +160,8 @@ function useNativeTabBar(tabs: ReturnType<typeof visibleTabs>, currentIndex: num
         visible: currentIndex !== -1 && !dialogOpen,
         selected: currentIndex === -1 ? undefined : tabs[currentIndex].href,
         tabs: tabs.map((tab) => ({ id: tab.href, label: tab.label, symbol: tab.symbol })),
-        accent: style.getPropertyValue("--primary").trim(),
-        accentForeground: style.getPropertyValue("--primary-fg").trim(),
+        // 選んでいるタブの色。iOS のタブバーと同じく --tint (青)
+        tint: style.getPropertyValue("--tint").trim(),
         dark: document.documentElement.dataset.theme === "dark",
       }).catch(() => {});
     };
