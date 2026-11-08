@@ -598,7 +598,7 @@ export function SlotStep({
           />
 
           {reservations.length === 0 ? (
-            <p className="rounded-xl border border-[var(--border)] px-4 py-3 text-center text-sm text-[var(--muted)]">
+            <p className="rounded-2xl bg-[var(--cell)] px-4 py-3 text-center text-sm text-[var(--muted)]">
               {loading
                 ? "読み込み中…"
                 : "この月の予約枠はありません。①CSV取込から登録すると ○ が付きます。"}
@@ -627,7 +627,7 @@ export function SlotStep({
       ) : /* 保存のたびに一覧が消えるとスクロール位置が飛ぶので、
             「読み込み中」に差し替えるのは月を切り替えた直後だけにする */
       visibleReservations.length === 0 ? (
-        <p className="rounded-xl border border-[var(--border)] px-4 py-8 text-center text-sm text-[var(--muted)]">
+        <p className="rounded-2xl bg-[var(--cell)] px-4 py-8 text-center text-sm text-[var(--muted)]">
           {loading
             ? "読み込み中…"
             : reservations.length > 0
@@ -779,10 +779,10 @@ function ViewToggle({
           disabled={disabled}
           onClick={() => onChange(option.value)}
           aria-pressed={view === option.value}
-          className={`rounded-full border px-3 py-1 text-sm disabled:opacity-50 ${
+          className={`rounded-full px-3 py-1.5 text-sm transition-colors disabled:opacity-40 ${
             view === option.value
-              ? "border-[var(--primary)] bg-[var(--primary)] font-bold text-[var(--primary-fg)]"
-              : "border-[var(--border)]"
+              ? "bg-[var(--primary)] font-semibold text-[var(--primary-fg)]"
+              : "bg-[var(--fill)]"
           }`}
         >
           {option.label}
@@ -825,10 +825,10 @@ function WeekdayFilter({
           disabled={disabled}
           onClick={() => onChange(option.value)}
           aria-pressed={practiceDaysOnly === option.value}
-          className={`rounded-full border px-3 py-1 text-sm disabled:opacity-50 ${
+          className={`rounded-full px-3 py-1.5 text-sm transition-colors disabled:opacity-40 ${
             practiceDaysOnly === option.value
-              ? "border-[var(--primary)] bg-[var(--primary)] font-bold text-[var(--primary-fg)]"
-              : "border-[var(--border)]"
+              ? "bg-[var(--primary)] font-semibold text-[var(--primary-fg)]"
+              : "bg-[var(--fill)]"
           }`}
         >
           {option.label}
@@ -876,7 +876,7 @@ function MonthGenerationPicker({
   const selected = value ?? [];
 
   return (
-    <section className="space-y-2 rounded-xl border border-[var(--border)] p-3">
+    <section className="space-y-2 rounded-2xl bg-[var(--cell)] p-4">
       <div className="flex items-baseline justify-between gap-2">
         <h3 className="text-sm font-bold">この月の対象期</h3>
         <span className="text-xs text-[var(--muted)]">
@@ -897,10 +897,10 @@ function MonthGenerationPicker({
                 disabled={disabled}
                 onClick={() => onToggle(generation)}
                 aria-pressed={on}
-                className={`rounded-full border px-3 py-1 text-sm disabled:opacity-50 ${
+                className={`rounded-full px-3 py-1.5 text-sm transition-colors disabled:opacity-40 ${
                   on
-                    ? "border-[var(--primary)] bg-[var(--primary)] font-bold text-[var(--primary-fg)]"
-                    : "border-[var(--border)]"
+                    ? "bg-[var(--primary)] font-semibold text-[var(--primary-fg)]"
+                    : "bg-[var(--fill)]"
                 }`}
               >
                 {generation}期
@@ -1019,7 +1019,7 @@ function SlotEditor({
         className="sheet-in safe-bottom relative z-10 max-h-[90dvh] w-full max-w-md space-y-4 overflow-y-auto rounded-t-2xl bg-[var(--background)] p-4 sm:rounded-2xl"
       >
         <div>
-          <h3 className="text-base font-bold">
+          <h3 className="text-[17px] font-semibold">
             {draft.id ? "コマを編集" : "コマを作る"}
           </h3>
           <p className="text-xs text-[var(--muted)]">
@@ -1078,7 +1078,7 @@ function SlotEditor({
                 type="button"
                 disabled={disabled}
                 onClick={() => applyPreset(minutes)}
-                className="rounded border border-[var(--border)] px-3 py-1 text-xs"
+                className="rounded-lg bg-[var(--fill)] px-3 py-1.5 text-xs font-medium text-[var(--tint)]"
               >
                 {minutes}分
               </button>
@@ -1101,10 +1101,10 @@ function SlotEditor({
                 disabled={disabled}
                 onClick={() => setDraft((p) => ({ ...p, status }))}
                 aria-pressed={draft.status === status}
-                className={`flex-1 rounded-lg border px-2 py-2 text-sm ${
+                className={`flex-1 rounded-lg px-2 py-2 text-sm transition-colors ${
                   draft.status === status
-                    ? "border-[var(--primary)] bg-[var(--primary)] font-bold text-[var(--primary-fg)]"
-                    : "border-[var(--border)]"
+                    ? "bg-[var(--primary)] font-semibold text-[var(--primary-fg)]"
+                    : "bg-[var(--fill)]"
                 }`}
               >
                 {SLOT_STATUS_LABELS[status]}

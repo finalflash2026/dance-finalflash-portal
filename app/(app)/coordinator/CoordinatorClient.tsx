@@ -1,7 +1,8 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect, useState } from "react";
+
+import { Segmented } from "@/components/ui";
 
 import { startOfMonth, todayInTokyo } from "@/lib/time";
 import type { DateString } from "@/lib/types";
@@ -42,40 +43,18 @@ export function CoordinatorClient() {
   }, []);
 
   return (
-    <main className="mx-auto w-full max-w-[1600px] space-y-4 px-4 py-4">
-      <h1 className="text-xl font-bold">折衝ワークフロー</h1>
-      {/* 日程調整 (§6.8 / v1.32)。デモ環境でも試せる (v1.35) */}
-      <Link
-        href="/schedule/plan"
-        className="flex max-w-2xl items-center justify-between rounded-xl bg-[var(--cell)] px-4 py-3 text-[15px]"
-      >
-        <span>
-          <span className="block font-semibold">日程調整から割り振る</span>
-          <span className="block text-[13px] text-[var(--muted)]">メンバーの出られる日から、ジャンルの割り振り案を作る</span>
-        </span>
-        <span aria-hidden className="text-[var(--muted)]">›</span>
-      </Link>
-
-      <nav
-        className="flex max-w-2xl gap-1 rounded-xl border border-[var(--border)] p-1"
-        data-tour="coord-steps"
-      >
-        {STEPS.map((s) => (
-          <button
-            key={s.id}
-            type="button"
-            onClick={() => setStep(s.id)}
-            aria-current={step === s.id ? "step" : undefined}
-            className={`flex-1 rounded-lg px-2 py-2 text-sm font-medium ${
-              step === s.id
-                ? "bg-[var(--primary)] text-[var(--primary-fg)]"
-                : "text-[var(--muted)]"
-            }`}
-          >
-            {s.label}
-          </button>
-        ))}
-      </nav>
+    <main className="mx-auto w-full max-w-[1600px] space-y-5 px-4 py-4">
+      <h1 className="text-[28px] font-bold leading-tight">折衝ワークフロー</h1>
+      {/* 割り振り (日程調整) へは上の運営の切り替えから (v1.39) */}
+      <div className="max-w-2xl" data-tour="coord-steps">
+        <Segmented
+          label="折衝の手順"
+          size="large"
+          value={String(step) as "1" | "2" | "3"}
+          options={STEPS.map((s) => ({ value: String(s.id) as "1" | "2" | "3", label: s.label }))}
+          onChange={(value) => setStep(Number(value) as 1 | 2 | 3)}
+        />
+      </div>
 
       {step === 2 ? (
         <SlotStep month={month} onMonthChange={setMonth} />

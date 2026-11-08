@@ -241,7 +241,7 @@ export function SlotGrid({
     <div className="space-y-2">
       <BrushPalette brush={brush} onChange={setBrush} disabled={disabled} />
 
-      <div className="h-scroll max-h-[70vh] overflow-auto rounded-xl border border-[var(--border)]">
+      <div className="h-scroll max-h-[70vh] overflow-auto rounded-2xl bg-[var(--cell)] ring-1 ring-[var(--separator)]">
         <table className="border-separate border-spacing-0 text-[11px]">
           <thead>
             <tr>
@@ -614,7 +614,7 @@ function TimeEditor({
       <div
         role="dialog"
         aria-label="コマの時間を直す"
-        className="fixed z-50 w-60 space-y-2 rounded-xl border border-[var(--border)] bg-[var(--background)] p-3 shadow-lg"
+        className="fixed z-50 w-60 space-y-2 rounded-2xl bg-[var(--background)] p-3 shadow-[0_8px_30px_rgba(0,0,0,0.16)] ring-1 ring-[var(--separator)]"
         style={{
           left: Math.min(x, (globalThis.innerWidth ?? 800) - 260),
           top: Math.min(y, (globalThis.innerHeight ?? 600) - 280),
@@ -714,14 +714,14 @@ function BrushPalette({
   disabled: boolean;
 }) {
   const chip = (active: boolean) =>
-    `rounded-full border px-2.5 py-1 text-xs disabled:opacity-50 ${
+    `rounded-full px-2.5 py-1 text-xs transition-colors disabled:opacity-40 ${
       active
-        ? "border-[var(--primary)] bg-[var(--primary)] font-bold text-[var(--primary-fg)]"
-        : "border-[var(--border)]"
+        ? "bg-[var(--primary)] font-semibold text-[var(--primary-fg)]"
+        : "bg-[var(--fill)]"
     }`;
 
   return (
-    <div className="flex flex-wrap items-center gap-1.5 rounded-xl border border-[var(--border)] p-2">
+    <div className="flex flex-wrap items-center gap-1.5 rounded-2xl bg-[var(--cell)] p-2">
       <span className="mr-1 text-xs font-bold">いま置くもの</span>
 
       {GENRES.map((genre) => {
@@ -735,8 +735,8 @@ function BrushPalette({
             onClick={() =>
               onChange(active ? null : { kind: "genre", genreId: genre.id })
             }
-            className={`rounded-full border px-2.5 py-1 text-xs font-bold disabled:opacity-50 ${
-              active ? "border-transparent" : "border-[var(--border)]"
+            className={`rounded-full px-2.5 py-1 text-xs font-semibold transition-colors disabled:opacity-40 ${
+              active ? "" : "bg-[var(--fill)]"
             }`}
             style={
               active
@@ -830,7 +830,7 @@ function CellMenu({
       <div
         role="dialog"
         aria-label="このコマに置くもの"
-        className="fixed z-50 w-56 rounded-xl border border-[var(--border)] bg-[var(--background)] p-2 shadow-lg"
+        className="fixed z-50 w-56 rounded-2xl bg-[var(--background)] p-2 shadow-[0_8px_30px_rgba(0,0,0,0.16)] ring-1 ring-[var(--separator)]"
         style={{
           left: Math.min(x, (globalThis.innerWidth ?? 800) - 240),
           top: Math.min(y, (globalThis.innerHeight ?? 600) - 260),
@@ -862,21 +862,21 @@ function CellMenu({
           <button
             type="button"
             onClick={() => onPick({ kind: "open" })}
-            className="flex-1 rounded border border-[var(--border)] py-1 text-[11px]"
+            className="flex-1 rounded-lg bg-[var(--fill)] py-1.5 text-[12px] font-medium"
           >
             空き ○
           </button>
           <button
             type="button"
             onClick={() => onPick({ kind: "unavailable" })}
-            className="flex-1 rounded border border-[var(--border)] py-1 text-[11px]"
+            className="flex-1 rounded-lg bg-[var(--fill)] py-1.5 text-[12px] font-medium"
           >
             使用不可 −
           </button>
           <button
             type="button"
             onClick={() => onPick({ kind: "clear" })}
-            className="flex-1 rounded border border-[var(--border)] py-1 text-[11px]"
+            className="flex-1 rounded-lg bg-[var(--fill)] py-1.5 text-[12px] font-medium"
           >
             消す
           </button>
@@ -889,7 +889,7 @@ function CellMenu({
 /** 表の下の集計。各ジャンルへ配る前に必ず要る数字 (§6.2 Step2-2) */
 function Totals({ totals }: { totals: ReturnType<typeof summarize> }) {
   return (
-    <section className="rounded-xl border border-[var(--border)] p-3">
+    <section className="rounded-2xl bg-[var(--cell)] p-4">
       <p className="text-sm">
         <span className="font-bold">この月の練習コマ</span>{" "}
         <strong className="text-base tabular-nums">{totals.practicable}</strong>{" "}

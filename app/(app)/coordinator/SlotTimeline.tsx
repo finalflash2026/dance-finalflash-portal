@@ -95,7 +95,7 @@ export function SlotTimeline({
   }
 
   return (
-    <div className="h-scroll max-h-[70vh] overflow-auto rounded-xl border border-[var(--border)]">
+    <div className="h-scroll max-h-[70vh] overflow-auto rounded-2xl bg-[var(--cell)] ring-1 ring-[var(--separator)]">
       <div className="w-max">
         <div className="sticky top-0 z-30 flex border-b border-[var(--border)] bg-[var(--surface)]">
           <div

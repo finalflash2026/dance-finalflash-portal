@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useState } from "react";
 
 import { ErrorMessage, Field, inputClass, secondaryButtonClass } from "@/components/ui";
@@ -81,13 +80,9 @@ export function AdminClient({
   }
 
   return (
-    <main className="mx-auto max-w-2xl space-y-6 px-4 py-6">
-      <div className="flex items-center justify-between gap-3">
-        <h1 className="text-xl font-bold">管理者</h1>
-        <Link href="/settings" className="text-sm text-[var(--muted)] underline">
-          設定へ戻る
-        </Link>
-      </div>
+    <main className="mx-auto max-w-2xl space-y-5 px-4 py-4">
+      {/* 戻るは左上の戻るボタン、ほかの運営の画面へは上の切り替えから (v1.39) */}
+      <h1 className="text-[28px] font-bold leading-tight">管理者</h1>
 
       <ErrorMessage>{error}</ErrorMessage>
       {notice ? (
@@ -111,7 +106,7 @@ export function AdminClient({
       />
 
       <section className="space-y-3" data-tour="admin-users">
-        <h2 className="text-base font-bold">
+        <h2 className="text-[17px] font-semibold">
           ユーザー一覧
           <span className="ml-2 text-xs font-normal text-[var(--muted)]">
             {filtered.length} / {users.length}人
@@ -175,7 +170,7 @@ export function AdminClient({
             該当するユーザーがいません
           </p>
         ) : (
-          <ul className="divide-y divide-[var(--border)] rounded-xl border border-[var(--border)]">
+          <ul className="divide-y divide-[var(--separator)] overflow-hidden rounded-2xl bg-[var(--cell)]">
             {filtered.map((user) => (
               <li key={user.userId}>
                 <button
@@ -186,26 +181,37 @@ export function AdminClient({
                     )
                   }
                   aria-expanded={expanded === user.userId}
-                  className="flex w-full items-center gap-2 px-3 py-2 text-left"
+                  className="flex w-full items-center gap-3 px-4 py-2.5 text-left active:bg-[var(--fill)]"
                 >
                   <span className="min-w-0 flex-1">
-                    <span className="block truncate text-sm font-medium">
+                    <span className="block truncate text-[16px]">
                       {user.username}
                     </span>
-                    <span className="block text-xs text-[var(--muted)]">
+                    <span className="block text-[13px] text-[var(--muted)]">
                       {user.generation}期 /{" "}
                       {GENRE_BY_ID.get(user.mainGenreId)?.code ?? "-"}
                     </span>
                   </span>
                   <RoleBadge role={user.role} />
                   {user.userId === currentUserId ? (
-                    <span className="shrink-0 rounded-full border border-[var(--border)] px-2 py-0.5 text-[10px]">
-                      自分
-                    </span>
+                    <span className="shrink-0 text-[12px] text-[var(--muted)]">自分</span>
                   ) : null}
-                  <span aria-hidden className="shrink-0 text-xs text-[var(--muted)]">
-                    {expanded === user.userId ? "▲" : "▼"}
-                  </span>
+                  <svg
+                    aria-hidden
+                    viewBox="0 0 24 24"
+                    width="14"
+                    height="14"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2.4"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    className={`shrink-0 text-[var(--muted)] transition-transform duration-300 ease-[var(--ease-smooth)] ${
+                      expanded === user.userId ? "rotate-90" : ""
+                    }`}
+                  >
+                    <path d="m9 6 6 6-6 6" />
+                  </svg>
                 </button>
 
                 {expanded === user.userId ? (
@@ -301,8 +307,8 @@ function PassphraseSection({
   }
 
   return (
-    <section className="space-y-3 rounded-xl border border-[var(--border)] p-3" data-tour="admin-pass">
-      <h2 className="text-base font-bold">合言葉</h2>
+    <section className="space-y-3 rounded-2xl bg-[var(--cell)] p-4" data-tour="admin-pass">
+      <h2 className="text-[17px] font-semibold">合言葉</h2>
       <p className="text-xs text-[var(--muted)]">
         <strong>代替わり・卒業の時期には必ず変えてください。</strong>
         空欄の項目は変わりません。
@@ -336,22 +342,18 @@ function PassphraseSection({
 }
 
 function RoleBadge({ role }: { role: Role }) {
-  // OB は名簿に残り続けるので、現役と一目で区別が付く必要がある (SPEC §3.6)
-  const style =
+  // OB は名簿に残り続けるので、現役と一目で区別が付く必要がある (SPEC §3.6)。
+  // 色の付いた文字だけにする (枠で囲んだ札にしない。v1.39)。メンバーは出さない
+  if (role === "member") return null;
+  const color =
     role === "ob"
-      ? "border-[var(--ob)] text-[var(--ob)]"
+      ? "text-[var(--ob)]"
       : role === "admin"
-        ? "border-[var(--accent)] text-[var(--accent)]"
-        : role === "coordinator"
-          ? "border-[var(--info)] text-[var(--info)]"
-          : "border-[var(--border)] text-[var(--muted)]";
+        ? "text-[var(--accent)]"
+        : "text-[var(--info)]";
 
   return (
-    <span
-      className={`shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-bold ${style}`}
-    >
-      {ROLE_LABELS[role]}
-    </span>
+    <span className={`shrink-0 text-[12px] font-semibold ${color}`}>{ROLE_LABELS[role]}</span>
   );
 }
 
@@ -364,18 +366,19 @@ function ChipRow({
 }) {
   return (
     <div className="flex items-center gap-2">
-      <span className="w-12 shrink-0 text-xs text-[var(--muted)]">{label}</span>
+      <span className="w-12 shrink-0 text-[13px] text-[var(--muted)]">{label}</span>
       {/* 期もジャンルも数が多い。折り返すと縦に伸びるので横スクロールにする */}
-      <div className="h-scroll flex flex-1 gap-1.5 overflow-x-auto pb-1">
+      <div className="h-scroll no-scrollbar flex flex-1 gap-1.5 overflow-x-auto">
         {items.map((item) => (
           <button
             key={item.key}
             type="button"
             onClick={item.onClick}
-            className={`shrink-0 rounded-full border px-2.5 py-1 text-xs ${
+            aria-pressed={item.on}
+            className={`h-8 shrink-0 rounded-full px-3 text-[13px] transition-colors ${
               item.on
-                ? "border-[var(--primary)] bg-[var(--primary)] font-bold text-[var(--primary-fg)]"
-                : "border-[var(--border)]"
+                ? "bg-[var(--primary)] font-semibold text-[var(--primary-fg)]"
+                : "bg-[var(--fill)]"
             }`}
           >
             {item.label}
@@ -571,7 +574,7 @@ function EditPanel({
   }
 
   return (
-    <div className="space-y-3 border-t border-[var(--border)] bg-[var(--surface)] px-3 py-3">
+    <div className="space-y-3 border-t border-[var(--separator)] px-4 py-4">
       <Field label="名前">
         <input
           type="text"
@@ -753,8 +756,8 @@ function BulkGraduateSection({
   }
 
   return (
-    <section className="space-y-3 rounded-xl border border-[var(--border)] p-3" data-tour="admin-graduate">
-      <h2 className="text-base font-bold">卒業処理(一括OB化)</h2>
+    <section className="space-y-3 rounded-2xl bg-[var(--cell)] p-4" data-tour="admin-graduate">
+      <h2 className="text-[17px] font-semibold">卒業処理(一括OB化)</h2>
       <p className="text-xs text-[var(--muted)]">
         ナンバーと購読URLは、OB/OGになっても使えます。
       </p>
@@ -776,7 +779,7 @@ function BulkGraduateSection({
           type="button"
           onClick={graduate}
           disabled={pending || targets.length === 0}
-          className="shrink-0 rounded-lg border border-[var(--border)] px-3 text-sm font-medium disabled:opacity-50"
+          className="shrink-0 rounded-lg bg-[var(--fill)] px-3 text-sm font-semibold text-[var(--tint)] disabled:opacity-40"
         >
           {targets.length}人を移行
         </button>

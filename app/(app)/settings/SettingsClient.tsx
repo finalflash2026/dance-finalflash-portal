@@ -476,34 +476,11 @@ function RoleSection({
       hint="折衝か3役の合言葉を入れると、その担当の画面が使えます。今の権限が減ることはありません。"
     >
 
+      {/* 運営の画面は1つの入口に (v1.39)。中の切り替えで 折衝・割り振り・イベント・管理者 を行き来する */}
       {isCoordinatorOrAbove(role) ? (
-        <div className="space-y-2">
-          <Link
-            href="/coordinator"
-            className={`${secondaryButtonClass} block text-center`}
-          >
-            折衝ワークフローを開く
-          </Link>
-          {/* 日程調整 (§6.8 / v1.32)。デモ環境でも試せる (v1.35) */}
-          <Link href="/schedule/plan" className={`${secondaryButtonClass} block text-center`}>
-            日程調整の割り振り
-          </Link>
-          {/* イベント・締切・告知 (§6.7.11 / v1.30)。告知の欄は 3役にだけ出る */}
-          <Link
-            href="/manage"
-            className={`${secondaryButtonClass} block text-center`}
-          >
-            イベント・締切{role === "admin" ? "・告知" : ""}を管理する
-          </Link>
-          {role === "admin" ? (
-            <Link
-              href="/admin"
-              className={`${secondaryButtonClass} block text-center`}
-            >
-              管理者画面を開く
-            </Link>
-          ) : null}
-        </div>
+        <Link href="/coordinator" className={`${secondaryButtonClass} block text-center`}>
+          運営の画面を開く
+        </Link>
       ) : null}
 
       <form onSubmit={elevate} className="space-y-3">

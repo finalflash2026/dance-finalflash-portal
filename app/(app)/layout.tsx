@@ -9,11 +9,12 @@ import { PageTransition } from "@/components/PageTransition";
 import { PullToRefresh } from "@/components/PullToRefresh";
 import { ServiceWorkerRegistrar } from "@/components/ServiceWorkerRegistrar";
 import { SettingsButton } from "@/components/SettingsButton";
+import { StaffNav } from "@/components/StaffNav";
 import { SwipeTabs } from "@/components/SwipeTabs";
 import { TabBar } from "@/components/TabBar";
 import { Tour } from "@/components/Tour";
 import { getCurrentProfile } from "@/lib/auth/session";
-import { ROLE_LABELS } from "@/lib/constants";
+import { ROLE_LABELS, isCoordinatorOrAbove } from "@/lib/constants";
 import { VAPID_PUBLIC_KEY, hasSupabaseEnv } from "@/lib/env";
 import { RoomsProvider } from "@/lib/rooms";
 import { ROOMS } from "@/lib/constants";
@@ -87,6 +88,12 @@ export default async function AppLayout({
           <SettingsButton />
         </div>
       </header>
+
+      {/* 運営の画面 (折衝・割り振り・イベント・管理者) の切り替え (v1.39)。
+          デモ (Supabase 未設定) では全部見せる */}
+      {isCoordinatorOrAbove(role) || !hasSupabaseEnv() ? (
+        <StaffNav showAdmin={role === "admin" || !hasSupabaseEnv()} />
+      ) : null}
 
       <RoomsProvider rooms={rooms}>
         <PullToRefresh>

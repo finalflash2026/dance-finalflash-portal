@@ -94,7 +94,7 @@ export function PublishStep({
       ) : null}
 
       {loading ? (
-        <p className="rounded-xl border border-[var(--border)] px-4 py-8 text-center text-sm text-[var(--muted)]">
+        <p className="rounded-2xl bg-[var(--cell)] px-4 py-8 text-center text-sm text-[var(--muted)]">
           読み込み中…
         </p>
       ) : (
@@ -106,7 +106,7 @@ export function PublishStep({
           </p>
 
           {total === 0 ? (
-            <p className="rounded-xl border border-[var(--border)] px-4 py-8 text-center text-sm text-[var(--muted)]">
+            <p className="rounded-2xl bg-[var(--cell)] px-4 py-8 text-center text-sm text-[var(--muted)]">
               {slots.length === 0
                 ? "この月の予約枠はありません。①CSV取込から登録します。"
                 : "公開していないコマはありません"}
@@ -122,7 +122,7 @@ export function PublishStep({
                 </p>
               ) : null}
 
-              <ul className="divide-y divide-[var(--border)] rounded-xl border border-[var(--border)]">
+              <ul className="divide-y divide-[var(--separator)] overflow-hidden rounded-2xl bg-[var(--cell)]">
                 {drafts.map(({ slot, reservation }) => (
                   <li key={slot.id} className="px-3 py-2 text-sm">
                     <span className="tabular-nums text-[var(--muted)]">

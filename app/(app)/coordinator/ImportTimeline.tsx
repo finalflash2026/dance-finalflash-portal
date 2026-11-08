@@ -111,7 +111,7 @@ export function ImportTimeline({
      * 遅い時間帯を見るのにいちいちページ末尾まで送る必要があった。
      * ついでに時刻の目盛を sticky top-0 にできるので、縦に送っても軸を見失わない。
      */
-    <div className="h-scroll max-h-[70vh] overflow-auto rounded-xl border border-[var(--border)]">
+    <div className="h-scroll max-h-[70vh] overflow-auto rounded-2xl bg-[var(--cell)] ring-1 ring-[var(--separator)]">
       <div className="w-max">
         {/* 時刻の目盛 */}
         <div className="sticky top-0 z-30 flex border-b border-[var(--border)] bg-[var(--surface)]">
