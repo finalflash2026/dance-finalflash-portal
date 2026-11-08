@@ -53,7 +53,7 @@ function isAboveTabs(pathname: string): boolean {
  * 押した瞬間に縮めて、反応したことを見せる
  */
 export const BUTTON_CLASS =
-  "glass flex h-11 w-11 shrink-0 items-center justify-center rounded-full transition-transform active:scale-90";
+  "glass glass-press flex h-11 w-11 shrink-0 items-center justify-center rounded-full";
 
 /**
  * 設定に入る前の画面。ヘッダー左上の戻るボタン (BackButton) と右上の ✕ が

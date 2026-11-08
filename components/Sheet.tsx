@@ -65,7 +65,7 @@ export function Sheet({
             type="button"
             onClick={onClose}
             aria-label="閉じる"
-            className="grid h-8 w-8 place-items-center rounded-full bg-[var(--fill)] text-[var(--muted)]"
+            className="glass glass-press grid h-8 w-8 place-items-center rounded-full text-[var(--muted)]"
           >
             <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden>
               <path

@@ -57,9 +57,12 @@
    * 浮いている面 (タブバー・設定ボタン)。v1.14
    * **不透明にしないこと。** 背景がうっすら透けることで浮いて見える。
    */
-  --glass-bg: rgba(255, 255, 255, 0.72);
-  --glass-border: rgba(15, 23, 42, 0.1);
-  --glass-shadow: 0 6px 20px rgba(15, 23, 42, 0.14);
+  --glass-bg: rgba(255, 255, 255, 0.6);
+  --glass-border: rgba(15, 23, 42, 0.08);
+  --glass-shadow: 0 4px 16px rgba(15, 23, 42, 0.1);
+  /* Liquid Glass の縁の光 (v1.39)。上辺は強く、下辺は弱く光る */
+  --glass-rim-top: rgba(255, 255, 255, 0.95);
+  --glass-rim-bottom: rgba(255, 255, 255, 0.4);
 
   /*
    * コマのブロック色 (lib/constants.ts から var() で参照する)。
@@ -127,9 +130,11 @@
   --ob: #f07fb5;
 
   /* 暗い側は「白を薄く重ねる」のではなく、地より少し明るいグレーを透かす */
-  --glass-bg: rgba(45, 51, 59, 0.76);
-  --glass-border: rgba(255, 255, 255, 0.12);
-  --glass-shadow: 0 6px 20px rgba(0, 0, 0, 0.45);
+  --glass-bg: rgba(58, 64, 72, 0.58);
+  --glass-border: rgba(255, 255, 255, 0.1);
+  --glass-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+  --glass-rim-top: rgba(255, 255, 255, 0.24);
+  --glass-rim-bottom: rgba(255, 255, 255, 0.06);
 
   /* 背景より少しだけ明るい面にする。白いままだと光る板が並ぶ */
   --slot-open-bg: #39414b;
@@ -196,10 +201,41 @@
  */
 .glass {
   background: var(--glass-bg);
-  border: 1px solid var(--glass-border);
-  box-shadow: var(--glass-shadow);
-  -webkit-backdrop-filter: blur(20px) saturate(180%);
-  backdrop-filter: blur(20px) saturate(180%);
+  /*
+   * Liquid Glass (v1.39)。枠線の代わりに、縁の光 (上が強く下が弱い) と
+   * ごく薄い縁取りで「厚みのあるガラス」に見せる。下の色を少し濃く透かす
+   */
+  box-shadow:
+    inset 0 1px 0.5px var(--glass-rim-top),
+    inset 0 -0.5px 0.5px var(--glass-rim-bottom),
+    0 0 0 0.5px var(--glass-border),
+    var(--glass-shadow);
+  -webkit-backdrop-filter: blur(14px) saturate(190%) brightness(1.04);
+  backdrop-filter: blur(14px) saturate(190%) brightness(1.04);
+}
+/* 切り替えの選択の印。地は不透明のまま、縁の光だけ足す (内容の上ではないので透かさない) */
+.glass-thumb {
+  background: var(--background);
+  box-shadow:
+    inset 0 1px 0.5px var(--glass-rim-top),
+    0 0 0 0.5px var(--glass-border),
+    0 2px 6px rgba(0, 0, 0, 0.12);
+}
+/* 押したときにガラスが少し縮んで明るくなる (iOS 26 のボタンと同じ手触り) */
+.glass-press {
+  transition:
+    transform 0.32s var(--ease-spring),
+    filter 0.2s ease-out;
+}
+.glass-press:active {
+  transform: scale(0.92);
+  filter: brightness(1.08);
+}
+/* ぼかしが効かない環境では、地を濃くして読めるようにする */
+@supports not ((-webkit-backdrop-filter: blur(1px)) or (backdrop-filter: blur(1px))) {
+  .glass {
+    background: var(--cell);
+  }
 }
 
 /*

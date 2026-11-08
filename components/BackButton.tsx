@@ -50,7 +50,7 @@ const BACK_TO_PREVIOUS = ["/keys", "/notifications", "/schedule", "/schedule/pla
 let inAppNavigations = -1;
 
 const CLASS_NAME =
-  "inline-flex h-11 items-center justify-center gap-1 rounded-full bg-[var(--fill)] px-3.5 text-[16px] font-semibold leading-none text-[var(--tint)] active:opacity-60";
+  "glass glass-press inline-flex h-11 items-center justify-center gap-1 rounded-full px-3.5 text-[16px] font-semibold leading-none text-[var(--tint)]";
 
 export function BackButton() {
   const pathname = usePathname();

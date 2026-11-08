@@ -151,7 +151,7 @@ export function SettingsGroup({
                 type="button"
                 onClick={close}
                 aria-label="閉じる"
-                className="grid h-11 w-11 place-items-center rounded-full bg-[var(--fill)] text-[var(--tint)] active:opacity-60"
+                className="glass glass-press grid h-11 w-11 place-items-center rounded-full text-[var(--tint)]"
               >
                 <svg viewBox="0 0 10 18" width="10" height="17" aria-hidden>
                   <path
