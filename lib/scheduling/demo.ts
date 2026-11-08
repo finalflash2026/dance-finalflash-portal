@@ -128,8 +128,8 @@ export function demoAnswers(members: Member[], candidates: Candidate[]): PlanInp
   return answers;
 }
 
-export function demoInput(): PlanInput {
-  const candidates = demoCandidates();
+export function demoInput(month = "2026-11-01"): PlanInput {
+  const candidates = demoCandidates(month);
   const members = demoMembers();
   return {
     genres: GENRES.map((g) => ({ id: g.id, code: g.code })),

@@ -20,6 +20,7 @@ export type AttendanceStatus = "present" | "absent" | "late" | "leave_early";
 export type NotificationType =
   | "number_added"
   | "schedule_updated"
+  | "schedule_round"
   | "attendance_updated"
   /** 3役からの全体告知 (§6.7.4 / v1.30) */
   | "announcement";

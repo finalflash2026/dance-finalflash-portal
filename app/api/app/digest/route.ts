@@ -4,6 +4,7 @@ import { getCurrentProfile } from "@/lib/auth/session";
 import { hasSupabaseEnv } from "@/lib/env";
 import { getMyEvents } from "@/lib/events";
 import { IMPORTANT_DEADLINE_LEAD_DAYS } from "@/lib/reminders";
+import { getOpenRound } from "@/lib/scheduling/live";
 import { liveDemoRound, roundTitle } from "@/lib/scheduling/round";
 import { createClient } from "@/lib/supabase/server";
 import { addDays, nowTimeInTokyo, todayInTokyo } from "@/lib/time";
@@ -61,7 +62,7 @@ export async function GET() {
   ]);
 
   // 日程調整の回はホームのカードと同じもの (§6.8.4)
-  const round = isOb ? null : liveDemoRound(today);
+  const round = isOb ? null : await getOpenRound(today, profile.user_id);
   const keys = isOb
     ? null
     : {

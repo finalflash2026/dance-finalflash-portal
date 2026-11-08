@@ -26,6 +26,7 @@ export default async function DemoCalendar({
         upcomingDeadlines={data.upcomingDeadlines}
         keysSummary={isOb ? null : { unlocked: 2, holder: "21HIPHOPじろう" }}
         keysHref="/demo/keys"
+        staffHref={isOb ? null : "/demo/coordinator"}
         scheduleRound={isOb ? null : demoRound()}
       />
     </main>

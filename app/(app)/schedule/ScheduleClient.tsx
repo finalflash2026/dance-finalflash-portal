@@ -39,34 +39,85 @@ export function ScheduleAnswerClient({
   me,
   round,
   storageKey,
+  persist = false,
 }: {
   initialInput: PlanInput;
   me: string;
   round: ScheduleRound;
-  /**
-   * 自分の回答を端末に保存するときの鍵 (デモ環境。v1.35)。回答を DB に
-   * 保存するのは次の段階なので、それまではこの端末に残す
-   */
+  /** 自分の回答を端末に保存するときの鍵 (Supabase の無い見本だけ。v1.35) */
   storageKey?: string;
+  /** 回答を DB に保存する (v1.44)。押すたびに少しまとめて送る */
+  persist?: boolean;
 }) {
   const [input, setInput] = useState(initialInput);
-  // 端末に保存した回答を読む (描いたあとで。サーバーの描画とそろえるため)
+  const [saveError, setSaveError] = useState<string | null>(null);
+  // 端末に保存した回答を読む (見本だけ。描いたあとで。サーバーの描画とそろえるため)
   useEffect(() => {
+    if (persist) return;
     const saved = readSavedAnswers(storageKey);
     if (saved) setInput((prev) => ({ ...prev, answers: { ...prev.answers, [me]: saved } }));
-  }, [storageKey, me]);
+  }, [storageKey, me, persist]);
   const mine = input.answers[me] ?? {};
   const slots = useMemo(() => answerSlots(input.candidates), [input.candidates]);
   const allKeys = useMemo(() => keysOf(slots), [slots]);
   const answeredCount = allKeys.filter((key) => mine[key]).length;
+  // 受付中で締切の日まで (DB の RLS と同じ条件。§6.8.5)
+  const accepting = round.status === "open" && todayInTokyo() <= round.deadline;
+
+  /** まだ送っていない変更。押すたびに送ると連打で通信が重なるので、少し待ってまとめる */
+  const pending = useRef(new Map<AnswerKey, Answer | null>());
+  const timer = useRef(0);
+  const lastSaved = useRef(mine);
+  const latest = useRef(mine);
+  latest.current = mine;
+
+  function flush() {
+    const changes = [...pending.current.entries()];
+    pending.current.clear();
+    if (changes.length === 0) return;
+    const snapshot = lastSaved.current;
+    void fetch("/api/schedule/answers", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        roundId: round.id,
+        changes: changes.map(([key, answer]) => {
+          const [date, range] = key.split("|");
+          const [startTime, endTime] = range.split("-");
+          return { date, startTime, endTime, answer };
+        }),
+      }),
+    })
+      .then(async (res) => {
+        if (res.ok) {
+          setSaveError(null);
+          lastSaved.current = latest.current;
+          return;
+        }
+        const body = await res.json().catch(() => null);
+        throw new Error(body?.error ?? "保存できませんでした。");
+      })
+      .catch((cause: unknown) => {
+        // 保存できなかったら、最後に保存できた回答に戻す
+        setSaveError(cause instanceof Error ? cause.message : "保存できませんでした。");
+        setInput((prev) => ({ ...prev, answers: { ...prev.answers, [me]: snapshot } }));
+      });
+  }
 
   function setMany(keys: AnswerKey[], value: Answer | undefined) {
+    if (!accepting) return;
     const next = { ...mine };
     for (const key of keys) {
       if (value) next[key] = value;
       else delete next[key];
     }
     setInput((prev) => ({ ...prev, answers: { ...prev.answers, [me]: next } }));
+    if (persist) {
+      for (const key of keys) pending.current.set(key, value ?? null);
+      window.clearTimeout(timer.current);
+      timer.current = window.setTimeout(flush, 500);
+      return;
+    }
     if (storageKey) {
       try {
         localStorage.setItem(storageKey, JSON.stringify(next));
@@ -74,10 +125,35 @@ export function ScheduleAnswerClient({
     }
   }
 
+  // 画面を離れる前に残りを送る
+  useEffect(() => {
+    if (!persist) return;
+    const onHide = () => {
+      if (document.visibilityState === "hidden") {
+        window.clearTimeout(timer.current);
+        flush();
+      }
+    };
+    document.addEventListener("visibilitychange", onHide);
+    return () => {
+      document.removeEventListener("visibilitychange", onHide);
+      window.clearTimeout(timer.current);
+      flush();
+    };
+    // flush は ref だけを使う
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [persist]);
+
   return (
     <main className="mx-auto max-w-3xl space-y-4 px-4 py-3">
       <h1 className="text-[28px] font-bold leading-tight">{roundTitle(round)}</h1>
       <DeadlineCard round={round} answered={answeredCount} total={allKeys.length} />
+      <ErrorMessage>{saveError}</ErrorMessage>
+      {accepting ? null : (
+        <p className="rounded-2xl bg-[var(--cell)] px-4 py-3 text-center text-[15px] text-[var(--muted)]">
+          受付は終わりました
+        </p>
+      )}
 
       <BulkCard
         onApply={(weekdays, mark) =>
@@ -208,10 +284,11 @@ const NEXT_ANSWER: Record<Answer | "none", Answer | undefined> = {
   no: undefined,
 };
 /** 印の見た目 (まとめて付けるときの印の選択)。選んでいる印は印の色で塗る */
-const PEN_STYLE: Record<Answer, { label: string; on: string; mark: string }> = {
+const PEN_STYLE: Record<Answer | "none", { label: string; on: string; mark: string }> = {
   ok: { label: "出られる", on: "bg-[#34c759] text-white", mark: "text-[#34c759]" },
   maybe: { label: "できれば避けたい", on: "bg-[#ff9f0a] text-white", mark: "text-[#ff9f0a]" },
   no: { label: "出られない", on: "bg-[var(--muted)] text-white", mark: "text-[var(--muted)]" },
+  none: { label: "未回答", on: "bg-[var(--muted)] text-white", mark: "text-[var(--muted)]" },
 };
 /** 読み上げ用 */
 const ANSWER_WORD: Record<Answer | "none", string> = {
@@ -254,17 +331,31 @@ function keysOf(list: ReturnType<typeof answerSlots>): AnswerKey[] {
 }
 
 /**
- * まとめて付ける (§6.8.2 / v1.33.1 / v1.40)。曜日 (選ばなければ全部の日) と
- * 印を選んで一度に付ける。1つずつ押すのが基本なので、ボタンは控えめにする
+ * まとめて付ける (§6.8.2 / v1.33.1 / v1.40 / v1.43)。曜日 (選ばなければ全部の日) と
+ * 印を選んで一度に付ける (または − で未回答に戻す)。1つずつ押すのが基本なので、ボタンは控えめにする
  */
-function BulkCard({ onApply }: { onApply: (weekdays: number[], mark: Answer) => void }) {
+function BulkCard({ onApply }: { onApply: (weekdays: number[], mark: Answer | undefined) => void }) {
   const [weekdays, setWeekdays] = useState<number[]>([]);
-  const [mark, setMark] = useState<Answer>("ok");
+  const [mark, setMark] = useState<Answer | "none">("ok");
   const target = weekdays.length
     ? `${[1, 2, 3, 4, 5, 6, 0].filter((d) => weekdays.includes(d)).map((d) => WEEKDAY[d]).join("・")}曜日`
     : "全部の日";
 
-  function apply() {
+  async function apply() {
+    if (mark === "none") {
+      if (
+        !(await confirmAction({
+          message: `${target}の回答を消します。`,
+          confirmLabel: "未回答に戻す",
+          destructive: true,
+        }))
+      ) {
+        return;
+      }
+      onApply(weekdays, undefined);
+      showToast(`${target}を未回答に戻しました`);
+      return;
+    }
     onApply(weekdays, mark);
     showToast(`${target}を${ANSWER_STYLE[mark].label}にしました`);
   }
@@ -293,8 +384,8 @@ function BulkCard({ onApply }: { onApply: (weekdays: number[], mark: Answer) => 
         })}
       </div>
       {/* 付ける印。意味はここに書く (コマには印だけが出る) */}
-      <div role="radiogroup" aria-label="付ける印" className="grid grid-cols-3 gap-2">
-        {(["ok", "maybe", "no"] as Answer[]).map((value) => {
+      <div role="radiogroup" aria-label="付ける印" className="grid grid-cols-4 gap-2">
+        {(["ok", "maybe", "no", "none"] as const).map((value) => {
           const on = mark === value;
           return (
             <button
@@ -367,8 +458,8 @@ export function SchedulePlanClient({
 }
 
 /**
- * 下書きを作ったあとに呼ぶ (折衝ワークフローの中で使うとき。v1.42)。
- * 無ければ折衝ワークフローの③へ移る
+ * 下書きを作ったあとに呼ぶ (折衝ワークフローの中で使うとき。v1.43)。
+ * 無ければ折衝ワークフローの②コマ割りへ移る
  */
 export const DraftDoneContext = createContext<((month: string) => void) | null>(null);
 
@@ -399,7 +490,8 @@ export function PlanPanel({ input, round }: { input: PlanInput; round: ScheduleR
       const res = await fetch("/api/schedule/plan", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ input, settings }),
+        // DB のある環境では、サーバーが月から回答を読み直す (v1.44)
+        body: JSON.stringify({ input, settings, month: round.month }),
       });
       const body = await res.json().catch(() => null);
       if (!res.ok) {

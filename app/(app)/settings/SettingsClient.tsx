@@ -226,7 +226,9 @@ export function SettingsClient({
       ) : null}
 
       {/* OB はホームの欄がカレンダーだけなので出さない (§6.7.13 / v1.31.6) */}
-      {profile.role !== "ob" ? <HomeLayoutSection /> : null}
+      {profile.role !== "ob" ? (
+        <HomeLayoutSection showStaff={isCoordinatorOrAbove(profile.role)} />
+      ) : null}
 
       <ThemeSection />
 

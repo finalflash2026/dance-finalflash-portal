@@ -12,11 +12,12 @@ import type { Role } from "@/lib/types";
 /**
  * 下部タブバー (SPEC.md §6.0 / §7 / §12)
  *
- * **カレンダー / ナンバー の2タブ** (v1.30 §6.7.7)。マイカレンダーと全体
- * カレンダーを1つにまとめたので、OB も現役も同じ2タブになった。
- * OB に見せないもの (鍵のボード・他ジャンル・空き) は画面の中で出し分ける。
+ * **ホーム / ナンバー の2タブ** (v1.30 §6.7.7・v1.43 で「カレンダー」から
+ * 「ホーム」に)。マイカレンダーと全体カレンダーを1つにまとめたので、
+ * OB も現役も同じ2タブになった。OB に見せないもの (鍵のボード・他ジャンル・空き)
+ * は画面の中で出し分ける。
  *
- * **左端がカレンダーで、URL も `/`**(v1.14)。毎日開くのがここなので、
+ * **左端がホームで、URL も `/`**(v1.14)。毎日開くのがここなので、
  * 起動して最初に出る画面にしてある。
  *
  * 見た目は**画面から浮いた島型**(v1.14)。下の内容が透けて動くことで、
@@ -26,7 +27,7 @@ import type { Role } from "@/lib/types";
  */
 
 export const TABS = [
-  { href: "/", label: "カレンダー", icon: "calendar", symbol: "calendar" },
+  { href: "/", label: "ホーム", icon: "home", symbol: "house.fill" },
   { href: "/number-cal", label: "ナンバー", icon: "people", symbol: "person.2.fill" },
 ] as const;
 
@@ -217,7 +218,7 @@ function useNativeTabBar(tabs: ReturnType<typeof visibleTabs>, currentIndex: num
   }, [tabs, router]);
 }
 
-/** タブのアイコン (SF Symbols の calendar / person.2 に近い形を線で描く) */
+/** タブのアイコン (SF Symbols の house / person.2 に近い形を線で描く) */
 function TabIcon({ name }: { name: (typeof TABS)[number]["icon"] }) {
   const common = {
     width: 18,
@@ -230,11 +231,12 @@ function TabIcon({ name }: { name: (typeof TABS)[number]["icon"] }) {
     strokeLinejoin: "round" as const,
     "aria-hidden": true,
   };
-  if (name === "calendar") {
+  if (name === "home") {
     return (
       <svg {...common}>
-        <rect x="3" y="4.5" width="18" height="16.5" rx="3" />
-        <path d="M3 9.5h18M8 2.5v4M16 2.5v4" />
+        <path d="M3 10.5L12 3l9 7.5" />
+        <path d="M5.5 9v10a1.5 1.5 0 0 0 1.5 1.5h10a1.5 1.5 0 0 0 1.5-1.5V9" />
+        <path d="M10 20.5v-6h4v6" />
       </svg>
     );
   }

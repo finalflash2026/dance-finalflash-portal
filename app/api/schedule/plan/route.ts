@@ -5,7 +5,9 @@ import { z } from "zod";
 import { requireRole } from "@/lib/auth/guard";
 import { hasSupabaseEnv } from "@/lib/env";
 import { plan } from "@/lib/scheduling/plan";
+import { getRoundForMonth, loadMonthInput } from "@/lib/scheduling/live";
 import type { PlanInput } from "@/lib/scheduling/types";
+import type { DateString } from "@/lib/types";
 
 /**
  * POST /api/schedule/plan  (SPEC.md §6.8.3 / v1.32 デモ)
@@ -29,6 +31,8 @@ const time = z.string().regex(/^\d{2}:\d{2}$/);
 const answer = z.enum(["ok", "maybe", "no"]);
 
 const schema = z.object({
+  /** Supabase のある環境では、この月の回答を DB から読む (v1.44) */
+  month: z.string().regex(/^\d{4}-\d{2}-01$/).optional(),
   input: z.object({
     genres: z.array(z.object({ id: z.number().int(), code: z.string().max(20) })).max(20),
     candidates: z
@@ -82,8 +86,19 @@ export async function POST(request: Request) {
     );
   }
 
+  // **画面から回答を受け取らない** (v1.44)。DB から読んで計算する (改ざんさせない)
+  let input = parsed.data.input as PlanInput;
+  if (hasSupabaseEnv()) {
+    const month = parsed.data.month as DateString | undefined;
+    if (!month) {
+      return NextResponse.json({ error: "月がありません。" }, { status: 400 });
+    }
+    const round = await getRoundForMonth(month, null);
+    input = await loadMonthInput(month, round?.id ?? null);
+  }
+
   solverPromise ??= highsLoader();
   const solver = await solverPromise;
-  const result = plan(parsed.data.input as PlanInput, parsed.data.settings, solver);
+  const result = plan(input, parsed.data.settings, solver);
   return NextResponse.json(result);
 }

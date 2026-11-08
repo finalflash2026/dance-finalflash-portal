@@ -120,6 +120,7 @@ export function CalendarHome({
   upcomingDeadlines,
   keysSummary,
   keysHref = "/keys",
+  staffHref = null,
   scheduleRound = null,
   stale = false,
 }: {
@@ -142,6 +143,8 @@ export function CalendarHome({
   keysSummary: KeysSummary | null;
   /** 鍵の入口の行き先。デモ画面 (/demo) だけ差し替える */
   keysHref?: string;
+  /** 運営の画面への入口 (折衝・3役だけ。v1.43) */
+  staffHref?: string | null;
   /** 受付中の日程調整 (§6.8 / v1.32.2)。あればホームの一番上にカードを出す */
   scheduleRound?: ScheduleRound | null;
   /** 端末に残した前回の内容を出している (読み込み中。v1.42)。残し直さない */
@@ -153,11 +156,11 @@ export function CalendarHome({
     if (stale || keysHref !== "/keys") return; // デモの見本 (/demo) は残さない
     saveHomeSnapshot({
       rangeStart, rangeEnd, initialDate, today, events, blocksByDate, genreCodes,
-      isOb, currentUserId, upcomingDeadlines, keysSummary, scheduleRound,
+      isOb, currentUserId, upcomingDeadlines, keysSummary, staffHref, scheduleRound,
     });
     // 同じ描画の内容なので、どれかが変わったときだけ残し直せばよい
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [stale, events, blocksByDate, upcomingDeadlines, keysSummary]);
+  }, [stale, events, blocksByDate, upcomingDeadlines, keysSummary, staffHref]);
   const [selectedDate, setSelectedDate] = useState(initialDate);
   /** 日を変えた向き。中身を滑らせて入れ替えるのに使う */
   const [direction, setDirection] = useState<"left" | "right" | null>(null);
@@ -300,6 +303,7 @@ export function CalendarHome({
       />
     ),
     keys: keysSummary ? <KeysEntry summary={keysSummary} href={keysHref} /> : null,
+    staff: staffHref ? <StaffEntry href={staffHref} /> : null,
     calendar: (
       <>
         <section className="space-y-3" data-tour="calendar">
@@ -767,6 +771,37 @@ function KeysEntry({ summary, href }: { summary: KeysSummary; href: string }) {
         </span>
       </Link>
     </div>
+  );
+}
+
+/** 運営の画面への入口 (折衝・3役だけ。SPEC §6.7.13 / v1.43) */
+function StaffEntry({ href }: { href: string }) {
+  return (
+    <Link
+      href={href}
+      prefetch
+      className="flex items-center justify-between gap-3 rounded-2xl bg-[var(--cell)] px-4 py-3.5 active:opacity-70"
+    >
+      <span className="flex items-center gap-2 text-[16px] font-semibold">
+        <svg
+          viewBox="0 0 24 24"
+          width="18"
+          height="18"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          className="text-[var(--muted)]"
+          aria-hidden
+        >
+          <path d="M4 6h16M4 12h16M4 18h10" />
+          <circle cx="18" cy="18" r="2.5" />
+        </svg>
+        運営
+      </span>
+      <span aria-hidden className="text-[18px] text-[var(--muted)]">›</span>
+    </Link>
   );
 }
 

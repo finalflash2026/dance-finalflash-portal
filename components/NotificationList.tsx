@@ -35,12 +35,15 @@ const TYPE_LABELS: Record<NotificationType, string> = {
   schedule_updated: "練習日程",
   attendance_updated: "出欠",
   announcement: "3役からの告知",
+  schedule_round: "日程調整",
 };
 
 /** 押したときに移る先。無いものはその場で本文を開く */
 const DESTINATION: Partial<Record<NotificationType, string>> = {
   number_added: "/number-cal",
   schedule_updated: "/",
+  // 日程調整が始まった → 回答の画面 (v1.44)
+  schedule_round: "/schedule",
 };
 
 export function NotificationList({

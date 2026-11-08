@@ -54,22 +54,33 @@ final class NativeHeader {
         return config
     }
 
+    private static func backConfiguration(title: String) -> UIButton.Configuration {
+        var config = Self.glassConfiguration()
+        config.image = UIImage(systemName: "chevron.left",
+                               withConfiguration: UIImage.SymbolConfiguration(pointSize: 15, weight: .semibold))
+        config.imagePadding = 4
+        var attributed = AttributedString(title)
+        attributed.font = .systemFont(ofSize: 16, weight: .semibold)
+        config.attributedTitle = attributed
+        config.titleLineBreakMode = .byClipping
+        config.contentInsets = NSDirectionalEdgeInsets(top: 0, leading: 12, bottom: 0, trailing: 14)
+        return config
+    }
+
     func update(back: String?, right: [Item], tint: UIColor?, dark: Bool) {
         let style: UIUserInterfaceStyle = dark ? .dark : .light
         backButton.overrideUserInterfaceStyle = style
         rightStack.overrideUserInterfaceStyle = style
 
-        if back != backLabel {
+        // 隠すときは文字を残す。"" にすると矢印だけの丸になり、次に出したとき
+        // glass の入れ替えの動きで、その小さい大きさが残ることがあった (v1.43)
+        if let back, back != backLabel {
             backLabel = back
-            var config = Self.glassConfiguration()
-            config.image = UIImage(systemName: "chevron.left",
-                                   withConfiguration: UIImage.SymbolConfiguration(pointSize: 15, weight: .semibold))
-            config.imagePadding = 4
-            var title = AttributedString(back ?? "")
-            title.font = .systemFont(ofSize: 16, weight: .semibold)
-            config.attributedTitle = title
-            config.contentInsets = NSDirectionalEdgeInsets(top: 0, leading: 12, bottom: 0, trailing: 14)
-            backButton.configuration = config
+            UIView.performWithoutAnimation {
+                backButton.configuration = Self.backConfiguration(title: back)
+                backButton.invalidateIntrinsicContentSize()
+                backButton.layoutIfNeeded()
+            }
             backButton.accessibilityLabel = back
         }
         if let tint { backButton.tintColor = tint }

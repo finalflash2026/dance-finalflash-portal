@@ -16,6 +16,11 @@ import { closeSettings } from "@/components/SettingsButton";
  *
  * どこへ戻るかは画面で決まる。タブの画面 (ホーム・ナンバー) では出さない。
  */
+function isStaffPath(pathname: string): boolean {
+  const path = pathname.replace(/^\/demo(?=\/)/, "");
+  return path === "/manage" || path.startsWith("/admin") || path.startsWith("/coordinator");
+}
+
 export function backTarget(pathname: string): { href: string; label: string } | null {
   const path = pathname.replace(/^\/demo(?=\/)/, "");
   if (path === "/settings") return { href: "/", label: "戻る" };
@@ -25,15 +30,21 @@ export function backTarget(pathname: string): { href: string; label: string } | 
   }
   // 日程調整はホーム (メンバー) からも設定 (折衝・3役) からも来るので、来た画面へ戻る
   if (path === "/schedule" || path === "/schedule/plan") return { href: "/", label: "戻る" };
-  if (
-    path === "/manage" ||
-    path.startsWith("/admin") ||
-    path.startsWith("/coordinator")
-  ) {
+  if (isStaffPath(pathname)) {
     return { href: "/settings", label: "設定" };
   }
   return null;
 }
+
+/**
+ * 運営の画面に入る前にいた画面 (v1.43)。ホームからも設定からも入るので、
+ * 入る前の画面を覚えておく (運営の中の 折衝 ↔ イベント ↔ 管理者 の行き来で
+ * 履歴が伸びるため、`router.back()` では運営の別の画面に戻ってしまう)
+ */
+const staffReturn: { href: string; label: string } = {
+  href: "/settings",
+  label: "設定",
+};
 
 /**
  * 来た画面へ戻す画面 (v1.32.7)。お知らせ・鍵と連絡はホームのベルや欄からだけでなく、
@@ -57,9 +68,15 @@ export function BackButton() {
   const router = useRouter();
   useEffect(() => {
     inAppNavigations += 1;
+    if (!isStaffPath(pathname)) {
+      const clean = pathname.replace(/^\/demo(?=\/)/, "");
+      staffReturn.href = `${pathname}${window.location.search}`;
+      staffReturn.label = clean === "/settings" ? "設定" : "戻る";
+    }
   }, [pathname]);
-  const target = backTarget(pathname);
-  if (!target) return null;
+  const baseTarget = backTarget(pathname);
+  if (!baseTarget) return null;
+  const target = isStaffPath(pathname) ? staffReturn : baseTarget;
 
   const content = (
     <>

@@ -5,7 +5,7 @@
  * 設定画面で変えたら、同じタブのホームにも `HOME_LAYOUT_EVENT` で知らせる。
  */
 
-export type HomeSection = "deadlines" | "freeRooms" | "keys" | "calendar";
+export type HomeSection = "deadlines" | "freeRooms" | "keys" | "calendar" | "staff";
 
 export interface HomeLayout {
   order: HomeSection[];
@@ -17,11 +17,12 @@ export const HOME_SECTION_LABELS: Record<HomeSection, string> = {
   freeRooms: "今日自主練できる部屋",
   keys: "練習場所の鍵・部室の鍵・連絡",
   calendar: "カレンダー・選んだ日の予定",
+  staff: "運営の画面",
 };
 
-/** 既定はカレンダーが一番上 (v1.31.8)。開いてすぐ今日の予定が見える */
+/** 既定はカレンダーが一番上 (v1.31.8)、運営の画面が一番下 (v1.43) */
 export const DEFAULT_HOME_LAYOUT: HomeLayout = {
-  order: ["calendar", "deadlines", "freeRooms", "keys"],
+  order: ["calendar", "deadlines", "freeRooms", "keys", "staff"],
   hidden: [],
 };
 
@@ -35,7 +36,7 @@ export const HOME_LAYOUT_EVENT = "home-layout-change";
  * 保存された値を整える。知らない欄は捨て、足りない欄は既定の位置に足す
  * (後から欄が増えても、古い保存のまま新しい欄が消えないように)
  */
-function normalize(raw: unknown): HomeLayout {
+export function normalizeHomeLayout(raw: unknown): HomeLayout {
   const known = new Set<string>(DEFAULT_HOME_LAYOUT.order);
   const value = (raw ?? {}) as { order?: unknown; hidden?: unknown };
   const order = (Array.isArray(value.order) ? value.order : []).filter(
@@ -54,7 +55,7 @@ function normalize(raw: unknown): HomeLayout {
 
 export function readHomeLayout(): HomeLayout {
   try {
-    return normalize(JSON.parse(localStorage.getItem(STORAGE_KEY) ?? "null"));
+    return normalizeHomeLayout(JSON.parse(localStorage.getItem(STORAGE_KEY) ?? "null"));
   } catch {
     return DEFAULT_HOME_LAYOUT;
   }
@@ -62,7 +63,7 @@ export function readHomeLayout(): HomeLayout {
 
 export function storeHomeLayout(layout: HomeLayout): void {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(normalize(layout)));
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(normalizeHomeLayout(layout)));
   } catch {}
   window.dispatchEvent(new Event(HOME_LAYOUT_EVENT));
 }

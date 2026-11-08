@@ -3,34 +3,102 @@ import "server-only";
 import { GENRES } from "@/lib/constants";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { addMonths } from "@/lib/time";
+import type { DateString } from "@/lib/types";
 
 import { candidatesFromReservations } from "./candidates";
+import { answerKey } from "./plan";
 import type { ScheduleRound } from "./round";
-import { scenarioAnswers } from "./scenarios";
-import type { Member, PlanInput } from "./types";
+import type { Answer, AnswerKey, Member, PlanInput } from "./types";
 
 /**
- * デモ環境の日程調整 (SPEC.md §6.8.4 / v1.35) の入力を DB から作る。
+ * 日程調整を DB から読む (SPEC.md §6.8.5 / v1.44)。
  *
- * - 候補: その月の予約枠 (reservations) をコマの時間に割ったもの
- * - 部員: 現役 (OB を除く) と 1〜3ジャン
- * - 回答: **まだ DB に保存しない**ので、見本で埋める。見ている人の回答は画面側で
- *   端末に保存したものに差し替える
- *
- * 予約枠は折衝以上しか読めない (RLS) が、メンバーも回答のために日時と部屋を
- * 知る必要があるので、サーバーで service role を使って読む。返すのは日時・部屋だけ。
+ * 予約枠・名簿・全員の回答は折衝以上しか読めない (RLS) が、メンバーも回答のために
+ * 候補の日時を知る必要があり、ホームには回答した人数を出すので、**サーバーで
+ * service role を使って読む**。呼ぶ側で権限を確かめ、メンバーには自分の回答と
+ * 人数しか渡さないこと。
  */
-export async function loadLiveRoundInput(round: ScheduleRound): Promise<PlanInput> {
+
+interface RoundRow {
+  id: string;
+  month: DateString;
+  deadline: DateString;
+  status: "open" | "closed";
+}
+
+/** 回の行に、回答した人数・現役の人数・見ている人が答えたかを付ける */
+async function withCounts(row: RoundRow, viewerId: string | null): Promise<ScheduleRound> {
   const admin = createAdminClient();
-  const [reservations, profiles, subgenres] = await Promise.all([
+  const [answers, members] = await Promise.all([
+    admin.from("schedule_answers").select("user_id").eq("round_id", row.id),
+    admin.from("profiles").select("user_id", { count: "exact", head: true }).neq("role", "ob"),
+  ]);
+  const answered = new Set(((answers.data ?? []) as { user_id: string }[]).map((r) => r.user_id));
+  return {
+    id: row.id,
+    month: row.month,
+    deadline: row.deadline,
+    status: row.status,
+    answeredCount: answered.size,
+    memberCount: members.count ?? 0,
+    answeredByMe: viewerId ? answered.has(viewerId) : false,
+  };
+}
+
+/**
+ * 受付中の回 (ホームのカード・回答の画面・アプリの要約)。締切の日を過ぎたもの・
+ * 締め切ったものは出さない。複数あれば月の早いもの
+ */
+export async function getOpenRound(today: DateString, viewerId: string | null): Promise<ScheduleRound | null> {
+  const { data } = await createAdminClient()
+    .from("schedule_rounds")
+    .select("id, month, deadline, status")
+    .eq("status", "open")
+    .gte("deadline", today)
+    .order("month", { ascending: true })
+    .limit(1);
+  const row = (data ?? [])[0] as RoundRow | undefined;
+  return row ? withCounts(row, viewerId) : null;
+}
+
+/** その月の回 (無ければ null)。折衝の画面の「日程調整」の欄 */
+export async function getRoundForMonth(month: DateString, viewerId: string | null): Promise<ScheduleRound | null> {
+  const { data } = await createAdminClient()
+    .from("schedule_rounds")
+    .select("id, month, deadline, status")
+    .eq("month", month)
+    .maybeSingle();
+  return data ? withCounts(data as RoundRow, viewerId) : null;
+}
+
+/**
+ * その月の割り振りの入力。候補はその月の予約枠から作り、回答は DB から読む。
+ * `onlyUser` を渡すとその人の回答だけ (回答の画面)、名簿も入れない
+ */
+export async function loadMonthInput(
+  month: DateString,
+  roundId: string | null,
+  options: { onlyUser?: string } = {},
+): Promise<PlanInput> {
+  const admin = createAdminClient();
+  let answersQuery = admin
+    .from("schedule_answers")
+    .select("user_id, date, start_time, end_time, answer")
+    .eq("round_id", roundId ?? "00000000-0000-0000-0000-000000000000");
+  if (options.onlyUser) answersQuery = answersQuery.eq("user_id", options.onlyUser);
+
+  const [reservations, profiles, subgenres, answerRows] = await Promise.all([
     admin
       .from("reservations")
       .select("date, start_time, end_time, room_id, rooms(section)")
       .eq("status", "active")
-      .gte("date", round.month)
-      .lt("date", addMonths(round.month, 1)),
-    admin.from("profiles").select("user_id, username, main_genre_id").neq("role", "ob"),
-    admin.from("user_subgenres").select("user_id, slot, genre_id"),
+      .gte("date", month)
+      .lt("date", addMonths(month, 1)),
+    options.onlyUser
+      ? Promise.resolve({ data: [] })
+      : admin.from("profiles").select("user_id, username, main_genre_id").neq("role", "ob"),
+    options.onlyUser ? Promise.resolve({ data: [] }) : admin.from("user_subgenres").select("user_id, slot, genre_id"),
+    roundId ? answersQuery : Promise.resolve({ data: [] }),
   ]);
 
   const candidates = candidatesFromReservations(
@@ -63,11 +131,22 @@ export async function loadLiveRoundInput(round: ScheduleRound): Promise<PlanInpu
     }),
   );
 
+  const answers: Record<string, Partial<Record<AnswerKey, Answer>>> = {};
+  for (const row of (answerRows.data ?? []) as {
+    user_id: string;
+    date: string;
+    start_time: string;
+    end_time: string;
+    answer: Answer;
+  }[]) {
+    (answers[row.user_id] ??= {})[answerKey(row.date, row.start_time.slice(0, 5), row.end_time.slice(0, 5))] =
+      row.answer;
+  }
+
   return {
     genres: GENRES.map((g) => ({ id: g.id, code: g.code })),
     candidates,
     members,
-    // 種は月から決める (開くたびに同じ見本になる)
-    answers: scenarioAnswers(members, candidates, Number(round.month.replace(/-/g, "").slice(0, 6))),
+    answers,
   };
 }

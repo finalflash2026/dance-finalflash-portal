@@ -21,7 +21,7 @@ import {
  *
  * 端末に保存する。初期値はマウント後に読む (サーバーは localStorage を見られない)。
  */
-export function HomeLayoutSection() {
+export function HomeLayoutSection({ showStaff = false }: { showStaff?: boolean }) {
   const [layout, setLayout] = useState<HomeLayout | null>(null);
 
   useEffect(() => {
@@ -30,15 +30,22 @@ export function HomeLayoutSection() {
 
   if (!layout) return null;
 
+  const visibleOrder = layout.order.filter((key) => key !== "staff" || showStaff);
+
   function save(next: HomeLayout) {
     setLayout(next);
     storeHomeLayout(next);
   }
 
-  function move(index: number, delta: -1 | 1) {
+  function move(visibleIndex: number, delta: -1 | 1) {
+    const a = visibleOrder[visibleIndex];
+    const b = visibleOrder[visibleIndex + delta];
+    if (!a || !b) return;
     const order = [...layout!.order];
-    const [item] = order.splice(index, 1);
-    order.splice(index + delta, 0, item);
+    const ia = order.indexOf(a);
+    const ib = order.indexOf(b);
+    order[ia] = b;
+    order[ib] = a;
     save({ ...layout!, order });
   }
 
@@ -46,11 +53,11 @@ export function HomeLayoutSection() {
     <SettingsGroup
       title="ホームの並び"
       icon="layout"
-      summary={`${HOME_SECTION_LABELS[layout.order[0]].split("・")[0]}が一番上`}
+      summary={`${HOME_SECTION_LABELS[visibleOrder[0]].split("・")[0]}が一番上`}
       hint="よく見る欄を上に置けます。使わない欄はオフにすると隠れます。この端末だけの設定です。"
     >
       <ol className="divide-y divide-[var(--separator)] rounded-xl bg-[var(--cell)]">
-        {layout.order.map((key, index) => {
+        {visibleOrder.map((key, index) => {
           const required = REQUIRED_SECTIONS.includes(key);
           const shown = !layout.hidden.includes(key);
           return (
@@ -65,7 +72,7 @@ export function HomeLayoutSection() {
                 />
                 <ArrowButton
                   label={`${HOME_SECTION_LABELS[key]}を下へ`}
-                  disabled={index === layout.order.length - 1}
+                  disabled={index === visibleOrder.length - 1}
                   onClick={() => move(index, 1)}
                 />
               </div>
