@@ -59,8 +59,6 @@ export function ScheduleAnswerClient({
   const slots = useMemo(() => answerSlots(input.candidates), [input.candidates]);
   const allKeys = useMemo(() => keysOf(slots), [slots]);
   const answeredCount = allKeys.filter((key) => mine[key]).length;
-  /** 今選んでいるペン (v1.33.1)。コマを押すとこの印が付く */
-  const [pen, setPen] = useState<Answer>("ok");
 
   function setMany(keys: AnswerKey[], value: Answer | undefined) {
     const next = { ...mine };
@@ -81,41 +79,11 @@ export function ScheduleAnswerClient({
       <h1 className="text-[28px] font-bold leading-tight">{roundTitle(round)}</h1>
       <DeadlineCard round={round} answered={answeredCount} total={allKeys.length} />
 
-      {/*
-        ペン (v1.33.1)。選んでからコマを押す。印の意味はペンの文字が示すので、
-        説明文や凡例は置かない。スクロールしても手元に残るよう上に貼り付ける
-      */}
-      <div className="sticky top-0 z-20 -mx-4 bg-[var(--background)] px-4 pb-2 pt-1">
-        <div role="radiogroup" aria-label="付ける印" className="grid grid-cols-3 gap-2">
-          {(["ok", "maybe", "no"] as Answer[]).map((value) => {
-            const on = pen === value;
-            return (
-              <button
-                key={value}
-                type="button"
-                role="radio"
-                aria-checked={on}
-                onClick={() => setPen(value)}
-                className={`flex h-14 flex-col items-center justify-center rounded-2xl leading-tight transition-colors active:scale-[0.97] ${
-                  on ? PEN_STYLE[value].on : "bg-[var(--cell)]"
-                }`}
-              >
-                <span className={`text-[20px] font-bold ${on ? "" : PEN_STYLE[value].mark}`}>
-                  {ANSWER_STYLE[value].label}
-                </span>
-                <span className="text-[12px]">{PEN_STYLE[value].label}</span>
-              </button>
-            );
-          })}
-        </div>
-      </div>
-
       <BulkCard
-        pen={pen}
-        onApply={(weekdays) =>
+        onApply={(weekdays, mark) =>
           setMany(
             keysOf(weekdays.length ? slots.filter((s) => weekdays.includes(getWeekday(s.date))) : slots),
-            pen,
+            mark,
           )
         }
       />
@@ -141,8 +109,8 @@ export function ScheduleAnswerClient({
                     <button
                       key={key}
                       type="button"
-                      // 今のペンを付ける。同じ印が付いていたら未回答に戻す
-                      onClick={() => setMany([key], value === pen ? undefined : pen)}
+                      // 押すたびに ○ → △ → × → 未回答 (v1.40)
+                      onClick={() => setMany([key], NEXT_ANSWER[value])}
                       aria-label={`${formatDateLabel(date)} ${start}〜${end} ${ANSWER_WORD[value]}`}
                       className="flex h-12 items-center justify-between gap-2 rounded-xl bg-[var(--fill)] pl-3 pr-1.5 transition-transform active:scale-[0.97]"
                     >
@@ -150,7 +118,11 @@ export function ScheduleAnswerClient({
                         {start}〜{end}
                       </span>
                       <span
-                        className={`grid h-9 w-9 shrink-0 place-items-center rounded-full text-[18px] font-bold transition-colors ${style.className}`}
+                        // 印が変わるたびに作り直して、ふくらませる
+                        key={value}
+                        className={`grid h-9 w-9 shrink-0 place-items-center rounded-full text-[18px] font-bold ${
+                          value === "none" ? "" : "select-pop"
+                        } ${style.className}`}
                       >
                         {style.label}
                       </span>
@@ -228,7 +200,14 @@ const ANSWER_STYLE: Record<Answer | "none", { label: string; className: string }
   no: { label: "×", className: "bg-[var(--muted)] text-white opacity-70" },
   none: { label: "−", className: "bg-[var(--fill)] text-[var(--muted)]" },
 };
-/** ペンの見た目。選んでいるペンは印の色で塗る */
+/** コマを押したときの次の印 (v1.40) */
+const NEXT_ANSWER: Record<Answer | "none", Answer | undefined> = {
+  none: "ok",
+  ok: "maybe",
+  maybe: "no",
+  no: undefined,
+};
+/** 印の見た目 (まとめて付けるときの印の選択)。選んでいる印は印の色で塗る */
 const PEN_STYLE: Record<Answer, { label: string; on: string; mark: string }> = {
   ok: { label: "出られる", on: "bg-[#34c759] text-white", mark: "text-[#34c759]" },
   maybe: { label: "できれば避けたい", on: "bg-[#ff9f0a] text-white", mark: "text-[#ff9f0a]" },
@@ -275,23 +254,24 @@ function keysOf(list: ReturnType<typeof answerSlots>): AnswerKey[] {
 }
 
 /**
- * まとめて付ける (§6.8.2 / v1.33.1)。曜日を選び (選ばなければ全部の日)、
- * 今のペンで塗る
+ * まとめて付ける (§6.8.2 / v1.33.1 / v1.40)。曜日 (選ばなければ全部の日) と
+ * 印を選んで一度に付ける。1つずつ押すのが基本なので、ボタンは控えめにする
  */
-function BulkCard({ pen, onApply }: { pen: Answer; onApply: (weekdays: number[]) => void }) {
+function BulkCard({ onApply }: { onApply: (weekdays: number[], mark: Answer) => void }) {
   const [weekdays, setWeekdays] = useState<number[]>([]);
+  const [mark, setMark] = useState<Answer>("ok");
   const target = weekdays.length
     ? `${[1, 2, 3, 4, 5, 6, 0].filter((d) => weekdays.includes(d)).map((d) => WEEKDAY[d]).join("・")}曜日`
     : "全部の日";
 
   function apply() {
-    onApply(weekdays);
-    showToast(`${target}を${ANSWER_STYLE[pen].label}にしました`);
+    onApply(weekdays, mark);
+    showToast(`${target}を${ANSWER_STYLE[mark].label}にしました`);
   }
 
   return (
     <section className="space-y-3 rounded-2xl bg-[var(--cell)] p-4">
-      <h2 className="text-[17px] font-bold">まとめて付ける</h2>
+      <h2 className="text-[17px] font-semibold">まとめて付ける</h2>
       <div className="flex justify-between gap-1" role="group" aria-label="曜日">
         {[1, 2, 3, 4, 5, 6, 0].map((d) => {
           const on = weekdays.includes(d);
@@ -301,7 +281,7 @@ function BulkCard({ pen, onApply }: { pen: Answer; onApply: (weekdays: number[])
               type="button"
               aria-pressed={on}
               onClick={() => setWeekdays((prev) => (on ? prev.filter((x) => x !== d) : [...prev, d]))}
-              className={`grid h-11 w-11 place-items-center rounded-full text-[15px] font-semibold transition-colors active:scale-95 ${
+              className={`grid h-10 w-10 place-items-center rounded-full text-[15px] font-semibold transition-colors active:scale-95 ${
                 on
                   ? "bg-[var(--tint)] text-white"
                   : `bg-[var(--fill)] ${d === 0 ? "text-[var(--accent)]" : d === 6 ? "text-[var(--info)]" : ""}`
@@ -312,13 +292,36 @@ function BulkCard({ pen, onApply }: { pen: Answer; onApply: (weekdays: number[])
           );
         })}
       </div>
-      {/* 押すと何が起きるかをボタンの文字で示す (説明文は置かない) */}
+      {/* 付ける印。意味はここに書く (コマには印だけが出る) */}
+      <div role="radiogroup" aria-label="付ける印" className="grid grid-cols-3 gap-2">
+        {(["ok", "maybe", "no"] as Answer[]).map((value) => {
+          const on = mark === value;
+          return (
+            <button
+              key={value}
+              type="button"
+              role="radio"
+              aria-checked={on}
+              onClick={() => setMark(value)}
+              className={`flex h-12 flex-col items-center justify-center rounded-xl leading-tight transition-colors active:scale-[0.97] ${
+                on ? PEN_STYLE[value].on : "bg-[var(--fill)]"
+              }`}
+            >
+              <span className={`text-[17px] font-bold ${on ? "" : PEN_STYLE[value].mark}`}>
+                {ANSWER_STYLE[value].label}
+              </span>
+              <span className="text-[11px]">{PEN_STYLE[value].label}</span>
+            </button>
+          );
+        })}
+      </div>
+      {/* 押すと何が起きるかをボタンの文字で示す。主ボタンほど目立たせない (v1.40) */}
       <button
         type="button"
         onClick={apply}
-        className={`flex h-12 w-full items-center justify-center gap-2 rounded-xl text-[16px] font-bold active:opacity-80 ${PEN_STYLE[pen].on}`}
+        className="flex h-11 w-full items-center justify-center gap-1 rounded-xl bg-[var(--fill)] text-[15px] font-semibold text-[var(--tint)] active:opacity-70"
       >
-        {target}を<span className="text-[20px]">{ANSWER_STYLE[pen].label}</span>にする
+        {target}を<span className="text-[17px]">{ANSWER_STYLE[mark].label}</span>にする
       </button>
     </section>
   );

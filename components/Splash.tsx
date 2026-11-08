@@ -71,18 +71,97 @@ const COLORS = [
   "#72e58a", // 緑
 ] as string[];
 
-interface Ray {
-  angle: number;
-  width: number;
-  color: string;
-  speed: number;
-  delay: number;
-  alpha: number;
-}
+/**
+ * 光線が出きった瞬間の絵を1枚描く (v1.40)。原画のような太さの揃わない帯
+ * (細い線と、にじんだ太い帯) と、ざらっとした粒子感。描くのは起動時の1回だけ
+ */
+function paintBurst(canvas: HTMLCanvasElement) {
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return;
+  /*
+   * **画面より大きい正方形に描き、ふちを丸くぼかす。** 拡大していく途中で
+   * 絵の四角い端が見えないように (小さいうちは丸い光、最後は端が画面の外)
+   */
+  const width = window.innerWidth;
+  const height = window.innerHeight;
+  const size = Math.ceil(Math.hypot(width, height) * 1.15);
+  const dpr = Math.min(window.devicePixelRatio || 1, 1.5);
+  canvas.width = Math.round(size * dpr);
+  canvas.height = Math.round(size * dpr);
+  canvas.style.width = `${size}px`;
+  canvas.style.height = `${size}px`;
+  canvas.style.left = `${width / 2 - size / 2}px`;
+  canvas.style.top = `${height * 0.46 - size / 2}px`;
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
-const clamp = (v: number) => Math.max(0, Math.min(1, v));
-const seg = (t: number, a: number, b: number) => clamp((t - a) / (b - a));
-const easeOut = (x: number) => 1 - Math.pow(1 - x, 3);
+  const c = size / 2;
+  const reach = c * 0.98;
+  ctx.globalCompositeOperation = "lighter";
+  ctx.lineCap = "round";
+  for (let i = 0; i < 96; i++) {
+    const angle = Math.random() * Math.PI * 2;
+    const wide = Math.random() < 0.3;
+    const lineWidth = wide ? 8 + Math.random() * 14 : 1.5 + Math.random() * 5;
+    const color = COLORS[Math.floor(Math.random() * COLORS.length)];
+    const alpha = 0.35 + Math.random() * 0.6;
+    const r = reach * (0.75 + Math.random() * 0.25);
+    const x1 = c + Math.cos(angle) * r;
+    const y1 = c + Math.sin(angle) * r;
+    /*
+     * **光線はロゴの裏 (中心) から伸ばし、中心を空けない** (v1.31)。
+     * 根元 (ロゴの裏) は控えめに。全部の線が中心に集まるので、根元まで濃くすると白く飛ぶ
+     */
+    const gradient = ctx.createLinearGradient(c, c, x1, y1);
+    gradient.addColorStop(0, "rgba(0,0,0,0)");
+    gradient.addColorStop(0.12, color);
+    gradient.addColorStop(0.6, color);
+    gradient.addColorStop(1, "rgba(0,0,0,0)");
+    ctx.strokeStyle = gradient;
+    // 太い帯はにじませる (原画の光線は輪郭がぼけている)
+    ctx.shadowColor = color;
+    ctx.shadowBlur = wide ? 18 : 6;
+    // 重なりで白く飛ばないよう、原画のように光線の間の黒を残す濃さに
+    ctx.globalAlpha = alpha * (wide ? 0.26 : 0.6);
+    ctx.lineWidth = lineWidth;
+    ctx.beginPath();
+    ctx.moveTo(c, c);
+    ctx.lineTo(x1, y1);
+    ctx.stroke();
+  }
+  ctx.shadowBlur = 0;
+  ctx.globalAlpha = 1;
+
+  // 原画のざらっとした粒子感。光線の上にだけ乗るよう、光線のある所だけに重ねる
+  const tile = document.createElement("canvas");
+  tile.width = tile.height = 128;
+  const tctx = tile.getContext("2d");
+  if (tctx) {
+    const image = tctx.createImageData(128, 128);
+    for (let i = 0; i < image.data.length; i += 4) {
+      const v = Math.random() * 255;
+      image.data[i] = image.data[i + 1] = image.data[i + 2] = v;
+      image.data[i + 3] = 255;
+    }
+    tctx.putImageData(image, 0, 0);
+    const pattern = ctx.createPattern(tile, "repeat");
+    if (pattern) {
+      ctx.globalCompositeOperation = "source-atop";
+      ctx.globalAlpha = 0.18;
+      ctx.fillStyle = pattern;
+      ctx.fillRect(0, 0, size, size);
+    }
+  }
+
+  // ふちを丸くぼかす (中心から外へ透明に)
+  ctx.globalAlpha = 1;
+  ctx.globalCompositeOperation = "destination-in";
+  const mask = ctx.createRadialGradient(c, c, c * 0.55, c, c, c);
+  mask.addColorStop(0, "rgba(0,0,0,1)");
+  mask.addColorStop(1, "rgba(0,0,0,0)");
+  ctx.fillStyle = mask;
+  ctx.fillRect(0, 0, size, size);
+  ctx.globalCompositeOperation = "source-over";
+}
 
 export function Splash() {
   /**
@@ -109,131 +188,90 @@ export function Splash() {
     } catch {}
 
     const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    const ctx = canvas.getContext("2d");
-    const dpr = Math.min(window.devicePixelRatio || 1, 2);
-    const width = window.innerWidth;
-    const height = window.innerHeight;
-    canvas.width = width * dpr;
-    canvas.height = height * dpr;
-    ctx?.setTransform(dpr, 0, 0, dpr, 0, 0);
+    const logo = logoRef.current!;
+    const flash = flashRef.current!;
+    const sparks = sparkRefs.current;
 
-    // 原画のような太さの揃わない帯。細い線と、にじんだ太い帯が混ざる
-    const rays: Ray[] = Array.from({ length: 96 }, () => ({
-      angle: Math.random() * Math.PI * 2,
-      width: Math.random() < 0.3 ? 8 + Math.random() * 14 : 1.5 + Math.random() * 5,
-      color: COLORS[Math.floor(Math.random() * COLORS.length)],
-      speed: 0.7 + Math.random() * 0.8,
-      delay: Math.random() * 0.22,
-      alpha: 0.35 + Math.random() * 0.6,
-    }));
+    /*
+     * **光線は最初に1枚の絵として描き、あとは絵ごと拡大して噴き出させる** (v1.40)。
+     * 以前は毎フレーム96本をぼかし (shadowBlur) 付きで描き直していて、
+     * 端末によってはカクついた。動かすのは transform と opacity だけにし、
+     * Web Animations API に任せる (読み込み中で JS が忙しくても止まらない)
+     */
+    if (!reduce) paintBurst(canvas);
 
-    let raf = 0;
     let finished = false;
+    const animations: Animation[] = [];
     const finish = () => {
       if (finished) return;
       finished = true;
-      cancelAnimationFrame(raf);
+      animations.forEach((animation) => animation.cancel());
       setGone(true);
       document.documentElement.dataset.splash = "done";
       window.dispatchEvent(new Event(SPLASH_DONE_EVENT));
     };
     root.addEventListener("pointerdown", finish);
 
-    function drawRays(p: number) {
-      if (!ctx) return;
-      ctx.clearRect(0, 0, width, height);
-      const cx = width / 2;
-      const cy = height * 0.46;
-      const reach = Math.hypot(width, height) * 0.7;
-      ctx.globalCompositeOperation = "lighter";
-      /*
-       * **光線はロゴの裏 (中心) から伸ばし、中心を空けない** (v1.31)。
-       * 以前は中心の周りを空けていたので、ロゴの裏が真っ暗で、原画のように
-       * 文字のすき間から色の線が見えなかった。ロゴはこの上に乗るので、
-       * 中心から出る根元はロゴに隠れ、「裏から光が噴き出す」見え方になる
-       */
-      for (const ray of rays) {
-        const k = clamp((p - ray.delay) * ray.speed * 2.0);
-        if (k <= 0) continue;
-        const e = easeOut(k);
-        const r1 = reach * e;
-        const x1 = cx + Math.cos(ray.angle) * r1;
-        const y1 = cy + Math.sin(ray.angle) * r1;
-        // 根元 (ロゴの裏) は控えめに。全部の線が中心に集まるので、
-        // 根元まで濃くすると中心が白く飛ぶ
-        const gradient = ctx.createLinearGradient(cx, cy, x1, y1);
-        gradient.addColorStop(0, "rgba(0,0,0,0)");
-        gradient.addColorStop(0.12, ray.color);
-        gradient.addColorStop(0.6, ray.color);
-        gradient.addColorStop(1, "rgba(0,0,0,0)");
-        ctx.strokeStyle = gradient;
-        ctx.lineCap = "round";
-        // 太い帯はにじませる (原画の光線は輪郭がぼけている)
-        ctx.shadowColor = ray.color;
-        ctx.shadowBlur = ray.width > 7 ? 18 : 6;
-        // 重なりで白く飛ばないよう、原画のように光線の間の黒を残す濃さに
-        ctx.globalAlpha = ray.alpha * (ray.width > 7 ? 0.26 : 0.6);
-        ctx.lineWidth = ray.width * (0.5 + 0.5 * e);
-        ctx.beginPath();
-        ctx.moveTo(cx, cy);
-        ctx.lineTo(x1, y1);
-        ctx.stroke();
-      }
-      ctx.shadowBlur = 0;
-      ctx.globalAlpha = 1;
-      ctx.globalCompositeOperation = "source-over";
-    }
+    const duration = reduce ? REDUCED_DURATION_MS : DURATION_MS;
+    let started = false;
+    const begin = () => {
+      if (started || finished) return;
+      started = true;
+      const play = (
+        el: Element,
+        keyframes: Keyframe[],
+        options: KeyframeAnimationOptions = {},
+      ) => {
+        const animation = el.animate(keyframes, { duration, fill: "both", ...options });
+        animations.push(animation);
+        return animation;
+      };
 
-    const logo = logoRef.current!;
-    const flash = flashRef.current!;
-    const sparks = sparkRefs.current;
-
-    function frame(t: number) {
       if (reduce) {
         // 動きを減らす設定: 静止したロゴのまま、ふっと消えるだけ
-        root!.style.opacity = String(1 - seg(t, 0.2, 1));
+        play(root, [{ opacity: 1, offset: 0.2 }, { opacity: 0 }]).onfinish = finish;
         return;
       }
-      /*
-       * 読み込みが終わるまでは静止していたロゴが (v1.31.3)、
-       * 小さく脈打ち、閃光とともにその裏から光線が噴き出す
-       */
-      drawRays(seg(t, 0.06, 0.62));
-      const f = seg(t, 0.02, 0.1);
-      const fo = seg(t, 0.1, 0.36);
-      flash.style.opacity = (f * (1 - fo)).toFixed(3);
-      const pulse = Math.sin(Math.PI * seg(t, 0, 0.28));
-      const bright = 1 + 1.1 * Math.sin(Math.PI * seg(t, 0.02, 0.34));
-      /*
-       * **途中で filter を "none" に切り替えない** (v1.31.2)。切り替えた瞬間に
-       * Safari がロゴの層を描き直し、ロゴの範囲が白い四角 (Mac では紫の線) で
-       * 一瞬覆われた。最初から最後まで同じ形の指定のまま動かす
-       */
-      logo.style.filter = `blur(0px) brightness(${bright.toFixed(3)})`;
-      logo.style.transform = `translate(-50%,-50%) scale(${(1 + 0.05 * pulse).toFixed(4)})`;
+
+      // 閃光 (ロゴの裏が一瞬白く光る)
+      play(flash, [
+        { opacity: 0 },
+        { opacity: 1, offset: 0.08 },
+        { opacity: 0, offset: 0.34 },
+        { opacity: 0 },
+      ]);
+      // ロゴが小さく脈打つ
+      play(logo, [
+        { transform: "translate(-50%,-50%) scale(1)" },
+        { transform: "translate(-50%,-50%) scale(1.05)", offset: 0.14, easing: "ease-in" },
+        { transform: "translate(-50%,-50%) scale(1)", offset: 0.3 },
+        { transform: "translate(-50%,-50%) scale(1)" },
+      ], { easing: "ease-out" });
+      // 光線が中心から噴き出す (絵ごと拡大)。少しだけ回して止まった絵に見せない
+      play(canvas, [
+        { transform: "scale(0.12) rotate(-4deg)", opacity: 0 },
+        { opacity: 1, offset: 0.12 },
+        { transform: "scale(1) rotate(0deg)", opacity: 1, offset: 0.62 },
+        { transform: "scale(1.06) rotate(1deg)", opacity: 1 },
+      ], { easing: "cubic-bezier(0.16, 1, 0.3, 1)" });
+      // きらめき
       sparks.forEach((spark, i) => {
         if (!spark) return;
-        const s = seg(t, 0.45 + i * 0.07, 0.63 + i * 0.07);
-        const v = Math.sin(s * Math.PI);
-        spark.style.opacity = v.toFixed(3);
-        spark.style.transform = `scale(${(v * 1.3).toFixed(3)}) rotate(${s * 90}deg)`;
+        const from = 0.45 + i * 0.07;
+        play(spark, [
+          { opacity: 0, transform: "scale(0) rotate(0deg)" },
+          { opacity: 0, transform: "scale(0) rotate(0deg)", offset: from },
+          { opacity: 1, transform: "scale(1.3) rotate(45deg)", offset: from + 0.09 },
+          { opacity: 0, transform: "scale(0) rotate(90deg)", offset: from + 0.18 },
+          { opacity: 0, transform: "scale(0) rotate(90deg)" },
+        ]);
       });
-      const x = easeOut(seg(t, 0.8, 1));
-      root!.style.opacity = (1 - x).toFixed(3);
-      root!.style.transform = `scale(${1 + x * 0.08})`;
-    }
-
-    const duration = reduce ? REDUCED_DURATION_MS : DURATION_MS;
-    const begin = () => {
-      if (raf || finished) return;
-      const start = performance.now();
-      const tick = (now: number) => {
-        const t = (now - start) / duration;
-        frame(t);
-        if (t < 1) raf = requestAnimationFrame(tick);
-        else finish();
-      };
-      raf = requestAnimationFrame(tick);
+      // 最後にアプリの画面へ溶ける
+      play(root, [
+        { opacity: 1, transform: "scale(1)" },
+        { opacity: 1, transform: "scale(1)", offset: 0.8 },
+        { opacity: 0, transform: "scale(1.08)" },
+      ], { easing: "ease-out" }).onfinish = finish;
     };
 
     /*
@@ -256,7 +294,7 @@ export function Splash() {
       window.clearTimeout(safety);
       window.clearTimeout(startTimeout);
       window.removeEventListener("load", onLoad);
-      cancelAnimationFrame(raf);
+      animations.forEach((animation) => animation.cancel());
     };
   }, []);
 
@@ -269,15 +307,12 @@ export function Splash() {
       aria-hidden
       className="fixed inset-0 z-[100] overflow-hidden bg-black"
     >
-      <canvas ref={canvasRef} className="absolute inset-0 h-full w-full" />
-      {/* 原画のざらっとした粒子感。光線の上にだけ薄く重ねる (黒い地は黒のまま) */}
-      <div
-        aria-hidden
-        className="pointer-events-none absolute inset-0 opacity-40 mix-blend-overlay"
-        style={{
-          backgroundImage:
-            "url(\"data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='180' height='180'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>\")",
-        }}
+      {/* 光線と粒子感は最初に1枚に描いておき、絵ごと動かす (v1.40) */}
+      <canvas
+        ref={canvasRef}
+        // 大きさと位置は描くときに決める (画面より大きい正方形。paintBurst)
+        className="absolute left-0 top-0 opacity-0"
+        style={{ transformOrigin: "50% 50%", willChange: "transform, opacity" }}
       />
       <div
         ref={flashRef}
@@ -293,9 +328,9 @@ export function Splash() {
         // **最初から静止した状態で見せる** (v1.31.3)。読み込み中はこのまま動かない
         style={{
           transform: "translate(-50%,-50%) scale(1)",
-          filter: "blur(0px) brightness(1)",
-          // 動いている間は同じ層のまま保たせる (描き直しの乱れを防ぐ)
-          willChange: "transform, filter, opacity",
+          // 動いている間は同じ層のまま保たせる (描き直しの乱れを防ぐ)。
+          // filter は動かさない (v1.40。毎フレーム大きな画像を描き直してカクついた)
+          willChange: "transform",
         }}
       >
         {/*
