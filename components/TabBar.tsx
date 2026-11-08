@@ -1,8 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
+import { useEffect, useRef } from "react";
 
+import { isNativeApp } from "@/lib/native";
+import { FFNative } from "@/lib/native-plugin";
 import { rememberNavDirection } from "@/lib/nav-direction";
 import type { Role } from "@/lib/types";
 
@@ -23,8 +26,8 @@ import type { Role } from "@/lib/types";
  */
 
 export const TABS = [
-  { href: "/", label: "カレンダー", icon: "calendar" },
-  { href: "/number-cal", label: "ナンバー", icon: "people" },
+  { href: "/", label: "カレンダー", icon: "calendar", symbol: "calendar" },
+  { href: "/number-cal", label: "ナンバー", icon: "people", symbol: "person.2.fill" },
 ] as const;
 
 /** 役割ごとのタブ。いまは全員同じだが、スワイプ側 (SwipeTabs) と共用するため残す */
@@ -44,6 +47,8 @@ export function TabBar({ role }: { role: Role }) {
   const tabs = visibleTabs(role);
   const tabPath = DEMO_TAB_PATHS[pathname] ?? pathname;
   const currentIndex = tabs.findIndex((tab) => tab.href === tabPath);
+
+  useNativeTabBar(tabs, currentIndex);
 
   // **タブの画面でだけ出す** (v1.32.7 / iOS の Tab Bars の考え方)。設定・お知らせ・
   // 折衝などの下の階層では、どのタブも選ばれていないバーが浮いて画面の下を
@@ -73,6 +78,8 @@ function TabNav({
     <nav
       className="fixed inset-x-0 bottom-[calc(env(safe-area-inset-bottom)+10px)] z-40 flex justify-center px-4"
       aria-label="メインナビゲーション"
+      // iOS アプリでは隠す (ネイティブのタブバーが代わる。globals.css)
+      data-web-tabbar
     >
       {/*
        * 島の幅は **300px** (v1.14.2)。この値は two 段階で決まった:
@@ -117,6 +124,92 @@ function TabNav({
       </ul>
     </nav>
   );
+}
+
+/**
+ * iOS アプリのタブバー (SPEC.md §2.3.1 / v1.38)。
+ *
+ * 見た目はネイティブ (Liquid Glass) に任せ、**何を出すか・どれを選んでいるかは
+ * ここで決めて伝える**。押されたらネイティブから `tabSelect` が来るので、
+ * Web のタブを押したときと同じように移る。
+ */
+function useNativeTabBar(tabs: ReturnType<typeof visibleTabs>, currentIndex: number) {
+  const router = useRouter();
+  const indexRef = useRef(currentIndex);
+  indexRef.current = currentIndex;
+
+  // 出し入れ・選択・明暗を伝える。テーマが変わったら伝え直す。
+  // ネイティブのバーは Web のどの層よりも上に乗るので、**窓 (role=dialog) が
+  // 開いている間はしまう**。しまわないと窓の下の端 (ボタン) を隠してしまう
+  useEffect(() => {
+    if (!isNativeApp()) return;
+    let lastKey = "";
+    let frame = 0;
+    const send = () => {
+      const dialogOpen =
+        document.querySelector('[role="dialog"][aria-modal="true"]') !== null;
+      const theme = document.documentElement.dataset.theme ?? "light";
+      const key = `${currentIndex}|${dialogOpen}|${theme}`;
+      if (key === lastKey) return;
+      lastKey = key;
+      const style = getComputedStyle(document.documentElement);
+      void FFNative.setTabBar({
+        visible: currentIndex !== -1 && !dialogOpen,
+        selected: currentIndex === -1 ? undefined : tabs[currentIndex].href,
+        tabs: tabs.map((tab) => ({ id: tab.href, label: tab.label, symbol: tab.symbol })),
+        accent: style.getPropertyValue("--primary").trim(),
+        accentForeground: style.getPropertyValue("--primary-fg").trim(),
+        dark: document.documentElement.dataset.theme === "dark",
+      }).catch(() => {});
+    };
+    send();
+    const schedule = () => {
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(send);
+    };
+    const themeObserver = new MutationObserver(schedule);
+    themeObserver.observe(document.documentElement, { attributeFilter: ["data-theme"] });
+    const dialogObserver = new MutationObserver(schedule);
+    dialogObserver.observe(document.body, {
+      childList: true,
+      subtree: true,
+      attributeFilter: ["role", "aria-modal"],
+    });
+    return () => {
+      cancelAnimationFrame(frame);
+      themeObserver.disconnect();
+      dialogObserver.disconnect();
+    };
+  }, [tabs, currentIndex]);
+
+  // 画面を離れたら (ログアウトなど) しまう
+  useEffect(() => {
+    if (!isNativeApp()) return;
+    return () => {
+      void FFNative.setTabBar({ visible: false }).catch(() => {});
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!isNativeApp()) return;
+    // Web のタブの Link と同じく先に読んでおく (隠した Link は先読みされない)
+    tabs.forEach((tab) => router.prefetch(tab.href));
+    let handle: { remove: () => Promise<void> } | undefined;
+    let cancelled = false;
+    void FFNative.addListener("tabSelect", ({ id }) => {
+      const index = tabs.findIndex((tab) => tab.href === id);
+      if (index === -1 || index === indexRef.current) return;
+      rememberNavDirection(indexRef.current, index);
+      router.push(id);
+    }).then((h) => {
+      if (cancelled) void h.remove();
+      else handle = h;
+    });
+    return () => {
+      cancelled = true;
+      void handle?.remove();
+    };
+  }, [tabs, router]);
 }
 
 /** タブのアイコン (SF Symbols の calendar / person.2 に近い形を線で描く) */

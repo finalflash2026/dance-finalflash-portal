@@ -501,3 +501,12 @@ html[data-splash="off"] #app-splash {
     font-size: 16px !important;
   }
 }
+
+/*
+ * iOS アプリでは Web のタブバーを描かない (SPEC.md §2.3.1 / v1.38)。
+ * ネイティブの Liquid Glass のタブバーが同じ位置に重なる。
+ * class は app/layout.tsx の NATIVE_INIT_SCRIPT が最初のペイント前に立てる。
+ */
+html.native-app [data-web-tabbar] {
+  display: none;
+}

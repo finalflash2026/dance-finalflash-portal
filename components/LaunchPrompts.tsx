@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { Sheet } from "@/components/Sheet";
 import { TOUR_DONE_KEY } from "@/components/Tour";
 import { fillButtonClass, primaryButtonClass } from "@/components/ui";
+import { isNativeApp } from "@/lib/native";
 import {
   canUsePush,
   hasPushSubscription,
@@ -73,6 +74,8 @@ export function LaunchPrompts({
         return;
       }
       if (!shouldPromptOnLaunch(count)) return;
+      // iOS アプリはもうアプリで、通知の許可もアプリが聞く (SPEC §2.3.1 / v1.38)
+      if (isNativeApp()) return;
 
       const mobile = /iP(hone|ad|od)|Android/.test(navigator.userAgent);
       let next: Prompt = null;

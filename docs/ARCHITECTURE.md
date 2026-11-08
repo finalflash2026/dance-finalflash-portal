@@ -67,6 +67,11 @@
 | `capacitor.config.ts` | **iOS アプリ**の設定(SPEC §2.3)。アプリが開く URL(ふだんは本番)を決める |
 | `ios/` | iOS アプリの Xcode プロジェクト。中身は本番の Web を開く WebView 1枚なので、画面を変えるのに触る必要はない。`npm run ios:open` で Xcode が開く |
 | `native/www/` | iOS アプリに同梱する、開けなかったとき(圏外など)のページ |
+| `ios/App/project.yml` | Xcode プロジェクトの元(xcodegen)。target(アプリ・ウィジェット)を足すときはここを直して `npm run ios:project` |
+| `ios/App/App/GlassTabBar.swift` ほか | アプリのネイティブの部品(SPEC §2.3.1): Liquid Glass のタブバー、Web から呼ぶ窓口(`FFNativePlugin.swift`) |
+| `ios/App/Widget/` | ホーム画面・ロック画面のウィジェット。アプリが App Group に置いた予定を出す |
+| `lib/app-digest.ts` / `app/api/app/digest` | アプリに渡す「これからの予定」と通知の文面(14日ぶん) |
+| `lib/native-sync.ts` / `components/NativeBridge.tsx` | アプリを開いたときに、通知の予約とウィジェットを予定に合わせ直す |
 | `scripts/cap.ts` | `npm run ios:sync`(本番を開く設定にする)と `npm run ios:dev`(手元の dev をシミュレーターで開く) |
 | `tsconfig.json` / `eslint.config.mjs` / `postcss.config.mjs` | TypeScript・ESLint・Tailwind の設定 |
 | `.env.example` | 環境変数の見本(Supabase の URL や鍵、VAPID 鍵など)。**本物の値は `.env.local` と Vercel にだけ置き、コミットしない** |

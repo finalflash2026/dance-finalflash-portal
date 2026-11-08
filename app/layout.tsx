@@ -4,6 +4,7 @@ import { ConfirmHost } from "@/components/ConfirmHost";
 import { NativeBridge } from "@/components/NativeBridge";
 import { SPLASH_INIT_SCRIPT, Splash } from "@/components/Splash";
 import { ToastHost } from "@/components/ToastHost";
+import { NATIVE_INIT_SCRIPT } from "@/lib/native";
 import { THEME_INIT_SCRIPT } from "@/lib/theme";
 
 import "./globals.css";
@@ -58,6 +59,8 @@ export default function RootLayout({
         <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
         {/* 起動アニメーションを、この起動で既に出したかどうか (§6.7.10) */}
         <script dangerouslySetInnerHTML={{ __html: SPLASH_INIT_SCRIPT }} />
+        {/* iOS アプリなら Web のタブバーを最初から隠す (SPEC §2.3.1 / v1.38) */}
+        <script dangerouslySetInnerHTML={{ __html: NATIVE_INIT_SCRIPT }} />
       </head>
       <body className="antialiased">
         <Splash />

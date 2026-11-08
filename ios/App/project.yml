@@ -1,0 +1,84 @@
+# iOS アプリの Xcode プロジェクトの元 (SPEC.md §2.3.1 / v1.38)
+# 直したら `npm run ios:project` で App.xcodeproj を作り直す。
+# App.xcodeproj を Xcode で直接いじった変更は、作り直すと消える。
+name: App
+options:
+  bundleIdPrefix: com.finalflash
+  deploymentTarget:
+    iOS: "15.0"
+  createIntermediateGroups: true
+settings:
+  base:
+    MARKETING_VERSION: "1.0"
+    CURRENT_PROJECT_VERSION: "1"
+    SWIFT_VERSION: "5.0"
+    CODE_SIGN_STYLE: Automatic
+packages:
+  CapApp-SPM:
+    path: CapApp-SPM
+targets:
+  App:
+    type: application
+    platform: iOS
+    sources:
+      - path: App
+        excludes:
+          - "public/**"
+          - capacitor.config.json
+          - config.xml
+      - path: Shared
+      # cap sync が書き込む (git では無視している)
+      - path: App/public
+        type: folder
+        buildPhase: resources
+        optional: true
+      - path: App/capacitor.config.json
+        buildPhase: resources
+        optional: true
+      - path: App/config.xml
+        buildPhase: resources
+        optional: true
+    dependencies:
+      - package: CapApp-SPM
+      - target: Widget
+        embed: true
+    configFiles:
+      Debug: ../debug.xcconfig
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.finalflash.ffcalendar
+        PRODUCT_NAME: App
+        INFOPLIST_FILE: App/Info.plist
+        CODE_SIGN_ENTITLEMENTS: App/App.entitlements
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        TARGETED_DEVICE_FAMILY: "1,2"
+        GENERATE_INFOPLIST_FILE: NO
+      configs:
+        Debug:
+          SWIFT_ACTIVE_COMPILATION_CONDITIONS: DEBUG
+  Widget:
+    type: app-extension
+    platform: iOS
+    deploymentTarget: "17.0"
+    sources:
+      - path: Widget
+      - path: Shared
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.finalflash.ffcalendar.widget
+        PRODUCT_NAME: Widget
+        INFOPLIST_FILE: Widget/Info.plist
+        CODE_SIGN_ENTITLEMENTS: Widget/Widget.entitlements
+        TARGETED_DEVICE_FAMILY: "1,2"
+        GENERATE_INFOPLIST_FILE: NO
+        SKIP_INSTALL: YES
+schemes:
+  App:
+    build:
+      targets:
+        App: all
+        Widget: all
+    run:
+      config: Debug
+    archive:
+      config: Release

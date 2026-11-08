@@ -23,10 +23,3 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
     }
 }
 
-/// 本番の Web を開く WebView (SPEC.md §2.3 / v1.37)
-final class MainViewController: CAPBridgeViewController {
-    override func capacitorDidLoad() {
-        // 左端からのスワイプで前の画面に戻る (Safari と同じ)
-        webView?.allowsBackForwardNavigationGestures = true
-    }
-}

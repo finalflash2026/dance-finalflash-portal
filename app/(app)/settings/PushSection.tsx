@@ -11,6 +11,8 @@ import {
   subscribePush,
 } from "@/lib/push-client";
 import { isNativeApp } from "@/lib/native";
+
+import { NativeNotifySection } from "./NativeNotifySection";
 import { createClient } from "@/lib/supabase/client";
 
 /**
@@ -264,6 +266,9 @@ export function PushSection({ vapidPublicKey }: { vapidPublicKey: string }) {
     }
   }
 
+  // iOS アプリは端末で予約する通知 (SPEC §2.3.1 / v1.38)
+  if (native) return <NativeNotifySection />;
+
   return (
     <SettingsGroup
       title="通知"
@@ -289,15 +294,7 @@ export function PushSection({ vapidPublicKey }: { vapidPublicKey: string }) {
 
       {status === "unsupported" ? (
         <div className="rounded-lg border border-[var(--border)] px-3 py-3 text-sm">
-          {native ? (
-            <>
-              <p className="font-bold">アプリでは通知は届きません</p>
-              <p className="mt-1 text-[var(--muted)]">
-                通知を受け取るには、Safari でこのサイトを開き、共有ボタン →
-                「ホーム画面に追加」から開いてオンにしてください。
-              </p>
-            </>
-          ) : ios && !standalone ? (
+          {ios && !standalone ? (
             <>
               <p className="font-bold">ホーム画面に追加すると使えます</p>
               <p className="mt-1 text-[var(--muted)]">
