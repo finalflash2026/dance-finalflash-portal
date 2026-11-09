@@ -13,8 +13,10 @@ import {
   type AttendanceRow,
   type Participant,
 } from "@/lib/attendance";
+import { OFF_ROSTER_ROLES } from "@/lib/constants";
 import { formatSpanRange } from "@/lib/day-span";
 import { dbErrorMessage } from "@/lib/error-message";
+import { useCanWrite } from "@/lib/role";
 import { createClient } from "@/lib/supabase/client";
 import {
   finalizeTimeInput,
@@ -157,8 +159,11 @@ export function AttendanceSheet({
     load();
   }, [load]);
 
+  const canWrite = useCanWrite();
   const me = participants?.find((p) => p.userId === currentUserId) ?? null;
-  const isParticipant = me !== null;
+  // 閲覧のみ (v1.30) は公式練・スタ練の参加者からは外れているが、
+  // ナンバーには所属が残ることがある。見えていても答えさせない
+  const isParticipant = me !== null && canWrite;
 
   /** 状態のボタンを押したら、その場で時刻 (遅刻・早退) と理由の欄を開く */
   function startDraft(status: AttendanceStatus) {
@@ -496,11 +501,11 @@ export function AttendanceSheet({
                     </button>
                   ) : null}
                 </section>
-              ) : (
+              ) : canWrite ? (
                 <p className="rounded-xl bg-[var(--cell)] px-3 py-2.5 text-[13px] text-[var(--muted)]">
                   この練習の参加対象ではないため、出欠は付けられません。
                 </p>
-              )}
+              ) : null}
 
               {/* ④ 参加者 */}
               <section aria-label="参加者" className="space-y-2">
@@ -705,7 +710,7 @@ async function loadGenreParticipants(
   // 2/3ジャンでそのジャンルを持つ人を先に集める。
   // profiles 側の or 条件に流し込むため。
   // **練習の日のサブジャンルで見る** (v1.32.5)。カレンダー (v1.31.9) と
-  // 出欠の書き込み条件 (mod_att, 0021) と同じ判定にする
+  // 出欠の書き込み条件 (mod_att, 0023) と同じ判定にする
   const { data: subgenres } = await supabase
     .from("user_subgenre_periods")
     .select("user_id")
@@ -720,10 +725,11 @@ async function loadGenreParticipants(
     ? `main_genre_id.eq.${genreId},user_id.in.(${subIds.join(",")})`
     : `main_genre_id.eq.${genreId}`;
 
+  // 現役だけ。閲覧のみ (v1.30) はジャンルを持っていても参加者に出さない
   const { data, error } = await supabase
     .from("profiles")
     .select("user_id, username, generation")
-    .neq("role", "ob")
+    .not("role", "in", OFF_ROSTER_ROLES)
     .or(filter);
 
   if (error) {

@@ -2,6 +2,7 @@ import { after } from "next/server";
 import { z } from "zod";
 
 import { requireRole } from "@/lib/auth/guard";
+import { OFF_ROSTER_ROLES } from "@/lib/constants";
 import { sendPush } from "@/lib/push";
 import { unassignedRanges } from "@/lib/slots";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -157,10 +158,11 @@ export async function POST(request: Request) {
   }
 
   const admin = createAdminClient();
+  // お知らせは現役だけ。OB と閲覧のみ (v1.30) には配らない
   const { data: recipients, error: recipientError } = await admin
     .from("profiles")
     .select("user_id")
-    .neq("role", "ob");
+    .not("role", "in", OFF_ROSTER_ROLES);
 
   if (recipientError) {
     // 公開自体は済んでいる。お知らせだけ失敗したことを正直に返す

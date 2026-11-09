@@ -41,7 +41,7 @@ export interface AttendanceRow {
  */
 export const ATTENDANCE_REASON_PRESETS = ["授業", "バイト", "体調不良", "就活", "用事"] as const;
 
-/** 理由の長さの上限。DB の CHECK (0022) と同じ */
+/** 理由の長さの上限。DB の CHECK (0024) と同じ */
 export const ATTENDANCE_REASON_MAX = 40;
 
 export interface Participant {

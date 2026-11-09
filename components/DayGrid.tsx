@@ -14,6 +14,7 @@ import {
 } from "@/lib/constants";
 import { splitOpenSlot, type ClaimInfo, type OpenSegment } from "@/lib/claims";
 import { dbErrorMessage } from "@/lib/error-message";
+import { useCanWrite } from "@/lib/role";
 import { useRoomById, useRoomSections } from "@/lib/rooms";
 import { createClient } from "@/lib/supabase/client";
 import {
@@ -389,10 +390,12 @@ function DetailModal({
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [onClose]);
 
+  const canWrite = useCanWrite();
   const room = roomById.get(drawable.roomId);
   const segment = drawable.segment;
   const claim = segment?.kind === "claimed" ? segment.claim : null;
-  const isFree = segment?.kind === "free";
+  // 閲覧のみ (v1.30) は申請しない。空いていることは分かるが、ボタンは出さない
+  const canClaim = segment?.kind === "free" && canWrite;
   // 取消は本人 or 折衝以上 (SPEC §6.1-5)。最終的な可否は RLS del_claims が決める
   /*
    * **取り消せるのは申請した本人だけ** (v1.22)。
@@ -490,7 +493,7 @@ function DetailModal({
         ) : null}
 
         <div className="mt-5 space-y-2">
-          {isFree ? (
+          {canClaim ? (
             <button
               type="button"
               onClick={() =>

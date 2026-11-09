@@ -4,7 +4,7 @@ import type { DayBlock } from "@/components/DayGrid";
 import { SetupNotice } from "@/components/SetupNotice";
 import { canUseCoordinator } from "@/lib/auth/guard";
 import { getCurrentProfile } from "@/lib/auth/session";
-import { GENRE_BY_ID } from "@/lib/constants";
+import { GENRE_BY_ID, isActiveMember } from "@/lib/constants";
 import { hasSupabaseEnv } from "@/lib/env";
 import { getMyEvents, getMyGenreIds } from "@/lib/events";
 import { getOpenRound } from "@/lib/scheduling/live";
@@ -209,7 +209,7 @@ export default async function HomePage({
       <CalendarHome
         key={selectedDate}
         // 日程調整の回 (デモ環境で試せる。§6.8.4 / v1.35)。OB には出さない
-        scheduleRound={isOb ? null : await getOpenRound(today, profile.user_id)}
+        scheduleRound={isActiveMember(profile.role) ? await getOpenRound(today, profile.user_id) : null}
         rangeStart={rangeStart}
         rangeEnd={rangeEnd}
         initialDate={selectedDate}

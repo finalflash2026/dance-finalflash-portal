@@ -7,6 +7,7 @@ import { Sheet } from "@/components/Sheet";
 import { fillButtonClass, primaryButtonClass } from "@/components/ui";
 import type { BoardMessage } from "@/lib/board-messages";
 import { dbErrorMessage } from "@/lib/error-message";
+import { useCanWrite } from "@/lib/role";
 import { useRooms } from "@/lib/rooms";
 import { createClient } from "@/lib/supabase/client";
 import { useLiveRefresh } from "@/lib/use-live-refresh";
@@ -72,6 +73,7 @@ export function RoomStatusBoard({
     name: string;
     unlock: boolean;
   } | null>(null);
+  const canWrite = useCanWrite();
 
   const refresh = useCallback(async () => {
     const supabase = createClient();
@@ -191,19 +193,28 @@ export function RoomStatusBoard({
 
           return (
             <li key={room.id}>
+              {/*
+                閲覧のみ (v1.30) は押せないだけで、**薄くはしない**。
+                ○× は見るために置いているので、読みにくくなっては意味が無い
+              */}
               <button
                 type="button"
                 onClick={() =>
                   setConfirming({ roomId: room.id, name: room.name, unlock: !unlocked })
                 }
-                disabled={pendingRoomId === room.id}
-                aria-label={`${room.name} を${unlocked ? "施錠中" : "開錠済"}に切り替える`}
+                // 閲覧のみ (v1.30) は押せない。状態は読めるよう薄くしない
+                disabled={!canWrite || pendingRoomId === room.id}
+                aria-label={
+                  canWrite
+                    ? `${room.name} を${unlocked ? "施錠中" : "開錠済"}に切り替える`
+                    : `${room.name}: ${unlocked ? "開錠済" : "施錠中"}`
+                }
                 aria-pressed={unlocked}
-                className={`flex min-h-[64px] w-full flex-col items-start justify-between gap-1 rounded-xl border-2 px-3 py-2 text-left active:opacity-70 disabled:opacity-40 ${
+                className={`flex min-h-[64px] w-full flex-col items-start justify-between gap-1 rounded-xl border-2 px-3 py-2 text-left active:opacity-70 disabled:cursor-default ${
                   unlocked
                     ? "border-[var(--success-fg)] bg-[var(--success-bg)]"
                     : "border-transparent bg-[var(--fill)]"
-                } ${stale ? "opacity-60" : ""}`}
+                } ${stale ? "opacity-60" : ""} ${pendingRoomId === room.id ? "opacity-40" : ""}`}
               >
                 {/* 建物の括弧は落とす (「練習室2(フレスコ)」→「練習室2」)。細いカードで2行に折れないように */}
                 <span className="w-full truncate text-[15px] font-semibold leading-snug">

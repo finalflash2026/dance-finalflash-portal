@@ -15,6 +15,7 @@ import { GENRES, GENRE_BY_ID } from "@/lib/constants";
 import { formatSpanRange, spansMidnight } from "@/lib/day-span";
 import { dbErrorMessage } from "@/lib/error-message";
 import { numberColor } from "@/lib/numbers";
+import { useCanWrite } from "@/lib/role";
 import { createClient } from "@/lib/supabase/client";
 import { showToast } from "@/lib/toast";
 import {
@@ -77,7 +78,10 @@ export function NumberDetailClient({
 }) {
   const [tab, setTab] = useState<"events" | "table" | "members">("events");
   const [error, setError] = useState<string | null>(null);
-  const isOwner = number.ownerId === currentUserId;
+  const canWrite = useCanWrite();
+  // 主催でも、閲覧のみ (v1.30) になったら編集の操作は出さない。
+  // 引退前に作ったナンバーの主催のまま残っていることがある
+  const isOwner = number.ownerId === currentUserId && canWrite;
   const color = numberColor(number.id);
 
   return (
@@ -653,7 +657,11 @@ function MembersTab({
             main_genre_id: number;
             role: string;
           }[]
-        ).map((row) => ({
+        )
+          // 閲覧のみ (v1.30) はナンバーに入れる対象にしない。
+          // OB は縦イベなどで加わることがあるので残す (§3.6)
+          .filter((row) => row.role !== "viewer")
+          .map((row) => ({
           userId: row.user_id,
           username: row.username,
           generation: row.generation,

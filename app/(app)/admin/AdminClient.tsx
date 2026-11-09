@@ -5,7 +5,7 @@ import { useState } from "react";
 import { ErrorMessage, Field, inputClass, secondaryButtonClass } from "@/components/ui";
 import { buildUsernameFromGenreId } from "@/lib/auth/username";
 import { confirmAction } from "@/lib/confirm";
-import { GENRES, GENRE_BY_ID, ROLE_LABELS } from "@/lib/constants";
+import { GENRES, GENRE_BY_ID, ROLE_LABELS, isActiveMember } from "@/lib/constants";
 import type { Role } from "@/lib/types";
 
 /**
@@ -28,12 +28,17 @@ export interface AdminUser {
   role: Role;
 }
 
-/** 在籍の絞り込み。既定は「現役のみ」(SPEC §3.6: 名簿検索の既定) */
-type Enrollment = "active" | "ob" | "all";
+/**
+ * 在籍の絞り込み。既定は「現役のみ」(SPEC §3.6: 名簿検索の既定)。
+ * 閲覧のみ (v1.30) は現役に混ぜない。数は少ないが、名簿に紛れると
+ * 一括OB化や権限の確認で見落とす
+ */
+type Enrollment = "active" | "ob" | "viewer" | "all";
 
 const ENROLLMENT_LABELS: Record<Enrollment, string> = {
   active: "現役のみ",
   ob: "OBのみ",
+  viewer: "閲覧のみ",
   all: "全員",
 };
 
@@ -66,7 +71,9 @@ export function AdminClient({
         ? true
         : enrollment === "ob"
           ? u.role === "ob"
-          : u.role !== "ob",
+          : enrollment === "viewer"
+            ? u.role === "viewer"
+            : isActiveMember(u.role),
     )
     .filter((u) => generation === null || u.generation === generation)
     .filter((u) => genreId === null || u.mainGenreId === genreId)
@@ -88,7 +95,7 @@ export function AdminClient({
       <div className="grid grid-cols-4 gap-2" aria-label="人数">
         {(
           [
-            { label: "現役", count: users.filter((u) => u.role !== "ob").length, on: () => setEnrollment("active") },
+            { label: "現役", count: users.filter((u) => isActiveMember(u.role)).length, on: () => setEnrollment("active") },
             { label: "OB/OG", count: users.filter((u) => u.role === "ob").length, on: () => setEnrollment("ob") },
             { label: "折衝", count: users.filter((u) => u.role === "coordinator").length, color: "text-[var(--info)]" },
             { label: "3役", count: users.filter((u) => u.role === "admin").length, color: "text-[var(--accent)]" },
@@ -158,7 +165,7 @@ export function AdminClient({
 
         <ChipRow
           label="在籍"
-          items={(["active", "ob", "all"] as const).map((value) => ({
+          items={(["active", "ob", "viewer", "all"] as const).map((value) => ({
             key: value,
             label: ENROLLMENT_LABELS[value],
             on: enrollment === value,
@@ -400,14 +407,17 @@ function groupByGeneration(list: AdminUser[]): [number, AdminUser[]][] {
 
 function RoleBadge({ role }: { role: Role }) {
   // OB は名簿に残り続けるので、現役と一目で区別が付く必要がある (SPEC §3.6)。
-  // 色の付いた文字だけにする (枠で囲んだ札にしない。v1.39)。メンバーは出さない
+  // 色の付いた文字だけにする (枠で囲んだ札にしない。v1.39)。メンバーは出さない。
+  // 閲覧のみ (v1.30) は灰色にして、名簿に居ても数に入らない人だと分かるようにする
   if (role === "member") return null;
   const color =
     role === "ob"
       ? "text-[var(--ob)]"
-      : role === "admin"
-        ? "text-[var(--accent)]"
-        : "text-[var(--info)]";
+      : role === "viewer"
+        ? "text-[var(--muted)]"
+        : role === "admin"
+          ? "text-[var(--accent)]"
+          : "text-[var(--info)]";
 
   return (
     <span className={`shrink-0 text-[12px] font-semibold ${color}`}>{ROLE_LABELS[role]}</span>
@@ -500,7 +510,8 @@ function EditPanel({
     }
 
     const graduating = role === "ob" && user.role !== "ob";
-    const restoring = user.role === "ob" && role !== "ob";
+    const toViewer = role === "viewer" && user.role !== "viewer";
+    const restoring = user.role === "ob" && role !== "ob" && role !== "viewer";
 
     const lines = [`${user.username} の情報を変更します。`];
     if (nextUsername !== user.username) {
@@ -510,8 +521,19 @@ function EditPanel({
     }
     if (graduating) {
       lines.push(
-        "\nOB/OGへ移行すると、この人の未来の空き申請と公式練の出欠が削除され、" +
+        "\nOB/OGへ移行すると、この人の未来の空き申請と公式練・スタ練の出欠が削除され、" +
           "サブジャンルの設定が消えます。ナンバー所属・過去の履歴・購読URLは残ります。",
+      );
+      if (user.role === "coordinator" || user.role === "admin") {
+        lines.push(`\n同時に${ROLE_LABELS[user.role]}の権限も外れます。`);
+      }
+    }
+    if (toViewer) {
+      lines.push(
+        "\n閲覧のみにすると、全体カレンダー・ナンバー・マイカレンダーは見られますが、" +
+          "書き込み(空き申請・出欠・鍵の連絡・連絡欄・ナンバーの作成など)は一切できなくなります。" +
+          "\n名簿・出欠の参加者・通知の宛先からも外れます。" +
+          "\nこの人の未来の空き申請・出欠とサブジャンルの設定は削除されます。",
       );
       if (user.role === "coordinator" || user.role === "admin") {
         lines.push(`\n同時に${ROLE_LABELS[user.role]}の権限も外れます。`);
@@ -675,7 +697,7 @@ function EditPanel({
         hint={
           isSelf
             ? "自分の権限は変えられません。3役が誰もいなくなるのを防ぐためです。"
-            : "OB/OGにすると、公式練・空き部屋・鍵の画面が見えなくなります。"
+            : "OB/OGにすると、公式練・空き部屋・鍵の画面が見えなくなります。閲覧のみは全部見られますが、書き込みはできず名簿にも載りません。"
         }
       >
         <select
@@ -684,7 +706,7 @@ function EditPanel({
           onChange={(e) => setRole(e.target.value as Role)}
           className={`${inputClass} disabled:opacity-50`}
         >
-          {(["member", "coordinator", "admin", "ob"] as const).map((value) => (
+          {(["member", "coordinator", "admin", "ob", "viewer"] as const).map((value) => (
             <option key={value} value={value}>
               {ROLE_LABELS[value]}
             </option>
@@ -767,13 +789,17 @@ function BulkGraduateSection({
   const [generation, setGeneration] = useState<string>("");
   const [pending, setPending] = useState(false);
 
+  // 現役だけ。閲覧のみ (v1.30) は外す — 引退した人を先に閲覧のみにしておくと、
+  // その代を一括でOB化しても閲覧のみのまま残る (API 側でも外している)
   const generations = [
-    ...new Set(users.filter((u) => u.role !== "ob").map((u) => u.generation)),
+    ...new Set(
+      users.filter((u) => isActiveMember(u.role)).map((u) => u.generation),
+    ),
   ].sort((a, b) => a - b);
 
   const targets = users.filter(
     (u) =>
-      u.role !== "ob" &&
+      isActiveMember(u.role) &&
       String(u.generation) === generation &&
       u.userId !== currentUserId,
   );
@@ -783,7 +809,7 @@ function BulkGraduateSection({
     if (
       !await confirmAction(
         `${generation}期の${targets.length}人をOB/OGへ移行します。\n\n${names}\n\n` +
-          "全員の未来の空き申請と公式練の出欠が削除され、サブジャンルの設定が消えます。\n" +
+          "全員の未来の空き申請と公式練・スタ練の出欠が削除され、サブジャンルの設定が消えます。\n" +
           "ナンバー所属・過去の履歴・購読URLは残ります。",
       )
     ) {

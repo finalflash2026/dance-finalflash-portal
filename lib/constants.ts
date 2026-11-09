@@ -182,6 +182,7 @@ export const ROLE_LABELS: Record<Role, string> = {
   member: "メンバー",
   coordinator: "折衝",
   admin: "3役(管理者)",
+  viewer: "閲覧のみ",
 };
 
 /** 折衝以上か (admin ⊃ coordinator ⊃ member の包含判定) */
@@ -189,10 +190,34 @@ export function isCoordinatorOrAbove(role: Role): boolean {
   return role === "coordinator" || role === "admin";
 }
 
-/** 現役か。OB は member の包含関係の外にある (SPEC §3.1) */
+/**
+ * 現役か = 名簿・出欠の参加者・通知の宛先に載る人か (SPEC §3.1)。
+ *
+ * OB と閲覧のみ (v1.30) は member の包含関係の外にある。
+ * 「OB でなければ現役」と書くと、閲覧のみが現役として名簿に紛れ込む。
+ */
 export function isActiveMember(role: Role): boolean {
-  return role !== "ob";
+  return role === "member" || isCoordinatorOrAbove(role);
 }
+
+/**
+ * 書き込みの操作を出してよいか (v1.30)。
+ *
+ * 閲覧のみは**見るだけ**。OB はナンバーには書き込めるので true のまま
+ * (OB に見せない画面は、それぞれの画面が別に判定している)。
+ * 最終的な禁止は DB 側 (0018 の restrictive ポリシー) が持つ。
+ */
+export function canWrite(role: Role): boolean {
+  return role !== "viewer";
+}
+
+/**
+ * 名簿から外すロール。PostgREST の `not.in` にそのまま渡す形 (v1.30)。
+ *
+ * 出欠の参加者・通知の宛先・対象期の候補は**すべてここを使う**。
+ * 1か所でも `neq("role", "ob")` のまま残すと、閲覧のみがそこにだけ現れる。
+ */
+export const OFF_ROSTER_ROLES = "(ob,viewer)";
 
 // ---------- 入力バリデーション ----------
 

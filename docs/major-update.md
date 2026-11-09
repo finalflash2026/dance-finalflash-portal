@@ -90,12 +90,12 @@ SPEC.md v1.30(§6.7)に反映し、機能ごとにコミットした。各コミ
 | 10. 全体告知・いま空いている部屋 | 実装済み | 9cfbb8b / 562b8ac |
 
 ### 本番に出す前にやること
-1. Supabase に `supabase/migrations/0018_events_deadlines_announcements.sql` を適用する(**コードのデプロイより先**。§13.5)。
+1. Supabase に `supabase/migrations/0020`〜`0029` を番号順に適用する(**コードのデプロイより先**。§13.5)。本番は 0019 まで適用済み(2026-11-09)。
 2. Vercel にデプロイ(`vercel.json` に Cron `/api/cron/reminders` を追加済み。`CRON_SECRET` は既存のものを使う)。
 3. 実機で確認: 通知の登録とリマインド(`/api/cron/reminders?secret=…&dry=1` で件数だけ確かめられる)、iPhone の webcal 登録、Google カレンダーの追加リンク、起動アニメーション、初回ツアー。
 
 ### 確認したこと / できなかったこと
-- マイグレーション 0001〜0018 を PGlite(WASM の PostgreSQL)に流し、新テーブルの RLS(誰が登録・閲覧できるか)を19項目確かめた。
+- マイグレーション 0001〜0017 と 0020 を PGlite(WASM の PostgreSQL)に流し、新テーブルの RLS(誰が登録・閲覧できるか)を19項目確かめた。
 - 画面はモックのデータで見た目と操作を確かめた(カレンダー統合・ツアー・ヘルプ・起動アニメーション)。
 - **本物の Supabase とプッシュ通知の送信は試せていない**(手元に Docker が無く、ローカルの Supabase を立てられなかった)。
 

@@ -1,6 +1,7 @@
 import { demoCalendar } from "@/app/(app)/demo/data";
 import { DIGEST_DAYS, buildAppDigest } from "@/lib/app-digest";
 import { getCurrentProfile } from "@/lib/auth/session";
+import { isActiveMember } from "@/lib/constants";
 import { hasSupabaseEnv } from "@/lib/env";
 import { getMyEvents } from "@/lib/events";
 import { IMPORTANT_DEADLINE_LEAD_DAYS } from "@/lib/reminders";
@@ -62,7 +63,7 @@ export async function GET() {
   ]);
 
   // 日程調整の回はホームのカードと同じもの (§6.8.4)
-  const round = isOb ? null : await getOpenRound(today, profile.user_id);
+  const round = isActiveMember(profile.role) ? await getOpenRound(today, profile.user_id) : null;
   const keys = isOb
     ? null
     : {

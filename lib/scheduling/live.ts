@@ -1,6 +1,6 @@
 import "server-only";
 
-import { GENRES } from "@/lib/constants";
+import { GENRES, OFF_ROSTER_ROLES } from "@/lib/constants";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { addMonths } from "@/lib/time";
 import type { DateString } from "@/lib/types";
@@ -31,7 +31,7 @@ async function withCounts(row: RoundRow, viewerId: string | null): Promise<Sched
   const admin = createAdminClient();
   const [answers, members] = await Promise.all([
     admin.from("schedule_answers").select("user_id").eq("round_id", row.id),
-    admin.from("profiles").select("user_id", { count: "exact", head: true }).neq("role", "ob"),
+    admin.from("profiles").select("user_id", { count: "exact", head: true }).not("role", "in", OFF_ROSTER_ROLES),
   ]);
   const answered = new Set(((answers.data ?? []) as { user_id: string }[]).map((r) => r.user_id));
   return {
@@ -96,7 +96,7 @@ export async function loadMonthInput(
       .lt("date", addMonths(month, 1)),
     options.onlyUser
       ? Promise.resolve({ data: [] })
-      : admin.from("profiles").select("user_id, username, main_genre_id").neq("role", "ob"),
+      : admin.from("profiles").select("user_id, username, main_genre_id").not("role", "in", OFF_ROSTER_ROLES),
     options.onlyUser ? Promise.resolve({ data: [] }) : admin.from("user_subgenres").select("user_id, slot, genre_id"),
     roundId ? answersQuery : Promise.resolve({ data: [] }),
   ]);

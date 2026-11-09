@@ -9,6 +9,7 @@ import {
 } from "@/lib/board-messages";
 import { confirmAction } from "@/lib/confirm";
 import { dbErrorMessage } from "@/lib/error-message";
+import { useCanWrite } from "@/lib/role";
 import { createClient } from "@/lib/supabase/client";
 import { formatAsTokyoDateTime, formatAsTokyoTime } from "@/lib/time";
 import { useLiveRefresh } from "@/lib/use-live-refresh";
@@ -96,6 +97,7 @@ export function BoardMessages({
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const canWrite = useCanWrite();
   const listRef = useRef<HTMLDivElement>(null);
   const visibleArea = useVisibleArea(open);
 
@@ -321,46 +323,50 @@ export function BoardMessages({
               入れ忘れると「書き込む」が押しにくいままになる
             */}
             <div className="safe-bottom space-y-1.5 border-t border-[var(--border)] px-3 py-2">
-              <div className="flex items-end gap-2">
+              <div className="flex items-end justify-end gap-2">
                 {/*
                   **1行で始めて、打つぶんだけ伸ばす** (v1.29.3)。
                   連絡はたいてい一言なので、最初から数行ぶんの箱を空けて
                   おくと読む場所が削られる。伸びる上限は5行ぶんで、
-                  それ以上は中でスクロールさせる
+                  それ以上は中でスクロールさせる。
+
+                  閲覧のみ (v1.30) には入力欄ごと出さない。閉じるだけ残す
                 */}
-                <div className="flex min-w-0 flex-1 items-end gap-1 rounded-2xl border border-[var(--border)] bg-[var(--background)] px-3 py-1.5 focus-within:border-[var(--foreground)]">
-                  <textarea
-                    ref={inputRef}
-                    aria-label="連絡の内容"
-                    value={draft}
-                    rows={1}
-                    maxLength={MESSAGE_MAX_LENGTH}
-                    disabled={pending}
-                    placeholder="メッセージを入力"
-                    onChange={(e) => {
-                      setDraft(e.target.value);
-                      autosize(e.target);
-                    }}
-                    onKeyDown={(e) => {
-                      // パソコンから打つ人向け。改行は素の Enter のまま
-                      if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
-                        e.preventDefault();
-                        void send();
-                      }
-                    }}
-                    className="max-h-32 min-w-0 flex-1 resize-none bg-transparent py-1 text-base leading-6 outline-none"
-                  />
-                  <button
-                    type="button"
-                    onClick={send}
-                    disabled={pending || draft.trim().length === 0}
-                    aria-label={pending ? "送信中" : "送信"}
-                    title="送信"
-                    className="mb-0.5 shrink-0 rounded-full p-1 text-[var(--foreground)] disabled:text-[var(--muted)] disabled:opacity-40"
-                  >
-                    <SendIcon />
-                  </button>
-                </div>
+                {canWrite ? (
+                  <div className="flex min-w-0 flex-1 items-end gap-1 rounded-2xl border border-[var(--border)] bg-[var(--background)] px-3 py-1.5 focus-within:border-[var(--foreground)]">
+                    <textarea
+                      ref={inputRef}
+                      aria-label="連絡の内容"
+                      value={draft}
+                      rows={1}
+                      maxLength={MESSAGE_MAX_LENGTH}
+                      disabled={pending}
+                      placeholder="メッセージを入力"
+                      onChange={(e) => {
+                        setDraft(e.target.value);
+                        autosize(e.target);
+                      }}
+                      onKeyDown={(e) => {
+                        // パソコンから打つ人向け。改行は素の Enter のまま
+                        if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+                          e.preventDefault();
+                          void send();
+                        }
+                      }}
+                      className="max-h-32 min-w-0 flex-1 resize-none bg-transparent py-1 text-base leading-6 outline-none"
+                    />
+                    <button
+                      type="button"
+                      onClick={send}
+                      disabled={pending || draft.trim().length === 0}
+                      aria-label={pending ? "送信中" : "送信"}
+                      title="送信"
+                      className="mb-0.5 shrink-0 rounded-full p-1 text-[var(--foreground)] disabled:text-[var(--muted)] disabled:opacity-40"
+                    >
+                      <SendIcon />
+                    </button>
+                  </div>
+                ) : null}
 
                 {/* 閉じるは入力欄の外。送信と並べても取り違えないよう形を変える */}
                 <button

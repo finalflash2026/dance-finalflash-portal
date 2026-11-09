@@ -2,6 +2,7 @@ import "server-only";
 
 import webpush from "web-push";
 
+import { OFF_ROSTER_ROLES } from "@/lib/constants";
 import { vapidConfig } from "@/lib/env";
 import { createAdminClient } from "@/lib/supabase/admin";
 
@@ -177,7 +178,7 @@ export async function sendPush({
 }
 
 /**
- * 現役全員 (OB を除く) の user_id。鍵の開閉と部室の鍵の宛先。
+ * 現役全員 (OB と閲覧のみを除く) の user_id。鍵の開閉と部室の鍵の宛先。
  *
  * `exceptUserId` には**操作した本人**を渡す。自分が押した鍵の通知が
  * 自分の端末に返ってくるのは邪魔にしかならない。
@@ -187,7 +188,7 @@ export async function activeMemberIds(exceptUserId?: string): Promise<string[]> 
   const { data, error } = await admin
     .from("profiles")
     .select("user_id")
-    .neq("role", "ob");
+    .not("role", "in", OFF_ROSTER_ROLES);
 
   if (error) {
     console.error("[push] 宛先を引けませんでした", error.message);

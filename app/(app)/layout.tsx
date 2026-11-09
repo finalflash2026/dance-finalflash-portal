@@ -15,8 +15,9 @@ import { SwipeTabs } from "@/components/SwipeTabs";
 import { TabBar } from "@/components/TabBar";
 import { Tour } from "@/components/Tour";
 import { getCurrentProfile } from "@/lib/auth/session";
-import { ROLE_LABELS, isCoordinatorOrAbove } from "@/lib/constants";
+import { ROLE_LABELS, isActiveMember, isCoordinatorOrAbove } from "@/lib/constants";
 import { VAPID_PUBLIC_KEY, hasSupabaseEnv } from "@/lib/env";
+import { RoleProvider } from "@/lib/role";
 import { RoomsProvider } from "@/lib/rooms";
 import { ROOMS } from "@/lib/constants";
 import { fetchRooms } from "@/lib/rooms-server";
@@ -96,13 +97,16 @@ export default async function AppLayout({
         <StaffNav showAdmin={role === "admin" || !hasSupabaseEnv()} />
       ) : null}
 
-      <RoomsProvider rooms={rooms}>
-        <PullToRefresh>
-          <SwipeTabs role={role}>
-            <PageTransition>{children}</PageTransition>
-          </SwipeTabs>
-        </PullToRefresh>
-      </RoomsProvider>
+      {/* 閲覧のみ (v1.30) に書き込みのボタンを出さないため、ロールを配る */}
+      <RoleProvider role={role}>
+        <RoomsProvider rooms={rooms}>
+          <PullToRefresh>
+            <SwipeTabs role={role}>
+              <PageTransition>{children}</PageTransition>
+            </SwipeTabs>
+          </PullToRefresh>
+        </RoomsProvider>
+      </RoleProvider>
 
       <TabBar role={role} />
       {/* iOS アプリでは右上の丸ボタンと戻るを本物の Liquid Glass に (v1.41) */}
@@ -114,7 +118,7 @@ export default async function AppLayout({
         <LaunchPrompts
           vapidPublicKey={VAPID_PUBLIC_KEY}
           // デモ (Supabase 未設定) は現役として出す
-          isActiveMember={profile ? profile.role !== "ob" : true}
+          isActiveMember={profile ? isActiveMember(profile.role) : true}
         />
       ) : null}
 

@@ -11,7 +11,7 @@ import type { Profile } from "@/lib/types";
  * 卒業する期をまとめてOB/OGへ移行する。
  * 1人ずつ PATCH を叩くのと違い、**削除処理を1回のトランザクションで済ませる**。
  *
- * OB化に伴う自動処理 (未来の申請・公式練の出欠・サブジャンルの削除) は
+ * OB化に伴う自動処理 (未来の申請・公式練とスタ練の出欠・サブジャンルの削除) は
  * DB 関数 graduate_to_ob が行う。ここは対象の絞り込みと監査ログだけ。
  */
 export const runtime = "nodejs";
@@ -67,7 +67,10 @@ export async function POST(request: Request) {
     Profile,
     "user_id" | "username" | "role"
   >[];
-  const pending = before.filter((p) => p.role !== "ob");
+  // **閲覧のみ (v1.30) も外す。** 引退した人を閲覧のみにしてから
+  // その代を一括でOB化すると、閲覧のみのはずの人までOBになって
+  // 全体カレンダーが見えなくなる (画面側でも外しているが、API でも守る)
+  const pending = before.filter((p) => p.role !== "ob" && p.role !== "viewer");
 
   if (pending.length === 0) {
     return Response.json({ updated: 0, message: "移行対象がありませんでした" });

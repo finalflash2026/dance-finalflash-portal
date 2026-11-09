@@ -18,6 +18,7 @@ import {
   GENRES,
   GENRE_BY_ID,
   ROLE_LABELS,
+  isActiveMember,
   isCoordinatorOrAbove,
 } from "@/lib/constants";
 import { dbErrorMessage } from "@/lib/error-message";
@@ -135,8 +136,11 @@ export function SettingsClient({
         </dl>
       </SettingsGroup>
 
-      {/* OB には表示しない: 公式練に紐づく設定のため (SPEC §6.4.1) */}
-      {profile.role !== "ob" ? (
+      {/*
+        OB と閲覧のみ (v1.30) には表示しない: 公式練の参加者を決める設定で、
+        どちらも参加者に載らないため (SPEC §6.4.1)
+      */}
+      {isActiveMember(profile.role) ? (
         <SubgenreSection
           userId={profile.user_id}
           mainGenreId={profile.main_genre_id}
@@ -218,10 +222,11 @@ export function SettingsClient({
       </SettingsGroup>
 
       {/*
-        通知は現役だけに配る(練習日程・鍵はどちらも OB に関係が無い。SPEC §6.6)。
-        受け取れないのに設定欄だけあると、オンにしても何も来ない状態になる
+        通知は現役だけに配る (練習日程・鍵はどちらも OB に関係が無い。SPEC §6.6)。
+        受け取れないのに設定欄だけあると、オンにしても何も来ない状態になる。
+        閲覧のみ (v1.30) も宛先に入らないので同じく出さない
       */}
-      {profile.role !== "ob" ? (
+      {isActiveMember(profile.role) ? (
         <PushSection vapidPublicKey={vapidPublicKey} />
       ) : null}
 
@@ -238,8 +243,9 @@ export function SettingsClient({
         大半の人にとって用の無い欄が目立つ場所を占める。
 
         OB は合言葉が正しくてもなれないため、欄自体を出さない (SPEC §3.6)。
+        閲覧のみ (v1.30) も同じ (引き継いだはずの3役に自分で戻れないように)。
       */}
-      {profile.role !== "ob" ? (
+      {isActiveMember(profile.role) ? (
         <RoleSection
           role={profile.role}
           onError={setError}

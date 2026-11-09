@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import { getCurrentProfile } from "@/lib/auth/session";
+import { isActiveMember } from "@/lib/constants";
 import { createClient } from "@/lib/supabase/server";
 
 /**
@@ -30,6 +31,10 @@ const schema = z.object({
 export async function PUT(request: Request) {
   const profile = await getCurrentProfile();
   if (!profile) return Response.json({ error: "ログインしてください。" }, { status: 401 });
+  // OB と閲覧のみ (§3.8) は答えない。DB の RLS でも止めている (0029)
+  if (!isActiveMember(profile.role)) {
+    return Response.json({ error: "日程調整には答えられません。" }, { status: 403 });
+  }
 
   const parsed = schema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) {

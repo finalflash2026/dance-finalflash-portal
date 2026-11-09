@@ -2,6 +2,7 @@ import { after } from "next/server";
 import { z } from "zod";
 
 import { requireRole } from "@/lib/auth/guard";
+import { OFF_ROSTER_ROLES } from "@/lib/constants";
 import { sendPush } from "@/lib/push";
 import { createAdminClient } from "@/lib/supabase/admin";
 
@@ -50,7 +51,10 @@ export async function POST(request: Request) {
   }
 
   let recipientQuery = admin.from("profiles").select("user_id");
-  if (!includeOb) recipientQuery = recipientQuery.neq("role", "ob");
+  // 閲覧のみ (v1.30) は OB を含めるときも宛先に入れない (§3.8)
+  recipientQuery = includeOb
+    ? recipientQuery.neq("role", "viewer")
+    : recipientQuery.not("role", "in", OFF_ROSTER_ROLES);
   const { data: recipients, error: recipientError } = await recipientQuery;
   if (recipientError) {
     return Response.json(

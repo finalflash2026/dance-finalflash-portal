@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import { graduateToOb, writeAuditLog } from "@/lib/admin";
+import { graduateToOb, makeViewer, writeAuditLog } from "@/lib/admin";
 import { dummyEmail } from "@/lib/auth/email";
 import { requireRole } from "@/lib/auth/guard";
 import { buildUsernameFromGenreId } from "@/lib/auth/username";
@@ -26,7 +26,7 @@ import type { Profile, Role } from "@/lib/types";
 export const runtime = "nodejs";
 
 const GENRE_IDS: number[] = GENRES.map((g) => g.id);
-const ROLES = ["ob", "member", "coordinator", "admin"] as const;
+const ROLES = ["ob", "member", "coordinator", "admin", "viewer"] as const;
 
 const schema = z
   .object({
@@ -147,13 +147,24 @@ export async function PATCH(
     }
   }
 
+  // ---- 閲覧のみへの切り替えも先に。OB化と同じ片付けを伴う (SPEC §3.8 / v1.30) ----
+  const toViewer = patch.role === "viewer" && target.role !== "viewer";
+  if (toViewer) {
+    const result = await makeViewer(admin, [id]);
+    if ("error" in result) {
+      return Response.json({ error: result.error }, { status: 500 });
+    }
+  }
+
   // ---- profiles を更新 ----
-  // role は OB化のとき DB 関数側で更新済みなので、ここでは触らない
+  // role は OB化・閲覧のみ化のとき DB 関数側で更新済みなので、ここでは触らない
   const update: Record<string, unknown> = { username: nextUsername };
   if (patch.displayName !== undefined) update.display_name = nextDisplayName;
   if (patch.mainGenreId !== undefined) update.main_genre_id = nextGenreId;
   if (patch.generation !== undefined) update.generation = nextGeneration;
-  if (patch.role !== undefined && !graduating) update.role = patch.role;
+  if (patch.role !== undefined && !graduating && !toViewer) {
+    update.role = patch.role;
+  }
 
   const { error: updateError } = await admin
     .from("profiles")
@@ -208,8 +219,8 @@ export async function PATCH(
   }
 
   // ---- 新しい1ジャンと同じサブジャンルは重複するので消す (SPEC §6.5.1) ----
-  // OB化した場合はサブジャンルごと消えているので不要
-  if (patch.mainGenreId !== undefined && !graduating) {
+  // OB化・閲覧のみ化した場合はサブジャンルごと消えているので不要
+  if (patch.mainGenreId !== undefined && !graduating && !toViewer) {
     const { error: subgenreError } = await admin
       .from("user_subgenres")
       .delete()
@@ -232,9 +243,14 @@ export async function PATCH(
     targetUserId: id,
     action: graduating
       ? "graduate_ob"
-      : target.role === "ob" && nextRole !== "ob"
-        ? "restore_member"
-        : "update_profile",
+      : toViewer
+        ? "make_viewer"
+        : (target.role === "ob" || target.role === "viewer") &&
+            nextRole !== target.role &&
+            nextRole !== "ob" &&
+            nextRole !== "viewer"
+          ? "restore_member"
+          : "update_profile",
     detail: {
       before: {
         username: target.username,

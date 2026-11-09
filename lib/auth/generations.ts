@@ -1,5 +1,6 @@
 import "server-only";
 
+import { OFF_ROSTER_ROLES } from "@/lib/constants";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { hasSupabaseEnv } from "@/lib/env";
 
@@ -10,7 +11,7 @@ import { hasSupabaseEnv } from "@/lib/env";
  */
 export async function generationChoices(): Promise<number[]> {
   if (!hasSupabaseEnv()) return [];
-  const { data } = await createAdminClient().from("profiles").select("generation").neq("role", "ob");
+  const { data } = await createAdminClient().from("profiles").select("generation").not("role", "in", OFF_ROSTER_ROLES);
   const active = [...new Set(((data ?? []) as { generation: number }[]).map((r) => r.generation))];
   if (active.length === 0) return [];
   const newest = Math.max(...active);

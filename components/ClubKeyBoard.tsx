@@ -11,6 +11,7 @@ import { BoardMessages } from "@/components/BoardMessages";
 import type { BoardMessage } from "@/lib/board-messages";
 import { confirmAction } from "@/lib/confirm";
 import { dbErrorMessage } from "@/lib/error-message";
+import { useCanWrite } from "@/lib/role";
 import { createClient } from "@/lib/supabase/client";
 import { useLiveRefresh } from "@/lib/use-live-refresh";
 import { formatAsTokyoDateTime } from "@/lib/time";
@@ -45,6 +46,7 @@ export function ClubKeyBoard({
   const [rows, setRows] = useState(initialRows);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const canWrite = useCanWrite();
 
   const refresh = useCallback(async () => {
     const supabase = createClient();
@@ -139,14 +141,17 @@ export function ClubKeyBoard({
          * 「私が持っています」は事実の申告に読め、既に自分が持っている人が
          * 押してよいのか迷う。
          */}
-        <button
-          type="button"
-          onClick={claim}
-          disabled={pending || isMine}
-          className="h-11 shrink-0 rounded-full bg-[var(--tint)] px-4 text-[15px] font-semibold text-white active:opacity-70 disabled:bg-[var(--fill)] disabled:text-[var(--muted)]"
-        >
-          {isMine ? "自分が持っている" : "自分が受け取った"}
-        </button>
+        {/* 閲覧のみ (v1.30) は鍵を受け取らないので、ボタンごと出さない */}
+        {canWrite ? (
+          <button
+            type="button"
+            onClick={claim}
+            disabled={pending || isMine}
+            className="h-11 shrink-0 rounded-full bg-[var(--tint)] px-4 text-[15px] font-semibold text-white active:opacity-70 disabled:bg-[var(--fill)] disabled:text-[var(--muted)]"
+          >
+            {isMine ? "自分が持っている" : "自分が受け取った"}
+          </button>
+        ) : null}
       </div>
 
       {rows.length > 1 ? (
