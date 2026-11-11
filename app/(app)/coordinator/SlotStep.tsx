@@ -8,6 +8,7 @@ import { dbErrorMessage } from "@/lib/error-message";
 import { useRoomById, useRooms } from "@/lib/rooms";
 import { GENRES, GENRE_BY_ID, PRACTICE_WEEKDAYS } from "@/lib/constants";
 import { findSplitReservations } from "@/lib/reservations";
+import type { AvailabilityLookup } from "@/lib/scheduling/availability";
 import {
   cellKey,
   nextPeriod,
@@ -37,7 +38,6 @@ import {
 } from "@/lib/time";
 import type { DateString, SlotStatus } from "@/lib/types";
 
-import { MonthNav } from "./MonthNav";
 import { PeriodPanel } from "./PeriodPanel";
 import {
   SlotGrid,
@@ -69,13 +69,14 @@ import { useSlotPeriods } from "./useSlotPeriods";
 
 export function SlotStep({
   month,
-  onMonthChange: setMonth,
   header,
+  availability = null,
 }: {
   month: DateString;
-  onMonthChange: (month: DateString) => void;
-  /** 月の切り替えのすぐ下に置くもの (割り振りの欄。v1.45) */
+  /** 表の上に置くもの (自動の割り振り。v1.47) */
   header?: React.ReactNode;
+  /** 出られる人の数 (v1.47) */
+  availability?: AvailabilityLookup | null;
 }) {
   const roomById = useRoomById();
   const {
@@ -556,11 +557,17 @@ export function SlotStep({
 
   return (
     <div className="space-y-4">
-      <MonthNav month={month} onChange={setMonth} disabled={pending} />
-
       {header}
 
-      <ViewToggle view={view} onChange={setView} disabled={pending} />
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+        <ViewToggle view={view} onChange={setView} disabled={pending} />
+        <WeekdayFilter
+          practiceDaysOnly={practiceDaysOnly}
+          hiddenCount={hiddenCount}
+          onChange={setPracticeDaysOnly}
+          disabled={pending}
+        />
+      </div>
 
       <ErrorMessage>{error ?? periods.error}</ErrorMessage>
 
@@ -569,13 +576,6 @@ export function SlotStep({
         roomName={(roomId) => roomById.get(roomId)?.name ?? "?"}
         disabled={pending}
         onMerge={mergeSplitReservations}
-      />
-
-      <WeekdayFilter
-        practiceDaysOnly={practiceDaysOnly}
-        hiddenCount={hiddenCount}
-        onChange={setPracticeDaysOnly}
-        disabled={pending}
       />
 
       {/*
@@ -617,11 +617,12 @@ export function SlotStep({
             <p className="rounded-2xl bg-[var(--cell)] px-4 py-3 text-center text-sm text-[var(--muted)]">
               {loading
                 ? "読み込み中…"
-                : "この月の予約枠はありません。①CSV取込から登録すると ○ が付きます。"}
+                : "この月の予約枠はありません"}
             </p>
           ) : null}
 
           <SlotGrid
+            availability={availability}
             dates={gridDates}
             rooms={rooms}
             table={periods.table}
@@ -647,8 +648,8 @@ export function SlotStep({
           {loading
             ? "読み込み中…"
             : reservations.length > 0
-              ? "月・水・木の予約枠はありません。他の曜日は「すべての曜日」で見られます。"
-              : "この月の予約枠はありません。①CSV取込 から登録してください"}
+              ? "月・水・木の予約枠はありません"
+              : "この月の予約枠はありません"}
         </p>
       ) : (
         <>
@@ -832,7 +833,7 @@ function WeekdayFilter({
       {(
         [
           { value: true, label: "月・水・木" },
-          { value: false, label: "すべての曜日" },
+          { value: false, label: hiddenCount > 0 ? `すべての曜日 +${hiddenCount}` : "すべての曜日" },
         ] as const
       ).map((option) => (
         <button
@@ -850,11 +851,6 @@ function WeekdayFilter({
           {option.label}
         </button>
       ))}
-      {practiceDaysOnly && hiddenCount > 0 ? (
-        <span className="text-xs text-[var(--muted)]">
-          他の曜日の予約枠 {hiddenCount}件を隠しています
-        </span>
-      ) : null}
     </div>
   );
 }

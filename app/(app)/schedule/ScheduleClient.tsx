@@ -22,7 +22,7 @@ import type {
 import { roundTitle, type ScheduleRound } from "@/lib/scheduling/round";
 import { confirmAction } from "@/lib/confirm";
 import { showToast } from "@/lib/toast";
-import { formatDateLabel, getWeekday, parseDate, todayInTokyo } from "@/lib/time";
+import { daysBetween, formatDateLabel, getWeekday, parseDate, todayInTokyo } from "@/lib/time";
 
 /**
  * 日程調整 (SPEC.md §6.8.4 / v1.33.1)。
@@ -459,11 +459,20 @@ export function SchedulePlanClient({
 
 /**
  * 下書きを作ったあとに呼ぶ (折衝ワークフローの中で使うとき。v1.43)。
- * 無ければ折衝ワークフローの②コマ割りへ移る
+ * 無ければ折衝の ③ 割り振りへ移る
  */
 export const DraftDoneContext = createContext<((month: string) => void) | null>(null);
 
-export function PlanPanel({ input, round }: { input: PlanInput; round: ScheduleRound }) {
+export function PlanPanel({
+  input,
+  round,
+  showStats = true,
+}: {
+  input: PlanInput;
+  round: ScheduleRound;
+  /** 回答した人・締切・予約したコマ。折衝の画面は手順のボタンに出すので出さない (v1.47) */
+  showStats?: boolean;
+}) {
   const [settings, setSettings] = useState<PlanSettings>(() => ({
     ...DEFAULT_SETTINGS,
     perGenre: defaultPerGenre(input),
@@ -509,6 +518,7 @@ export function PlanPanel({ input, round }: { input: PlanInput; round: ScheduleR
 
   return (
     <div className="space-y-4">
+      {showStats ? (
       <div className="grid grid-cols-3 gap-2">
         <Stat label="回答した人" value={`${answered}/${input.members.length}`} />
         {round.id ? (
@@ -526,6 +536,7 @@ export function PlanPanel({ input, round }: { input: PlanInput; round: ScheduleR
         )}
         <Stat label="予約したコマ" value={`${total}`} />
       </div>
+      ) : null}
 
       <section className={`${groupClass} space-y-4 p-4`}>
         <h2 className="text-[17px] font-bold">各ジャンルのコマ数</h2>
@@ -579,7 +590,6 @@ export function PlanPanel({ input, round }: { input: PlanInput; round: ScheduleR
             />
             <Choice
               label="続けて入れるときの部屋"
-              hint="続けて入れるコマを、同じ部屋にそろえるかどうか。"
               value={settings.sameRoomBonus}
               options={[
                 { value: 0, label: "気にしない" },
@@ -601,7 +611,6 @@ export function PlanPanel({ input, round }: { input: PlanInput; round: ScheduleR
             />
             <Choice
               label="広い部屋での通し練習"
-              hint="どのジャンルも、月にこの回数は広い部屋で練習できるようにします。"
               value={settings.minBigPerGenre}
               options={[
                 { value: 0, label: "決めない" },
@@ -617,7 +626,6 @@ export function PlanPanel({ input, round }: { input: PlanInput; round: ScheduleR
             />
             <Choice
               label="△ (できれば避けたい) の数え方"
-              hint="△ の人を何人ぶんと数えるか。"
               value={settings.maybeWeight}
               options={[
                 { value: 0, label: "数えない" },
@@ -628,7 +636,6 @@ export function PlanPanel({ input, round }: { input: PlanInput; round: ScheduleR
             />
             <Choice
               label="2・3ジャンの人の数え方"
-              hint="1ジャンの人を1人としたときの重さ。"
               value={settings.genreWeights[1]}
               options={[
                 { value: 1, label: "同じ" },
@@ -740,7 +747,7 @@ function Choice<T extends number>({
   onChange,
 }: {
   label: string;
-  hint: string;
+  hint?: string;
   value: T;
   options: { value: T; label: string }[];
   onChange: (value: T) => void;
@@ -755,7 +762,7 @@ function Choice<T extends number>({
         options={options.map((o) => ({ value: String(o.value), label: o.label }))}
         onChange={(v) => onChange(Number(v) as T)}
       />
-      <p className="text-[13px] text-[var(--muted)]">{hint}</p>
+      {hint ? <p className="text-[13px] text-[var(--muted)]">{hint}</p> : null}
     </div>
   );
 }
@@ -945,7 +952,7 @@ function DraftButton({ input, result, month }: { input: PlanInput; result: PlanR
     }
     showToast(`${monthLabel}の下書きを ${body.created}コマ作りました`);
     if (onDone) onDone(month);
-    else router.push(`/coordinator?month=${month}&step=slots`);
+    else router.push(`/coordinator?month=${month}&step=allocate`);
   }
 
   return (
@@ -968,10 +975,9 @@ function Scorecard({ metrics }: { metrics: PlanMetrics }) {
   return (
     <ul className="grid grid-cols-3 gap-2">
       {items.map((item) => (
-        <li key={item.label} className="rounded-lg bg-[var(--fill)] px-2.5 py-2">
+        <li key={item.label} title={item.hint} className="rounded-lg bg-[var(--fill)] px-2.5 py-2">
           <span className="block text-[12px] text-[var(--muted)]">{item.label}</span>
           <span className="block text-[18px] font-bold tabular-nums">{item.value}</span>
-          <span className="block text-[11px] leading-tight text-[var(--muted)]">{item.hint}</span>
         </li>
       ))}
     </ul>
@@ -1060,10 +1066,3 @@ function DateGrid({
   );
 }
 
-function daysBetween(from: string, to: string): number {
-  const a = parseDate(from);
-  const b = parseDate(to);
-  return Math.round(
-    (Date.UTC(b.year, b.month - 1, b.day) - Date.UTC(a.year, a.month - 1, a.day)) / 86_400_000,
-  );
-}

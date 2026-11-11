@@ -193,13 +193,12 @@ export function ImportStep({
 
   return (
     <div className="space-y-6">
+      <div className="grid gap-3 sm:grid-cols-2">
       <PromptCard />
 
-      <section className="space-y-3">
-        <h2 className="text-[17px] font-semibold">1. CSVをアップロード</h2>
-        <p className="text-sm text-[var(--muted)]">
-          1行目が「{CSV_HEADER_LINE}」のCSV(複数可)
-        </p>
+      <section className="space-y-3 rounded-2xl bg-[var(--cell)] p-4">
+        <h2 className="text-[17px] font-semibold">CSV を読み込む</h2>
+        <p className="font-mono text-[12px] text-[var(--muted)]">{CSV_HEADER_LINE}</p>
         <input
           ref={fileInput}
           type="file"
@@ -228,20 +227,21 @@ export function ImportStep({
           </p>
         ) : null}
       </section>
+      </div>
 
       <ErrorMessage>{error}</ErrorMessage>
       {result ? (
         <div className="space-y-2 rounded-lg bg-[var(--surface)] px-3 py-2 text-sm">
           <p>{result}</p>
           <button type="button" onClick={onNext} className={buttonClass}>
-            次へ進む
+            日程調整へ
           </button>
         </div>
       ) : null}
 
       {rows.length > 0 ? (
         <section className="space-y-3">
-          <h2 className="text-[17px] font-semibold">2. 内容を確認する</h2>
+          <h2 className="text-[17px] font-semibold">読み取った予約枠</h2>
           <p className="text-sm text-[var(--muted)]">
             {rows.length}件
             {invalidRows.length > 0 ? ` / 要修正 ${invalidRows.length}件` : ""}
@@ -283,9 +283,7 @@ export function ImportStep({
               {overlapCount > 0
                 ? "⚠ の枠は同じ部屋で時間が重なっています。読み取りミスがないか確かめてください。"
                 : ""}
-              {duplicateCount > 0
-                ? " 完全に同じ枠は、確定時に自動でスキップされます。"
-                : ""}
+              {duplicateCount > 0 ? " 同じ枠は確定のときに飛ばします。" : ""}
             </p>
           ) : null}
 
@@ -342,20 +340,21 @@ function PromptCard() {
   }
 
   return (
+    // 予約完了ページのスクショと一緒に自分の AI へ渡すプロンプト (§9.3)。
+    // 中身は畳んでおく。コピーして渡すだけなので、毎回読むものではない
     <section className="space-y-3 rounded-2xl bg-[var(--cell)] p-4">
-      <h2 className="text-[17px] font-semibold">0. スクショからCSVを作る</h2>
-      <p className="text-sm text-[var(--muted)]">
-        予約完了ページのスクリーンショットと下のプロンプトを、自分のAI(ChatGPT・Claude など)に渡してCSVを作ります。このサイトからAIは呼びません。
-      </p>
-      <pre className="max-h-56 overflow-auto rounded-lg bg-[var(--surface)] p-3 text-xs whitespace-pre-wrap">
-        {COORDINATOR_PROMPT}
-      </pre>
+      <h2 className="text-[17px] font-semibold">スクショから CSV を作る</h2>
       <button type="button" onClick={copy} className={secondaryButtonClass}>
-        {copied ? "コピーしました" : "プロンプトをコピー"}
+        {copied ? "コピーしました" : "AI に渡すプロンプトをコピー"}
       </button>
-      <p className="rounded-lg bg-[var(--danger-bg)] px-3 py-2 text-sm text-[var(--danger-fg)]">
-        AIの出力は必ずこの画面で目視チェックしてから確定してください。
-      </p>
+      <details className="group">
+        <summary className="cursor-pointer list-none text-[13px] text-[var(--muted)] [&::-webkit-details-marker]:hidden">
+          プロンプトを見る <span aria-hidden className="inline-block transition-transform group-open:rotate-90">›</span>
+        </summary>
+        <pre className="mt-2 max-h-56 overflow-auto rounded-lg bg-[var(--surface)] p-3 text-xs whitespace-pre-wrap">
+          {COORDINATOR_PROMPT}
+        </pre>
+      </details>
     </section>
   );
 }

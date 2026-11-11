@@ -1,48 +1,41 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
-import { Segmented } from "@/components/ui";
-
+import { buildAvailability } from "@/lib/scheduling/availability";
+import type { ScheduleRound } from "@/lib/scheduling/round";
+import type { PlanInput } from "@/lib/scheduling/types";
 import { startOfMonth, todayInTokyo } from "@/lib/time";
 import type { DateString } from "@/lib/types";
 
-import type { ScheduleRound } from "@/lib/scheduling/round";
-import type { PlanInput } from "@/lib/scheduling/types";
-
-import { DraftDoneContext, PlanPanel } from "../schedule/ScheduleClient";
 import { ImportStep } from "./ImportStep";
-import { RoundPanel } from "./RoundPanel";
+import { MonthNav } from "./MonthNav";
 import { PublishStep } from "./PublishStep";
+import { AutoAllocate, RoundStep, isAccepting, useMonthPlan } from "./RoundPanel";
 import { SlotStep } from "./SlotStep";
+import { useMonthReservations } from "./useMonthReservations";
 
 /**
- * 折衝ワークフローの Step 切り替え (SPEC.md §6.2)
+ * 折衝の画面 (SPEC.md §6.2 / v1.47)
  *
- * ①取込 → ②コマ割り → ③公開 の順に進む前提だが、
- * 後から個別に直すことも多いので行き来は自由にしている。
- * ②の月の切り替えの下に「◯月の割り振り」を置き、予約枠のある月なら
- * いつでも自動で割り振って下書きに入れられる (v1.45)。
+ * 仕事の順に ① 予約 → ② 日程調整 → ③ 割り振り → ④ 公開。
+ * **月は一番上で1つだけ選び、4つの手順で共有する。** 手順のボタンにはその月の状態を数で出す。
  *
- * **この画面だけは PC を前提に組む** (v1.28)。他の画面はスマホ最優先だが、
- * 折衝の作業は1か月ぶんの表を見渡しながら進めるもので、実際に折衝係も
- * PC で作業している。②のコマ割り表は画面幅をそのまま使う。
- * ①③は縦に読む画面なので、これまでどおり中央に寄せて幅を抑える。
- *
- * **対象の月は3つの Step で共有する** (v1.32.6)。①で来月の CSV を確定してから
- * ②③を開くたびに今月へ戻っていた。①の確定で取り込んだ月に合わせる。
+ * **この画面だけは PC を前提に組む** (v1.28)。③の表は画面幅をそのまま使い、
+ * ほかの手順は縦に読む画面なので幅を抑える。
  */
-type Step = "import" | "slots" | "publish";
+type Step = "import" | "round" | "allocate" | "publish";
 
 const STEPS: { id: Step; label: string }[] = [
-  { id: "import", label: "① 取込" },
-  { id: "slots", label: "② コマ割り" },
-  { id: "publish", label: "③ 公開" },
+  { id: "import", label: "予約" },
+  { id: "round", label: "日程調整" },
+  { id: "allocate", label: "割り振り" },
+  { id: "publish", label: "公開" },
 ];
 
-/** 前の URL (?step=2・?step=plan はコマ割り) も読む */
+/** 前の URL (?step=slots・2・plan は割り振り) も読む */
 function stepFromParam(value: string | null): Step | null {
-  if (value === "2" || value === "plan") return "slots";
+  if (value === "slots" || value === "2" || value === "plan") return "allocate";
   return STEPS.some((s) => s.id === value) ? (value as Step) : null;
 }
 
@@ -57,15 +50,16 @@ export function CoordinatorClient({
   plan,
   openRoundMonth,
 }: {
-  /** 見本の割り振り (Supabase の無い環境だけ)。DB のある環境は RoundPanel が読む */
+  /** 見本の割り振り (Supabase の無い環境だけ) */
   plan?: CoordinatorPlan;
   /** 受付中の日程調整の月 (?step=plan で来たときにその月を開く。v1.44) */
   openRoundMonth?: DateString | null;
 }) {
   const [step, setStep] = useState<Step>("import");
   const [month, setMonth] = useState<DateString>(() => startOfMonth(todayInTokyo()));
-  const [planOpen, setPlanOpen] = useState(false);
+  const [autoOpen, setAutoOpen] = useState(false);
   const [slotRevision, setSlotRevision] = useState(0);
+
   // ?month=…&step=… で来たらその月・手順から (割り振りの案を下書きにしたあと等)
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -78,98 +72,132 @@ export function CoordinatorClient({
     }
     const fromUrl = stepFromParam(rawStep);
     if (fromUrl) setStep(fromUrl);
-    if (rawStep === "plan") setPlanOpen(true);
+    if (rawStep === "plan") setAutoOpen(true);
   }, [plan?.round.month, openRoundMonth]);
 
-  // 割り振りの回答 (デモでは見ている人の回答を端末に保存している。v1.35)
-  const [planInput, setPlanInput] = useState(plan?.input);
+  // 見本の回答 (見ている人の回答は端末に保存している。v1.35)
+  const [demoInput, setDemoInput] = useState(plan?.input);
   useEffect(() => {
     if (!plan?.storageKey || !plan.me) return;
     try {
       const raw = localStorage.getItem(plan.storageKey);
       if (!raw) return;
       const saved = JSON.parse(raw);
-      setPlanInput((prev) =>
-        prev ? { ...prev, answers: { ...prev.answers, [plan.me!]: saved } } : prev,
-      );
+      setDemoInput((prev) => (prev ? { ...prev, answers: { ...prev.answers, [plan.me!]: saved } } : prev));
     } catch {}
   }, [plan?.storageKey, plan?.me]);
+  const demo = useMemo(
+    () => (plan && demoInput ? { round: plan.round, input: demoInput } : undefined),
+    [plan, demoInput],
+  );
 
-  const planMonthLabel = plan ? `${Number(plan.round.month.slice(5, 7))}月` : "";
+  const monthPlan = useMonthPlan(month, demo);
+  const reservations = useMonthReservations(month);
+  const availability = useMemo(() => buildAvailability(monthPlan.input), [monthPlan.input]);
+
+  // 手順を切り替えたら数を読み直す (③で置いたコマ・④で公開したものを手順のボタンに出す)
+  const { reload: reloadReservations } = reservations;
+  useEffect(() => {
+    void reloadReservations();
+  }, [step, slotRevision, reloadReservations]);
+
+  const status = useMemo(() => {
+    const slots = reservations.reservations.flatMap((r) => r.slots);
+    const genreSlots = slots.filter((s) => s.status === "genre").length;
+    const drafts = slots.filter((s) => !s.published).length;
+    const round = monthPlan.round;
+    return {
+      import: reservations.reservations.length ? `${reservations.reservations.length}枠` : "なし",
+      round: round
+        ? isAccepting(round)
+          ? `${round.answeredCount}/${round.memberCount}人`
+          : "締切済み"
+        : "なし",
+      allocate: genreSlots ? `${genreSlots}コマ` : "—",
+      publish: drafts ? `下書き ${drafts}` : slots.length ? "公開済み" : "—",
+    } satisfies Record<Step, string>;
+  }, [reservations.reservations, monthPlan.round]);
+
+  const wide = step === "allocate";
 
   return (
-    <main className="mx-auto w-full max-w-[1600px] space-y-5 px-4 py-4">
-      <h1 className="text-[28px] font-bold leading-tight">折衝ワークフロー</h1>
-      <div className="max-w-2xl" data-tour="coord-steps">
-        <Segmented
-          label="折衝の手順"
-          size="large"
-          value={step}
-          options={STEPS.map((s) => ({ value: s.id, label: s.label }))}
-          onChange={setStep}
-        />
+    <main className="mx-auto w-full max-w-[1600px] space-y-4 px-4 py-4">
+      <h1 className="sr-only">折衝</h1>
+      <div className="max-w-3xl space-y-3">
+        <MonthNav month={month} onChange={setMonth} />
+        <nav aria-label="折衝の手順" className="grid grid-cols-4 gap-1.5" data-tour="coord-steps">
+          {STEPS.map((s, index) => {
+            const on = step === s.id;
+            return (
+              <button
+                key={s.id}
+                type="button"
+                aria-current={on ? "step" : undefined}
+                onClick={() => setStep(s.id)}
+                className={`rounded-2xl px-3 py-2.5 text-left transition-[background-color,box-shadow] ${
+                  on ? "bg-[var(--background)] shadow-[0_0_0_2px_var(--tint)]" : "bg-[var(--cell)] active:opacity-70"
+                }`}
+              >
+                <span className="flex items-center gap-1.5 text-[15px] font-semibold">
+                  <span
+                    aria-hidden
+                    className={`grid h-5 w-5 place-items-center rounded-full text-[11px] font-bold ${
+                      on ? "bg-[var(--tint)] text-white" : "bg-[var(--fill)] text-[var(--muted)]"
+                    }`}
+                  >
+                    {index + 1}
+                  </span>
+                  {s.label}
+                </span>
+                <span className="mt-0.5 block truncate text-[13px] text-[var(--muted)] tabular-nums">
+                  {status[s.id]}
+                </span>
+              </button>
+            );
+          })}
+        </nav>
       </div>
 
-      {step === "slots" ? (
-        <SlotStep
-          key={slotRevision}
-          month={month}
-          onMonthChange={setMonth}
-          header={
-            plan && planInput ? (
-              // 見本 (Supabase の無い環境)。回は決まった見本の月
-              <div className="max-w-3xl space-y-3">
-                <button
-                  type="button"
-                  aria-expanded={planOpen}
-                  onClick={() => {
-                    const next = !planOpen;
-                    setPlanOpen(next);
-                    if (next) setMonth(plan.round.month as DateString);
-                  }}
-                  className="flex h-11 items-center gap-2 rounded-xl bg-[var(--cell)] px-4 text-[15px] font-semibold text-[var(--tint)] active:opacity-70"
-                >
-                  <span>{planMonthLabel}の回答から案を作る</span>
-                  <span aria-hidden className={`text-[16px] transition-transform ${planOpen ? "rotate-90" : ""}`}>
-                    ›
-                  </span>
-                </button>
-                {planOpen ? (
-                  <DraftDoneContext.Provider
-                    value={(drafted) => {
-                      setMonth(drafted as DateString);
-                      setPlanOpen(false);
-                      setSlotRevision((r) => r + 1);
-                      window.scrollTo({ top: 0 });
-                    }}
-                  >
-                    <PlanPanel input={planInput} round={plan.round} />
-                  </DraftDoneContext.Provider>
-                ) : null}
-              </div>
-            ) : (
-              // 表で選んでいる月の日程調整 (始める・締め切る・案を作る。v1.44)
-              <RoundPanel
+      <div className={wide ? "" : "max-w-3xl"} data-tour="coord-body">
+        {step === "import" ? (
+          <ImportStep
+            onImported={(imported) => {
+              setMonth(imported);
+              void monthPlan.reload();
+            }}
+            onNext={() => setStep("round")}
+          />
+        ) : step === "round" ? (
+          <RoundStep
+            month={month}
+            plan={monthPlan}
+            demo={Boolean(demo)}
+            onNext={() => setStep("allocate")}
+            onImport={() => setStep("import")}
+          />
+        ) : step === "allocate" ? (
+          <SlotStep
+            key={`${month}-${slotRevision}`}
+            month={month}
+            availability={availability}
+            header={
+              <AutoAllocate
                 key={month}
                 month={month}
-                initialPlanOpen={planOpen}
+                plan={monthPlan}
+                initialOpen={autoOpen}
                 onDrafted={() => {
+                  setAutoOpen(false);
                   setSlotRevision((r) => r + 1);
                   window.scrollTo({ top: 0 });
                 }}
               />
-            )
-          }
-        />
-      ) : (
-        <div className="max-w-2xl" data-tour="coord-body">
-          {step === "import" ? (
-            <ImportStep onImported={setMonth} onNext={() => setStep("slots")} />
-          ) : (
-            <PublishStep month={month} onMonthChange={setMonth} />
-          )}
-        </div>
-      )}
+            }
+          />
+        ) : (
+          <PublishStep month={month} onPublished={() => void reloadReservations()} />
+        )}
+      </div>
     </main>
   );
 }

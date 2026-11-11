@@ -9,7 +9,6 @@ import { SLOT_STATUS_LABELS, unassignedRanges } from "@/lib/slots";
 import { formatDateLabel, formatTimeRange } from "@/lib/time";
 import type { DateString } from "@/lib/types";
 
-import { MonthNav } from "./MonthNav";
 import { useMonthReservations } from "./useMonthReservations";
 
 /**
@@ -23,10 +22,11 @@ import { useMonthReservations } from "./useMonthReservations";
  */
 export function PublishStep({
   month,
-  onMonthChange: setMonth,
+  onPublished,
 }: {
   month: DateString;
-  onMonthChange: (month: DateString) => void;
+  /** 公開したあと (手順のボタンの数を読み直す) */
+  onPublished?: () => void;
 }) {
   const roomById = useRoomById();
   const { reservations, loading, error, reload, setError } =
@@ -78,6 +78,7 @@ export function PublishStep({
           (body.notified ? ` / ${body.notified}人にお知らせを配りました` : ""),
       );
       reload();
+      onPublished?.();
     } finally {
       setPending(false);
     }
@@ -85,7 +86,6 @@ export function PublishStep({
 
   return (
     <div className="space-y-4">
-      <MonthNav month={month} onChange={setMonth} disabled={pending} />
       <ErrorMessage>{error}</ErrorMessage>
       {result ? (
         <p className="rounded-lg bg-[var(--surface)] px-3 py-2 text-sm">
@@ -99,29 +99,25 @@ export function PublishStep({
         </p>
       ) : (
         <>
-          <p className="text-sm text-[var(--muted)]">
-            この月のコマ {slots.length}件 (下書き {drafts.length}件 / 公開済{" "}
-            {publishedCount}件)
-            {gaps.length > 0 ? ` / 未割当 ${gaps.length}件` : ""}
-          </p>
+          <div className="grid grid-cols-3 gap-2" aria-label="この月のコマ">
+            {[
+              { label: "下書き", value: drafts.length },
+              { label: "空きで開く", value: gaps.length },
+              { label: "公開済み", value: publishedCount },
+            ].map((tile) => (
+              <div key={tile.label} className="rounded-2xl bg-[var(--cell)] px-3 py-3">
+                <span className="block text-[24px] font-bold leading-none tabular-nums">{tile.value}</span>
+                <span className="mt-1 block text-[12px] text-[var(--muted)]">{tile.label}</span>
+              </div>
+            ))}
+          </div>
 
           {total === 0 ? (
             <p className="rounded-2xl bg-[var(--cell)] px-4 py-8 text-center text-sm text-[var(--muted)]">
-              {slots.length === 0
-                ? "この月の予約枠はありません。①CSV取込から登録します。"
-                : "公開していないコマはありません"}
+              {slots.length === 0 ? "この月のコマはありません" : "公開していないコマはありません"}
             </p>
           ) : (
             <>
-              {gaps.length > 0 ? (
-                <p className="rounded-lg bg-[var(--surface)] px-3 py-2 text-sm">
-                  コマを割り当てていない時間帯 {gaps.length}件は、公開時に
-                  <strong>「空き」として自動で開放</strong>されます
-                  (予約している部屋を個人練に使えるようにするため)。
-                  開放したくない時間帯は、②コマ割り で「使用不可」を置いて塞いでください。
-                </p>
-              ) : null}
-
               <ul className="divide-y divide-[var(--separator)] overflow-hidden rounded-2xl bg-[var(--cell)]">
                 {drafts.map(({ slot, reservation }) => (
                   <li key={slot.id} className="px-3 py-2 text-sm">
@@ -141,8 +137,8 @@ export function PublishStep({
 
               <div className="space-y-2 border-t border-[var(--border)] pt-4">
                 <p className="text-sm text-[var(--muted)]">
-                  OB以外の全員にお知らせが届きます
-                  {publishedCount > 0 ? "(「更新されました」として)" : ""}。
+                  現役全員にお知らせが届きます。
+                  {gaps.length > 0 ? `割り振っていない ${gaps.length}件は空きとして個人練に開きます。` : ""}
                 </p>
                 <button
                   type="button"

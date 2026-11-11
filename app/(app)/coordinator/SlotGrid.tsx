@@ -31,6 +31,7 @@ import {
   formatTimeRange,
   normalizeTimeInput,
 } from "@/lib/time";
+import { availabilityRatio, type AvailabilityLookup } from "@/lib/scheduling/availability";
 import type { DateString } from "@/lib/types";
 
 import type { ReservationInfo } from "./useMonthReservations";
@@ -77,15 +78,6 @@ export interface PeriodEdit {
 const CELL_CLASS = "border border-[var(--border)] p-0 align-middle";
 const HEAD_CLASS =
   "border border-[var(--border)] bg-[var(--surface)] px-1.5 py-1 text-[11px] font-bold whitespace-nowrap";
-
-function brushLabel(brush: Brush): string {
-  if (brush.kind === "genre") {
-    return GENRE_BY_ID.get(brush.genreId)?.code ?? "公式練";
-  }
-  if (brush.kind === "open") return "空き ○";
-  if (brush.kind === "unavailable") return "使用不可 −";
-  return "消す";
-}
 
 function cellFace(cell: GridCell): {
   text: string;
@@ -165,6 +157,7 @@ export function SlotGrid({
   onPaint,
   onSavePeriods,
   onChangeRowCount,
+  availability = null,
 }: {
   dates: readonly DateString[];
   rooms: readonly Room[];
@@ -175,6 +168,8 @@ export function SlotGrid({
   onPaint: (targets: PaintTarget[], brush: Brush) => void;
   onSavePeriods: (edits: PeriodEdit[]) => void;
   onChangeRowCount: (date: DateString, delta: 1 | -1) => void;
+  /** 日程調整の回答から数えた出られる人の数 (v1.47)。回答が無ければ null */
+  availability?: AvailabilityLookup | null;
 }) {
   const [brush, setBrush] = useState<Brush | null>(null);
   const [menu, setMenu] = useState<{
@@ -347,13 +342,11 @@ export function SlotGrid({
                       colSpan={columns.length}
                       className="border border-[var(--border)] bg-[var(--surface)] px-2 py-0.5"
                     >
-                      <span className="mr-2 text-[10px] text-[var(--muted)]">
-                        この日のコマ数 {rows}
-                      </span>
                       <button
                         type="button"
                         disabled={disabled}
                         onClick={() => onChangeRowCount(date, 1)}
+                        aria-label={`${formatDateLabel(date)}のコマを1つ増やす`}
                         title="この日だけコマを1つ増やす"
                         className="mr-1 rounded border border-[var(--border)] bg-[var(--background)] px-1.5 text-[11px] disabled:opacity-50"
                       >
@@ -363,6 +356,7 @@ export function SlotGrid({
                         type="button"
                         disabled={disabled || rows <= 1}
                         onClick={() => onChangeRowCount(date, -1)}
+                        aria-label={`${formatDateLabel(date)}のコマを1つ減らす`}
                         title="この日だけコマを1つ減らす"
                         className="rounded border border-[var(--border)] bg-[var(--background)] px-1.5 text-[11px] disabled:opacity-50"
                       >
@@ -398,6 +392,8 @@ export function SlotGrid({
                         dragKeys,
                         onDragStart: startDrag,
                         onDragEnter: extendDrag,
+                        availability,
+                        brushGenreId: brush?.kind === "genre" ? brush.genreId : null,
                       })}
                     </tr>
                   ))}
@@ -409,7 +405,6 @@ export function SlotGrid({
       </div>
 
       <Totals totals={totals} />
-      <Legend />
       <OffGridNotice offGrid={offGrid} rooms={rooms} />
 
       {menu ? (
@@ -464,7 +459,11 @@ function renderRow({
   dragKeys,
   onDragStart,
   onDragEnter,
+  availability,
+  brushGenreId,
 }: {
+  availability: AvailabilityLookup | null;
+  brushGenreId: number | null;
   columns: (
     | { kind: "time"; section: string }
     | { kind: "room"; room: Room }
@@ -560,6 +559,25 @@ function renderRow({
     }
 
     const face = cellFace(cell);
+    // 出られる人の数 (v1.47)。置いた公式練はそのジャンル、空いているセルは選んでいるジャンル
+    const placedGenre = cell.kind === "genre" ? (cell.slot?.genreId ?? null) : null;
+    const placed =
+      availability && placedGenre != null
+        ? availability(date, period.startTime, period.endTime, placedGenre)
+        : null;
+    const heatGenre =
+      brushGenreId != null && (cell.kind === "unassigned" || cell.kind === "open")
+        ? GENRE_BY_ID.get(brushGenreId)
+        : null;
+    const heat =
+      availability && heatGenre
+        ? availability(date, period.startTime, period.endTime, heatGenre.id)
+        : null;
+    const heatBg =
+      heat && heatGenre
+        ? `color-mix(in srgb, ${GENRE_COLORS[heatGenre.code as GenreCode].bg} ${Math.round(15 + availabilityRatio(heat) * 85)}%, transparent)`
+        : null;
+    const peopleLabel = placed ?? heat;
     const clickable = run.some(
       (entry) =>
         entry.cell.kind !== "none" &&
@@ -594,18 +612,22 @@ function renderRow({
             if (painting && !disabled && clickable) onDragEnter(dragKey, targets);
           }}
           title={`${formatDateLabel(date)} ${formatTimeRange(period.startTime, period.endTime)} ${roomLabel} — ${face.title}`}
-          aria-label={`${formatDateLabel(date)} ${formatTimeRange(period.startTime, period.endTime)} ${roomLabel} ${face.title}`}
+          aria-label={`${formatDateLabel(date)} ${formatTimeRange(period.startTime, period.endTime)} ${roomLabel} ${face.title}${peopleLabel ? ` ○${peopleLabel.ok}人 △${peopleLabel.maybe}人 / ${peopleLabel.total}人` : ""}`}
           className={`relative h-8 w-full cursor-pointer text-[12px] font-bold transition-[box-shadow] disabled:cursor-default ${
             painting && clickable ? "cursor-crosshair" : ""
           } ${inDrag ? "z-10 shadow-[inset_0_0_0_2px_var(--tint)]" : ""}`}
-          style={{ backgroundColor: face.bg, color: face.fg, touchAction: painting ? "none" : undefined }}
+          style={{
+            backgroundColor: heatBg ?? face.bg,
+            color: heatBg ? "var(--foreground)" : face.fg,
+            touchAction: painting ? "none" : undefined,
+          }}
         >
           {/*
             ①で取り込んだ予約を裏に薄く敷く (v1.29)。
             コマの時間を直すときに、何時から何時まで借りているのかが
             見えていないと直しようがない。コマの時間を変えると帯も伸び縮みする
           */}
-          {face.bg === "transparent"
+          {face.bg === "transparent" && !heatBg
             ? cell.coverage.map((bar, barIndex) => (
                 <span
                   key={barIndex}
@@ -619,7 +641,21 @@ function renderRow({
                 />
               ))
             : null}
-          <span className="relative">{face.text}</span>
+          {heat ? (
+            <span aria-hidden className="relative tabular-nums">
+              {heat.ok}
+              <span className="text-[10px] font-semibold opacity-60">/{heat.total}</span>
+            </span>
+          ) : placed ? (
+            <span aria-hidden className="relative block leading-[1.05]">
+              {face.text}
+              <span className="block text-[10px] font-semibold tabular-nums opacity-75">
+                ○{placed.ok}/{placed.total}
+              </span>
+            </span>
+          ) : (
+            <span className="relative">{face.text}</span>
+          )}
         </button>
       </td>,
     );
@@ -869,15 +905,6 @@ function BrushPalette({
           消す
         </button>
 
-        <span className="ml-auto text-[12px] text-[var(--muted)]">
-          {brush ? (
-            <>
-              <strong className="text-[var(--foreground)]">{brushLabel(brush)}</strong> をなぞって置く・Esc で外す
-            </>
-          ) : (
-            "1〜9 でジャンル・0 で空き"
-          )}
-        </span>
       </div>
     </div>
   );
@@ -1008,35 +1035,6 @@ function Totals({ totals }: { totals: ReturnType<typeof summarize> }) {
   );
 }
 
-function Legend() {
-  return (
-    <div className="space-y-1 text-xs text-[var(--muted)]">
-      <p>
-        薄い ○=練習できる(未割当) ／ 地の付いた ○=空き ／ −=使用不可 ／
-        △=予約はあるがコマの時間を覆えていない ／ ⚠=区切りの合わない古いコマが残っている ／ 空欄=予約なし。
-        色付きのセルは公式練です。
-        <strong>セルの裏の薄い帯</strong>は①で取り込んだ予約で、
-        コマの時間を変えると伸び縮みします。
-      </p>
-      <p>
-        <strong>時間割の列を押すと、その日・その建物のコマの時間を直せます。</strong>
-        青い時間は基準と違う日です。日付の行の ＋ − でその日のコマ数を増減できます。
-      </p>
-      {/*
-        「空き」を1コマずつ置くと、空きコマがコマ単位に切れる。
-        通しで置きたいのが普通なので、未割当のままにしておくよう促す
-        (公開時に unassignedRanges() が予約枠の余りを1本にまとめる)。
-      */}
-      <p>
-        <strong>未割当(薄い ○) はそのままで構いません。</strong>
-        公開すると、その日の余った時間が<strong>通しで1本の「空き」</strong>になります。
-        「空き」を1コマずつ置くと、空きがコマ単位に切れて、
-        コマをまたぐ個人練の申請ができなくなります。
-      </p>
-    </div>
-  );
-}
-
 /**
  * 基準のコマに合わないコマの一覧。
  *
@@ -1063,9 +1061,7 @@ function OffGridNotice({
       <p className="font-bold">
         コマの時間に合わないコマが {offGrid.length}件あります
       </p>
-      <p className="mt-0.5">
-        この表には出せません。「タイムライン」に切り替えると直せます。
-      </p>
+      <p className="mt-0.5">タイムラインで直せます。</p>
       <ul className="mt-1 space-y-0.5">
         {offGrid.slice(0, 8).map((entry, index) => (
           <li key={index}>
