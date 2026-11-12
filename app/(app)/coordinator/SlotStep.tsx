@@ -38,6 +38,7 @@ import {
 } from "@/lib/time";
 import type { DateString, SlotStatus } from "@/lib/types";
 
+import { DayBoard } from "./DayBoard";
 import { PeriodPanel } from "./PeriodPanel";
 import {
   SlotGrid,
@@ -95,7 +96,7 @@ export function SlotStep({
     () => [...new Set(rooms.map((room) => room.section))],
     [rooms],
   );
-  const [view, setView] = useState<"grid" | "timeline">("grid");
+  const [view, setView] = useState<View>("board");
   /** 同じセルへの二重書き込みを止める。連打すると重なり制約に当たるため */
   const painting = useRef(new Set<string>());
   const [editing, setEditing] = useState<{
@@ -611,7 +612,23 @@ export function SlotStep({
         </div>
       </details>
 
-      {view === "grid" ? (
+      {view === "board" ? (
+        reservations.length === 0 ? (
+          <p className="rounded-2xl bg-[var(--cell)] px-4 py-8 text-center text-sm text-[var(--muted)]">
+            {loading ? "読み込み中…" : "この月の予約枠はありません"}
+          </p>
+        ) : (
+          <DayBoard
+            dates={gridDates}
+            rooms={rooms}
+            table={periods.table}
+            reservations={reservations}
+            disabled={pending}
+            availability={availability}
+            onPaint={paint}
+          />
+        )
+      ) : view === "grid" ? (
         <>
           {reservations.length === 0 ? (
             <p className="rounded-2xl bg-[var(--cell)] px-4 py-3 text-center text-sm text-[var(--muted)]">
@@ -773,19 +790,23 @@ function SplitReservationNotice({
  * 開いた直後からその形になっている必要がある。
  * タイムラインは、基準のコマに合わない時間のコマを直すときの逃げ道として残す。
  */
+/** 日ごと (既定。v1.48) / コマ割り表 / タイムライン */
+type View = "board" | "grid" | "timeline";
+
 function ViewToggle({
   view,
   onChange,
   disabled,
 }: {
-  view: "grid" | "timeline";
-  onChange: (view: "grid" | "timeline") => void;
+  view: View;
+  onChange: (view: View) => void;
   disabled: boolean;
 }) {
   return (
     <div className="flex gap-2">
       {(
         [
+          { value: "board", label: "日ごと" },
           { value: "grid", label: "表(コマ割り)" },
           { value: "timeline", label: "タイムライン" },
         ] as const
