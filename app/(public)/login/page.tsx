@@ -1,4 +1,5 @@
 import { GoogleSignInButton } from "@/components/GoogleSignInButton";
+import { GOOGLE_CLIENT_ID, GOOGLE_IOS_CLIENT_ID } from "@/lib/env";
 
 import { LoginForm } from "./LoginForm";
 
@@ -24,18 +25,23 @@ export default async function LoginPage({
           ダンスサークル練習管理
         </p>
       </header>
-      {/* Google でログイン (§3.7 / v1.34)。今までのユーザーIDとパスワードは下に残す */}
-      <GoogleSignInButton />
-      {error === "google" ? (
-        <p role="alert" className="text-sm text-[var(--danger-fg)]">
-          Google でログインできませんでした。もう一度試してください。
-        </p>
+      {/* Google でログイン (§3.7 / v1.34)。今までのユーザーIDとパスワードは下に残す。
+          OAuth クライアントを設定していない環境ではボタンごと出さない (押してもエラーになるため。v1.49) */}
+      {GOOGLE_CLIENT_ID || GOOGLE_IOS_CLIENT_ID ? (
+        <>
+          <GoogleSignInButton />
+          {error === "google" ? (
+            <p role="alert" className="text-sm text-[var(--danger-fg)]">
+              Google でログインできませんでした。もう一度試してください。
+            </p>
+          ) : null}
+          <div className="flex items-center gap-3 text-[13px] text-[var(--muted)]">
+            <span className="h-px flex-1 bg-[var(--border)]" />
+            ユーザーIDとパスワード
+            <span className="h-px flex-1 bg-[var(--border)]" />
+          </div>
+        </>
       ) : null}
-      <div className="flex items-center gap-3 text-[13px] text-[var(--muted)]">
-        <span className="h-px flex-1 bg-[var(--border)]" />
-        ユーザーIDとパスワード
-        <span className="h-px flex-1 bg-[var(--border)]" />
-      </div>
       <LoginForm initialUsername={username ?? ""} />
     </div>
   );
