@@ -94,7 +94,7 @@ export function NumberList({
                   >
                     <span
                       aria-hidden
-                      className="h-8 w-1.5 shrink-0 rounded-full"
+                      className="h-3 w-3 shrink-0 rounded-full"
                       style={{ backgroundColor: color.bg }}
                     />
                     <span className="min-w-0 flex-1">

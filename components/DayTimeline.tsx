@@ -192,8 +192,8 @@ export function DayTimeline({
                 title={`${range} ${item.title}${item.subtitle ? `・${item.subtitle}` : ""}`}
                 // ボタンは中身を縦の中央に寄せるので、上詰めを明示する。
                 // 長いブロックだと見出しが開始時刻から離れた位置に出てしまう
-                // Apple のカレンダーのブロック (v1.50): うすい地・左の線・濃い文字
-                className={`absolute flex flex-col justify-start overflow-hidden rounded-[5px] py-0.5 pl-[7px] pr-1 text-left text-[12px] leading-[15px] ${
+                // 予定のブロック (v1.50.1): 色を混ぜた地・濃い文字。左端の線は付けない
+                className={`absolute flex flex-col justify-start overflow-hidden rounded-[6px] px-1.5 py-1 text-left text-[12px] leading-[15px] ${
                   item.pale ? "opacity-55" : ""
                 }`}
                 style={{

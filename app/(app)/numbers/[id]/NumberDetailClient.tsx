@@ -96,7 +96,7 @@ export function NumberDetailClient({
       <div className="flex items-center gap-3">
         <span
           aria-hidden
-          className="h-11 w-1.5 shrink-0 rounded-full"
+          className="h-3.5 w-3.5 shrink-0 rounded-full"
           style={{ backgroundColor: color.bg }}
         />
         <div className="min-w-0">

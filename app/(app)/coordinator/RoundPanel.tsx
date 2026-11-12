@@ -326,7 +326,7 @@ export function AutoAllocate({
             onDrafted();
           }}
         >
-          <div className="max-w-3xl">
+          <div className="mx-auto max-w-3xl">
             <PlanPanel input={input} round={planRound} showStats={false} />
           </div>
         </DraftDoneContext.Provider>

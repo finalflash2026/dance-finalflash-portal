@@ -127,7 +127,7 @@ export function CoordinatorClient({
   return (
     <main className="mx-auto w-full max-w-[1600px] space-y-4 px-4 py-4">
       <h1 className="sr-only">折衝</h1>
-      <div className="max-w-3xl space-y-3">
+      <div className="mx-auto max-w-3xl space-y-3">
         <MonthNav month={month} onChange={setMonth} />
         <nav
           aria-label="折衝の手順"
@@ -166,7 +166,7 @@ export function CoordinatorClient({
         </nav>
       </div>
 
-      <div className={wide ? "" : "max-w-3xl"} data-tour="coord-body">
+      <div className={wide ? "" : "mx-auto max-w-3xl"} data-tour="coord-body">
         {step === "import" ? (
           <ImportStep
             onImported={(imported) => {

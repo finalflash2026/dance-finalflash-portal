@@ -599,7 +599,7 @@ function DeadlineRow({
   const days = daysBetween(today, deadline.dueDate);
   const inner = (
     <>
-      {/* 予定の一覧と同じ並び (v1.50): 左に残りの日数 → 色の線 → 名前と期限 */}
+      {/* 予定の一覧と同じ並び (v1.50): 左に残りの日数 → 名前と期限 */}
       <span
         className={`w-[46px] shrink-0 text-right text-[14px] leading-[20px] tabular-nums ${
           days <= 1 ? "font-semibold text-[var(--danger-solid)]" : "text-[var(--muted)]"
@@ -607,7 +607,6 @@ function DeadlineRow({
       >
         {days === 0 ? "今日" : days === 1 ? "明日" : `${days}日後`}
       </span>
-      <span aria-hidden className="w-[4px] shrink-0 self-stretch rounded-full bg-[var(--accent)]" />
       <span className="min-w-0 flex-1">
         <span className="flex items-center gap-1.5 text-[16px] font-semibold leading-[20px]">
           {deadline.important ? <ImportantBadge /> : null}
@@ -1387,7 +1386,7 @@ function multiDayNote(event: MyEvent, date: DateString): string {
 }
 
 function ListRow({ row }: { row: Row }) {
-  // Apple のカレンダーの一覧と同じ並び (v1.50): 時刻 → 色の線 → 予定の名前と場所
+  // 一覧の並び (v1.50): 時刻 → 色の丸と予定の名前・場所
   const content = (
     <>
       <span className="flex w-[46px] shrink-0 flex-col items-end text-[14px] leading-[20px] tabular-nums">
@@ -1400,18 +1399,15 @@ function ListRow({ row }: { row: Row }) {
           </>
         )}
       </span>
-      <span
-        aria-hidden
-        className="w-[4px] shrink-0 self-stretch rounded-full"
-        style={{ backgroundColor: row.color.bg }}
-      />
       <span className="min-w-0 flex-1">
         <span className="flex items-center gap-1.5 text-[16px] font-semibold leading-[20px]">
+          {/* 予定の色は名前の前の丸で示す (左端の線はやめた。v1.50.1) */}
+          <span aria-hidden className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: row.color.bg }} />
           {row.important ? <ImportantBadge /> : null}
           <span className="truncate">{row.title}</span>
         </span>
         {row.subtitle ? (
-          <span className="block truncate text-[14px] leading-[20px] text-[var(--muted)]">{row.subtitle}</span>
+          <span className="block truncate pl-4 text-[14px] leading-[20px] text-[var(--muted)]">{row.subtitle}</span>
         ) : null}
       </span>
     </>
