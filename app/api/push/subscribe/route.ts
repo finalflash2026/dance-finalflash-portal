@@ -3,6 +3,7 @@ import { z } from "zod";
 import { getCurrentProfile } from "@/lib/auth/session";
 import { hasSupabaseEnv } from "@/lib/env";
 import { isPushConfigured } from "@/lib/push";
+import { hasSchemaV2 } from "@/lib/schema";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 /**
@@ -74,9 +75,14 @@ export async function POST(request: Request) {
       notify_room: prefs?.room ?? true,
       notify_key: prefs?.key ?? true,
       notify_message: prefs?.message ?? true,
-      notify_reminder: prefs?.reminder ?? true,
-      notify_deadline: prefs?.deadline ?? true,
-      notify_announcement: prefs?.announcement ?? true,
+      // 予定・締切・告知の列は 0020 から (v1.49)
+      ...((await hasSchemaV2())
+        ? {
+            notify_reminder: prefs?.reminder ?? true,
+            notify_deadline: prefs?.deadline ?? true,
+            notify_announcement: prefs?.announcement ?? true,
+          }
+        : {}),
     },
     { onConflict: "endpoint" },
   );

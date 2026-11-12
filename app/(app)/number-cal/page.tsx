@@ -9,6 +9,7 @@ import {
   isActiveMember,
 } from "@/lib/constants";
 import { hasSupabaseEnv } from "@/lib/env";
+import { hasSchemaV2 } from "@/lib/schema";
 import { createClient } from "@/lib/supabase/server";
 import { normalizeTime, todayInTokyo } from "@/lib/time";
 
@@ -42,7 +43,8 @@ export default async function NumberTabPage() {
   const supabase = await createClient();
 
   // スタ練を立てられるジャンル。1ジャンと今の2/3ジャン (§6.3.1 / v1.33)
-  const { data: subgenreRows } = isOb
+  // 2/3ジャンで立てられるのは DB の 0024 から (v1.49)。済んでいない DB では1ジャンだけ (前のやり方)
+  const { data: subgenreRows } = isOb || !(await hasSchemaV2())
     ? { data: [] }
     : await supabase
         .from("user_subgenres")

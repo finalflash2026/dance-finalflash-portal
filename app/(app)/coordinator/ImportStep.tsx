@@ -45,10 +45,13 @@ interface ParseResponse {
 export function ImportStep({
   onImported,
   onNext,
+  nextLabel = "日程調整へ",
 }: {
   /** 確定した予約枠の月 (一番多い月)。②③の対象の月をこれに合わせる (v1.32.6) */
   onImported: (month: DateString) => void;
   onNext: () => void;
+  /** 次の手順のボタンの文字 (日程調整の無い DB では「割り振りへ」。v1.49) */
+  nextLabel?: string;
 }) {
   const roomById = useRoomById();
   const nextKey = useRef(0);
@@ -234,7 +237,7 @@ export function ImportStep({
         <div className="space-y-2 rounded-lg bg-[var(--surface)] px-3 py-2 text-sm">
           <p>{result}</p>
           <button type="button" onClick={onNext} className={buttonClass}>
-            日程調整へ
+            {nextLabel}
           </button>
         </div>
       ) : null}

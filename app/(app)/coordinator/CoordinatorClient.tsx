@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 
+import { useSchemaV2 } from "@/lib/schema-context";
 import { buildAvailability } from "@/lib/scheduling/availability";
 import type { ScheduleRound } from "@/lib/scheduling/round";
 import type { PlanInput } from "@/lib/scheduling/types";
@@ -56,6 +57,9 @@ export function CoordinatorClient({
   openRoundMonth?: DateString | null;
 }) {
   const [step, setStep] = useState<Step>("import");
+  // 日程調整の表は DB の 0028 から (v1.49)。済んでいない DB では手順から外す
+  const schemaV2 = useSchemaV2();
+  const steps = schemaV2 ? STEPS : STEPS.filter((s) => s.id !== "round");
   const [month, setMonth] = useState<DateString>(() => startOfMonth(todayInTokyo()));
   const [autoOpen, setAutoOpen] = useState(false);
   const [slotRevision, setSlotRevision] = useState(0);
@@ -71,9 +75,9 @@ export function CoordinatorClient({
       setMonth((openRoundMonth ?? plan?.round.month) as DateString);
     }
     const fromUrl = stepFromParam(rawStep);
-    if (fromUrl) setStep(fromUrl);
+    if (fromUrl) setStep(fromUrl === "round" && !schemaV2 ? "allocate" : fromUrl);
     if (rawStep === "plan") setAutoOpen(true);
-  }, [plan?.round.month, openRoundMonth]);
+  }, [plan?.round.month, openRoundMonth, schemaV2]);
 
   // 見本の回答 (見ている人の回答は端末に保存している。v1.35)
   const [demoInput, setDemoInput] = useState(plan?.input);
@@ -125,8 +129,12 @@ export function CoordinatorClient({
       <h1 className="sr-only">折衝</h1>
       <div className="max-w-3xl space-y-3">
         <MonthNav month={month} onChange={setMonth} />
-        <nav aria-label="折衝の手順" className="grid grid-cols-4 gap-1.5" data-tour="coord-steps">
-          {STEPS.map((s, index) => {
+        <nav
+          aria-label="折衝の手順"
+          className={`grid gap-1.5 ${steps.length === 4 ? "grid-cols-4" : "grid-cols-3"}`}
+          data-tour="coord-steps"
+        >
+          {steps.map((s, index) => {
             const on = step === s.id;
             return (
               <button
@@ -165,7 +173,8 @@ export function CoordinatorClient({
               setMonth(imported);
               void monthPlan.reload();
             }}
-            onNext={() => setStep("round")}
+            onNext={() => setStep(schemaV2 ? "round" : "allocate")}
+            nextLabel={schemaV2 ? "日程調整へ" : "割り振りへ"}
           />
         ) : step === "round" ? (
           <RoundStep

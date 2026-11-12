@@ -66,6 +66,9 @@ export async function hitRateLimit(
   windowMs: number,
 ): Promise<boolean> {
   try {
+    // 数える表は DB の 0021 から (v1.49)。済んでいない DB ではメモリで数える
+    const { hasSchemaV2 } = await import("@/lib/schema");
+    if (!(await hasSchemaV2())) return checkRateLimit(key, limit, windowMs);
     const { createHash } = await import("node:crypto");
     const { createAdminClient } = await import("@/lib/supabase/admin");
     const hashed = createHash("sha256").update(key).digest("hex");

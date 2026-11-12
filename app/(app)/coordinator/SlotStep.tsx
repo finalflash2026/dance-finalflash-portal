@@ -8,6 +8,7 @@ import { dbErrorMessage } from "@/lib/error-message";
 import { useRoomById, useRooms } from "@/lib/rooms";
 import { GENRES, GENRE_BY_ID, PRACTICE_WEEKDAYS } from "@/lib/constants";
 import { findSplitReservations } from "@/lib/reservations";
+import { isMissingRelation } from "@/lib/schema-errors";
 import type { AvailabilityLookup } from "@/lib/scheduling/availability";
 import {
   cellKey,
@@ -224,6 +225,30 @@ export function SlotStep({
       p_id: reservation.id,
     });
 
+    // 0023 を流していない DB では関数が無い (v1.49)。コマを先に消し、それから枠を取り消す (前のやり方)
+    if (isMissingRelation(cancelError)) {
+      const { error: slotsError } = await supabase
+        .from("slots")
+        .delete()
+        .eq("reservation_id", reservation.id);
+      if (slotsError) {
+        setPending(false);
+        setError(dbErrorMessage("コマを削除できませんでした", slotsError));
+        return;
+      }
+      const { error: resvError } = await supabase
+        .from("reservations")
+        .update({ status: "cancelled" })
+        .eq("id", reservation.id);
+      setPending(false);
+      if (resvError) {
+        setError(dbErrorMessage("予約枠を取り消せませんでした (コマは削除済みです)", resvError));
+        return;
+      }
+      reload();
+      return;
+    }
+
     setPending(false);
     if (cancelError) {
       setError(dbErrorMessage("予約枠を取り消せませんでした", cancelError));
@@ -316,6 +341,22 @@ export function SlotStep({
    * 1グループごとに DB の関数 `merge_reservations` を1回呼ぶ (v1.32.5)。
    * コマの付け替え・枠の延長・残りの枠の削除がまとめて成功するか、まとめて戻る。
    */
+  /** merge_reservations (0023) を使わずに、コマを移す → 枠を伸ばす → 残りを消す */
+  async function mergeStepByStep(survivorId: string, otherIds: string[], endTime: string) {
+    const { error: moveError } = await supabase
+      .from("slots")
+      .update({ reservation_id: survivorId })
+      .in("reservation_id", otherIds);
+    if (moveError) return moveError;
+    const { error: growError } = await supabase
+      .from("reservations")
+      .update({ end_time: endTime })
+      .eq("id", survivorId);
+    if (growError) return growError;
+    const { error: dropError } = await supabase.from("reservations").delete().in("id", otherIds);
+    return dropError;
+  }
+
   async function mergeSplitReservations() {
     const lines = splitGroups.map((group) => {
       const last = group.reduce(
@@ -347,11 +388,15 @@ export function SlotStep({
           toMinutes(r.endTime) > toMinutes(latest) ? r.endTime : latest,
         survivor.endTime,
       );
-      const { error: mergeError } = await supabase.rpc("merge_reservations", {
+      let { error: mergeError } = await supabase.rpc("merge_reservations", {
         p_survivor: survivor.id,
         p_others: others.map((r) => r.id),
         p_end_time: endTime,
       });
+      // 0023 を流していない DB では関数が無い (v1.49)。同じ手順を順に行う (前のやり方)
+      if (isMissingRelation(mergeError)) {
+        mergeError = await mergeStepByStep(survivor.id, others.map((r) => r.id), endTime);
+      }
       if (mergeError) {
         setPending(false);
         setError(dbErrorMessage("予約枠をつなげませんでした", mergeError));

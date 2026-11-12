@@ -26,10 +26,13 @@ const DEMO_PATHS: Record<string, string> = {
   "/demo/admin": "/admin",
 };
 
-export function StaffNav({ showAdmin }: { showAdmin: boolean }) {
+export function StaffNav({ showAdmin, showEvents = true }: { showAdmin: boolean; showEvents?: boolean }) {
   const pathname = usePathname();
   const path = DEMO_PATHS[pathname] ?? pathname;
-  const items = ITEMS.filter((item) => !("adminOnly" in item) || showAdmin);
+  // イベントの画面は DB の 0020 が要る (v1.49。済んでいない DB では出さない)
+  const items = ITEMS.filter(
+    (item) => (!("adminOnly" in item) || showAdmin) && (item.href !== "/manage" || showEvents),
+  );
   const index = items.findIndex((item) => item.href === path);
   if (index === -1) return null;
 

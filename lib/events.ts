@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { GENRE_BY_ID } from "@/lib/constants";
+import { isMissingRelation } from "@/lib/schema-errors";
 import { addDays, normalizeTime } from "@/lib/time";
 import type { DateString, MyEvent, Profile } from "@/lib/types";
 
@@ -91,6 +92,8 @@ async function getCircleEventEvents(
   }
 
   const { data, error } = await query;
+  // 0020 を流していない DB では表が無い (v1.49)。カレンダーごと止めない
+  if (isMissingRelation(error)) return [];
   if (error) {
     throw new Error(`イベントの取得に失敗しました: ${error.message}`);
   }
@@ -140,6 +143,7 @@ async function getDeadlineEvents(
     .gte("due_date", from)
     .lte("due_date", to);
 
+  if (isMissingRelation(error)) return [];
   if (error) {
     throw new Error(`締切の取得に失敗しました: ${error.message}`);
   }
@@ -494,6 +498,11 @@ export async function getMyGenreHistory(
     .select("genre_id, from_date, to_date")
     .eq("user_id", profile.user_id);
 
+  // 0022 を流していない DB では期間の表が無い (v1.49)。今の2/3ジャンで判定する (前のやり方)
+  if (isMissingRelation(error)) {
+    const current = await getMyGenreIds(supabase, profile);
+    return { ids: current, activeOn: (genreId) => current.includes(genreId) };
+  }
   if (error) {
     throw new Error(`user_subgenre_periods の取得に失敗しました: ${error.message}`);
   }

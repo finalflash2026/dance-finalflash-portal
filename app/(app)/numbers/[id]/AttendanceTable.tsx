@@ -6,6 +6,7 @@ import { RollingNumber } from "@/components/motion/RollingNumber";
 import { ErrorMessage } from "@/components/ui";
 import { ATTENDANCE_LABELS } from "@/lib/attendance";
 import { dbErrorMessage } from "@/lib/error-message";
+import { useSchemaV2 } from "@/lib/schema-context";
 import { createClient } from "@/lib/supabase/client";
 import { formatDateLabel, todayInTokyo } from "@/lib/time";
 import type { AttendanceStatus } from "@/lib/types";
@@ -24,7 +25,7 @@ interface Row {
   number_event_id: string;
   status: AttendanceStatus;
   time_value: string | null;
-  reason: string | null;
+  reason?: string | null;
 }
 
 const SHORT: Record<AttendanceStatus, string> = { present: "出", absent: "欠", late: "遅", leave_early: "早" };
@@ -37,6 +38,7 @@ export function AttendanceTable({
   members: { userId: string; username: string }[];
 }) {
   const today = todayInTokyo();
+  const schemaV2 = useSchemaV2();
   const [rows, setRows] = useState<Row[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [showPast, setShowPast] = useState(false);
@@ -60,7 +62,8 @@ export function AttendanceTable({
     let cancelled = false;
     createClient()
       .from("attendances")
-      .select("user_id, number_event_id, status, time_value, reason")
+      // 理由の列は 0024 から (v1.49)
+      .select(schemaV2 ? "user_id, number_event_id, status, time_value, reason" : "user_id, number_event_id, status, time_value")
       .in(
         "number_event_id",
         events.map((e) => e.id),
@@ -72,12 +75,12 @@ export function AttendanceTable({
           setRows([]);
           return;
         }
-        setRows((data ?? []) as Row[]);
+        setRows((data ?? []) as unknown as Row[]);
       });
     return () => {
       cancelled = true;
     };
-  }, [events]);
+  }, [events, schemaV2]);
 
   const byCell = useMemo(
     () => new Map((rows ?? []).map((r) => [`${r.user_id}|${r.number_event_id}`, r])),
@@ -167,16 +170,18 @@ export function AttendanceTable({
               {/* 日程ごとの「出席と答えた人」と「未回答」(v1.36。分けて出す) */}
               <tr>
                 <th className="sticky left-0 z-10 border-t border-[var(--separator)] bg-[var(--cell)] px-3 py-2 text-left font-semibold">
-                  出席 / 未回答
+                  {schemaV2 ? "出席 / 未回答" : "出席"}
                 </th>
                 {visible.map((e) => {
                   const statuses = members.map((m) => byCell.get(`${m.userId}|${e.id}`)?.status);
-                  const present = statuses.filter((st) => st === "present").length;
                   const unanswered = statuses.filter((st) => st === undefined).length;
+                  // 「出席」を答えられない DB (v1.49) では、行が無い人が出席 (前のやり方)
+                  const present =
+                    statuses.filter((st) => st === "present").length + (schemaV2 ? 0 : unanswered);
                   return (
                     <td key={e.id} className="border-t border-[var(--separator)] py-2 text-center tabular-nums">
                       <RollingNumber value={present} className="font-semibold" />
-                      <span className="text-[var(--muted)]"> / {unanswered}</span>
+                      {schemaV2 ? <span className="text-[var(--muted)]"> / {unanswered}</span> : null}
                     </td>
                   );
                 })}

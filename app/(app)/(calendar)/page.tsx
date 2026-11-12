@@ -7,6 +7,7 @@ import { getCurrentProfile } from "@/lib/auth/session";
 import { GENRE_BY_ID, isActiveMember } from "@/lib/constants";
 import { hasSupabaseEnv } from "@/lib/env";
 import { getMyEvents, getMyGenreIds } from "@/lib/events";
+import { isMissingRelation } from "@/lib/schema-errors";
 import { getOpenRound } from "@/lib/scheduling/live";
 import { createClient } from "@/lib/supabase/server";
 import {
@@ -187,7 +188,11 @@ export default async function HomePage({
           )[0]?.profiles?.username ?? null,
       };
 
-  const error = rangeSlotsResult.error ?? todaySlotsResult.error ?? deadlineResult.error;
+  // 締切の表が無い DB (0020 の前。v1.49) では締切の欄を出さないだけにする
+  const error =
+    rangeSlotsResult.error ??
+    todaySlotsResult.error ??
+    (isMissingRelation(deadlineResult.error) ? null : deadlineResult.error);
 
   return (
     <main className="mx-auto max-w-2xl space-y-4 px-4 py-2">

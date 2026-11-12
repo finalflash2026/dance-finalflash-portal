@@ -17,6 +17,8 @@ import { OFF_ROSTER_ROLES } from "@/lib/constants";
 import { formatSpanRange } from "@/lib/day-span";
 import { dbErrorMessage } from "@/lib/error-message";
 import { useCanWrite } from "@/lib/role";
+import { useSchemaV2 } from "@/lib/schema-context";
+import { isMissingRelation } from "@/lib/schema-errors";
 import { createClient } from "@/lib/supabase/client";
 import {
   finalizeTimeInput,
@@ -97,6 +99,9 @@ export function AttendanceSheet({
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [onClose]);
 
+  // 「出席」と理由は DB の 0024・0026 から (v1.49。済んでいない DB では出さない・送らない)
+  const schemaV2 = useSchemaV2();
+
   const load = useCallback(async () => {
     if (target.kind === "info") {
       setParticipants([]);
@@ -117,7 +122,9 @@ export function AttendanceSheet({
       return;
     }
 
-    const query = supabase.from("attendances").select("user_id, status, time_value, reason");
+    const query = supabase
+      .from("attendances")
+      .select(schemaV2 ? "user_id, status, time_value, reason" : "user_id, status, time_value");
     const { data, error: attendanceError } =
       target.kind === "slot"
         ? await query.in("slot_id", target.ids)
@@ -132,17 +139,17 @@ export function AttendanceSheet({
     }
 
     const rows: AttendanceRow[] = (
-      (data ?? []) as {
+      (data ?? []) as unknown as {
         user_id: string;
         status: AttendanceStatus;
         time_value: string | null;
-        reason: string | null;
+        reason?: string | null;
       }[]
     ).map((row) => ({
       userId: row.user_id,
       status: row.status,
       timeValue: row.time_value ? row.time_value.slice(0, 5) : null,
-      reason: row.reason,
+      reason: row.reason ?? null,
     }));
 
     // まとめたコマを読むと、まとめる前に別々の部屋へ登録した人が二重に出る。
@@ -153,7 +160,7 @@ export function AttendanceSheet({
     }
 
     setParticipants(buildParticipants(people.people, [...unique.values()]));
-  }, [target, date]);
+  }, [target, date, schemaV2]);
 
   useEffect(() => {
     load();
@@ -195,7 +202,7 @@ export function AttendanceSheet({
         [key]: target.id,
         status,
         time_value: timeValue,
-        reason: reason.trim() || null,
+        ...(schemaV2 ? { reason: reason.trim() || null } : {}),
       },
       { onConflict: `user_id,${key}` },
     );
@@ -252,9 +259,12 @@ export function AttendanceSheet({
 
   // 人数の帯 (v1.45)。状態ごとの人数と、押したら絞り込む
   const [filter, setFilter] = useState<Bucket | null>(null);
-  const counts = countBuckets(participants ?? []);
-  const shown = sortForList(participants ?? [], currentUserId).filter(
-    (p) => filter === null || bucketOf(p) === filter,
+  // 「出席」を答えられない DB (v1.49) では、行が無い人は出席 (前のやり方)
+  const unanswered: Bucket = schemaV2 ? "none" : "present";
+  const buckets = schemaV2 ? BUCKETS : BUCKETS.filter((b) => b.id !== "none");
+  const counts = countBuckets(participants ?? [], unanswered);
+  const shown = sortForList(participants ?? [], currentUserId, unanswered).filter(
+    (p) => filter === null || bucketOf(p, unanswered) === filter,
   );
   const current = draftStatus ?? me?.attendance?.status ?? null;
 
@@ -333,7 +343,7 @@ export function AttendanceSheet({
               {/* ② 人数の帯 */}
               <section aria-label="出欠の人数" className="space-y-2.5">
                 <div className="flex h-2.5 overflow-hidden rounded-full bg-[var(--fill)]">
-                  {BUCKETS.map((bucket) =>
+                  {buckets.map((bucket) =>
                     counts[bucket.id] > 0 ? (
                       <span
                         key={bucket.id}
@@ -343,8 +353,8 @@ export function AttendanceSheet({
                     ) : null,
                   )}
                 </div>
-                <div className="grid grid-cols-4 gap-1.5">
-                  {BUCKETS.map((bucket) => {
+                <div className={`grid gap-1.5 ${schemaV2 ? "grid-cols-4" : "grid-cols-3"}`}>
+                  {buckets.map((bucket) => {
                     const on = filter === bucket.id;
                     return (
                       <button
@@ -373,8 +383,8 @@ export function AttendanceSheet({
               {isParticipant ? (
                 <section aria-label="自分の出欠" className="space-y-2.5">
                   <h3 className="text-[15px] font-semibold">自分の出欠</h3>
-                  <div className="grid grid-cols-4 gap-2">
-                    {(["present", "late", "leave_early", "absent"] as AttendanceStatus[]).map((status) => {
+                  <div className={`grid gap-2 ${schemaV2 ? "grid-cols-4" : "grid-cols-3"}`}>
+                    {((schemaV2 ? ["present", "late", "leave_early", "absent"] : ["late", "leave_early", "absent"]) as AttendanceStatus[]).map((status) => {
                       const on = current === status;
                       const look = STATUS_LOOK[status];
                       return (
@@ -438,6 +448,8 @@ export function AttendanceSheet({
                       ) : null}
 
                       {/* 理由 (v1.33)。よくあるものは押すだけで入る。もう一度押すと外れる */}
+                      {schemaV2 ? (
+                      <>
                       <div className="flex flex-wrap gap-1.5">
                         {ATTENDANCE_REASON_PRESETS.map((preset) => (
                           <button
@@ -465,6 +477,8 @@ export function AttendanceSheet({
                         onChange={(e) => setDraftReason(e.target.value)}
                         className="h-11 w-full rounded-xl bg-[var(--background)] px-3 text-[16px] outline-none ring-1 ring-[var(--separator)] focus:ring-2 focus:ring-[var(--tint)]"
                       />
+                      </>
+                      ) : null}
 
                       <div className="flex gap-2">
                         <button
@@ -497,7 +511,7 @@ export function AttendanceSheet({
                       onClick={reset}
                       className="text-[14px] text-[var(--danger-fg)] disabled:opacity-40"
                     >
-                      回答を取り消す
+                      {schemaV2 ? "回答を取り消す" : "出席に戻す"}
                     </button>
                   ) : null}
                 </section>
@@ -520,7 +534,7 @@ export function AttendanceSheet({
                 ) : (
                   <ul className="divide-y divide-[var(--separator)] overflow-hidden rounded-2xl bg-[var(--cell)]">
                     {shown.map((participant) => {
-                      const bucket = BUCKET_BY_ID[bucketOf(participant)];
+                      const bucket = BUCKET_BY_ID[bucketOf(participant, unanswered)];
                       const mine = participant.userId === currentUserId;
                       return (
                         <li key={participant.userId} className="flex items-center gap-3 px-3 py-2">
@@ -591,27 +605,27 @@ const STATUS_LOOK: Record<AttendanceStatus, { color: string; soft: string; mark:
   absent: { color: "#ff3b30", soft: "rgba(255,59,48,0.14)", mark: "×" },
 };
 
-function bucketOf(participant: Participant): Bucket {
+function bucketOf(participant: Participant, unanswered: Bucket): Bucket {
   const status = participant.attendance?.status;
-  if (!status) return "none";
+  if (!status) return unanswered;
   if (status === "present") return "present";
   if (status === "absent") return "absent";
   return "partial";
 }
 
-function countBuckets(list: Participant[]): Record<Bucket, number> {
+function countBuckets(list: Participant[], unanswered: Bucket): Record<Bucket, number> {
   const counts: Record<Bucket, number> = { present: 0, partial: 0, absent: 0, none: 0 };
-  for (const p of list) counts[bucketOf(p)] += 1;
+  for (const p of list) counts[bucketOf(p, unanswered)] += 1;
   return counts;
 }
 
 /** 自分を一番上に、あとは 出席 → 遅刻・早退 → 欠席 → 未回答 の順 */
-function sortForList(list: Participant[], me: string): Participant[] {
+function sortForList(list: Participant[], me: string, unanswered: Bucket): Participant[] {
   const order: Bucket[] = ["present", "partial", "absent", "none"];
   return [...list].sort((a, b) => {
     if (a.userId === me) return -1;
     if (b.userId === me) return 1;
-    return order.indexOf(bucketOf(a)) - order.indexOf(bucketOf(b));
+    return order.indexOf(bucketOf(a, unanswered)) - order.indexOf(bucketOf(b, unanswered));
   });
 }
 
@@ -711,12 +725,19 @@ async function loadGenreParticipants(
   // profiles 側の or 条件に流し込むため。
   // **練習の日のサブジャンルで見る** (v1.32.5)。カレンダー (v1.31.9) と
   // 出欠の書き込み条件 (mod_att, 0023) と同じ判定にする
-  const { data: subgenres } = await supabase
+  let { data: subgenres, error: periodError } = await supabase
     .from("user_subgenre_periods")
     .select("user_id")
     .eq("genre_id", genreId)
     .lte("from_date", date)
     .or(`to_date.is.null,to_date.gte.${date}`);
+  // 0022 を流していない DB では期間の表が無い (v1.49)。今の2/3ジャンで見る (前のやり方)
+  if (isMissingRelation(periodError)) {
+    ({ data: subgenres, error: periodError } = await supabase
+      .from("user_subgenres")
+      .select("user_id")
+      .eq("genre_id", genreId));
+  }
   const subIds = ((subgenres ?? []) as { user_id: string }[]).map(
     (row) => row.user_id,
   );

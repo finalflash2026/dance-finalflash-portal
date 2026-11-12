@@ -11,6 +11,7 @@ import {
   subscribePush,
 } from "@/lib/push-client";
 import { isNativeApp } from "@/lib/native";
+import { useSchemaV2 } from "@/lib/schema-context";
 
 import { NativeNotifySection } from "./NativeNotifySection";
 import { createClient } from "@/lib/supabase/client";
@@ -99,6 +100,11 @@ export function PushSection({ vapidPublicKey }: { vapidPublicKey: string }) {
   const [status, setStatus] = useState<Status>("checking");
   const [subscribed, setSubscribed] = useState(false);
   const [prefs, setPrefs] = useState<PushPrefs>(DEFAULT_PREFS);
+  const schemaV2 = useSchemaV2();
+  // 予定・締切・告知の通知は DB の 0020 から (v1.49。済んでいない DB では出さない)
+  const categories = schemaV2
+    ? CATEGORIES
+    : CATEGORIES.filter((c) => c.key !== "reminder" && c.key !== "deadline" && c.key !== "announcement");
   const [denied, setDenied] = useState(false);
   const [standalone, setStandalone] = useState(true);
   const [ios, setIos] = useState(false);
@@ -122,21 +128,24 @@ export function PushSection({ vapidPublicKey }: { vapidPublicKey: string }) {
     const supabase = createClient();
     const { data } = await supabase
       .from("push_subscriptions")
+      // 予定・締切・告知の列は 0020 から (v1.49)
       .select(
-        "notify_schedule, notify_room, notify_key, notify_message, notify_reminder, notify_deadline, notify_announcement",
+        schemaV2
+          ? "notify_schedule, notify_room, notify_key, notify_message, notify_reminder, notify_deadline, notify_announcement"
+          : "notify_schedule, notify_room, notify_key, notify_message",
       )
       .eq("endpoint", subscription.endpoint)
       .maybeSingle();
 
     if (data) {
-      const row = data as {
+      const row = data as unknown as {
         notify_schedule: boolean;
         notify_room: boolean;
         notify_key: boolean;
         notify_message: boolean | null;
-        notify_reminder: boolean | null;
-        notify_deadline: boolean | null;
-        notify_announcement: boolean | null;
+        notify_reminder?: boolean | null;
+        notify_deadline?: boolean | null;
+        notify_announcement?: boolean | null;
       };
       setPrefs({
         schedule: row.notify_schedule,
@@ -149,7 +158,7 @@ export function PushSection({ vapidPublicKey }: { vapidPublicKey: string }) {
         announcement: row.notify_announcement ?? true,
       });
     }
-  }, []);
+  }, [schemaV2]);
 
   useEffect(() => {
     setStandalone(isStandalone());
@@ -336,7 +345,7 @@ export function PushSection({ vapidPublicKey }: { vapidPublicKey: string }) {
       <div className="space-y-2">
         <p className="text-[15px] font-semibold">届く通知</p>
         <ul className="divide-y divide-[var(--separator)] rounded-xl bg-[var(--fill)]">
-          {CATEGORIES.map((category) => (
+          {categories.map((category) => (
             <li key={category.key} className="flex items-center gap-3 px-3 py-2.5">
               <span className="min-w-0 flex-1">
                 <span className="block text-[16px]">{category.label}</span>

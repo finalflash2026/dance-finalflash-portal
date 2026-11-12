@@ -19,6 +19,8 @@ import { ROLE_LABELS, isActiveMember, isCoordinatorOrAbove } from "@/lib/constan
 import { VAPID_PUBLIC_KEY, hasSupabaseEnv } from "@/lib/env";
 import { RoleProvider } from "@/lib/role";
 import { RoomsProvider } from "@/lib/rooms";
+import { hasSchemaV2 } from "@/lib/schema";
+import { SchemaProvider } from "@/lib/schema-context";
 import { ROOMS } from "@/lib/constants";
 import { fetchRooms } from "@/lib/rooms-server";
 import { createClient } from "@/lib/supabase/server";
@@ -43,7 +45,7 @@ export default async function AppLayout({
 }: Readonly<{ children: React.ReactNode }>) {
   // **並列で取る。** 部屋は全画面で使うが、profile を待ってから引くと
   // 往復が1つ増えて起動が遅くなる (§13.1)
-  const [profile, rooms, unread] = await Promise.all([
+  const [profile, rooms, unread, schemaV2] = await Promise.all([
     getCurrentProfile(),
     hasSupabaseEnv()
       ? createClient().then(fetchRooms)
@@ -58,6 +60,8 @@ export default async function AppLayout({
           return count ?? 0;
         })
       : Promise.resolve(1),
+    // DB が 0020〜0029 まで済んでいるか (v1.49)。済んでいなければ新しい表を使う機能を隠す
+    hasSchemaV2(),
   ]);
   // Google でログインしたが、まだ登録 (期・ジャンル・合言葉) を終えていない人 (§3.7 / v1.34)。
   // アプリの画面には入れず、登録の続きへ送る
@@ -94,11 +98,12 @@ export default async function AppLayout({
       {/* 運営の画面 (折衝・割り振り・イベント・管理者) の切り替え (v1.39)。
           デモ (Supabase 未設定) では全部見せる */}
       {isCoordinatorOrAbove(role) || !hasSupabaseEnv() ? (
-        <StaffNav showAdmin={role === "admin" || !hasSupabaseEnv()} />
+        <StaffNav showAdmin={role === "admin" || !hasSupabaseEnv()} showEvents={schemaV2} />
       ) : null}
 
       {/* 閲覧のみ (v1.30) に書き込みのボタンを出さないため、ロールを配る */}
       <RoleProvider role={role}>
+        <SchemaProvider v2={schemaV2}>
         <RoomsProvider rooms={rooms}>
           <PullToRefresh>
             <SwipeTabs role={role}>
@@ -106,6 +111,7 @@ export default async function AppLayout({
             </SwipeTabs>
           </PullToRefresh>
         </RoomsProvider>
+        </SchemaProvider>
       </RoleProvider>
 
       <TabBar role={role} />

@@ -8,6 +8,7 @@ import {
   buildTodayReminder,
   type DeadlineRow,
 } from "@/lib/reminders";
+import { hasSchemaV2 } from "@/lib/schema";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { addDays, isValidDateString, todayInTokyo } from "@/lib/time";
 import type { Profile } from "@/lib/types";
@@ -43,6 +44,11 @@ export async function GET(request: Request) {
       { ok: false, error: "Supabase の環境変数が未設定です。" },
       { status: 503 },
     );
+  }
+
+  // 予定・締切の通知の列と締切の表は 0020 から (v1.49)。済んでいない DB では何もしない
+  if (!(await hasSchemaV2())) {
+    return Response.json({ ok: true, skipped: "schema" });
   }
 
   const url = new URL(request.url);

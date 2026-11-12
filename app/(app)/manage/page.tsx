@@ -4,6 +4,7 @@ import { SetupNotice } from "@/components/SetupNotice";
 import { canUseCoordinator } from "@/lib/auth/guard";
 import { getCurrentProfile } from "@/lib/auth/session";
 import { hasSupabaseEnv } from "@/lib/env";
+import { hasSchemaV2 } from "@/lib/schema";
 import { createClient } from "@/lib/supabase/server";
 import { addDays, todayInTokyo } from "@/lib/time";
 import type { Announcement, CircleEvent, Deadline } from "@/lib/types";
@@ -28,7 +29,8 @@ export default async function ManagePage() {
   }
 
   const profile = await getCurrentProfile();
-  if (!canUseCoordinator(profile)) {
+  // イベント・締切・告知の表は 0020 から (v1.49。済んでいない DB では画面ごと出さない)
+  if (!canUseCoordinator(profile) || !(await hasSchemaV2())) {
     notFound();
   }
 
