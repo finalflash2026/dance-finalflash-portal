@@ -52,8 +52,8 @@ export interface Participant {
 }
 
 /** 一覧に出す表示。「出席」「欠席」「遅刻 15:00」「早退 15:00」/ 行が無ければ「未回答」 */
-export function formatAttendance(row: AttendanceRow | null): string {
-  if (!row) return "未回答";
+export function formatAttendance(row: AttendanceRow | null, unansweredLabel = "未回答"): string {
+  if (!row) return unansweredLabel;
   const label = ATTENDANCE_LABELS[row.status];
   return row.timeValue ? `${label} ${row.timeValue}` : label;
 }

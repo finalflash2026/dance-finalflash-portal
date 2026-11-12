@@ -560,7 +560,7 @@ export function AttendanceSheet({
                             className="shrink-0 rounded-full px-2.5 py-1 text-[12px] font-semibold tabular-nums"
                             style={{ backgroundColor: bucket.soft, color: bucket.color }}
                           >
-                            {formatAttendance(participant.attendance)}
+                            {formatAttendance(participant.attendance, schemaV2 ? "未回答" : "出席")}
                           </span>
                         </li>
                       );
