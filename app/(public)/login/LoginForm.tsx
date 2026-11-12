@@ -79,7 +79,7 @@ export function LoginForm({ initialUsername }: { initialUsername: string }) {
         {pending ? "ログイン中…" : "ログイン"}
       </button>
 
-      <p className="text-center text-sm">
+      <p className="text-center text-[15px]">
         <Link href="/signup" className="underline">
           はじめての人はこちら(新規登録)
         </Link>

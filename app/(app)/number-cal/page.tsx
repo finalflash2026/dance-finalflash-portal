@@ -142,7 +142,7 @@ export default async function NumberTabPage() {
       {practicesResult.error ? (
         <p
           role="alert"
-          className="rounded-lg bg-[var(--danger-bg)] px-3 py-2 text-sm text-[var(--danger-fg)]"
+          className="rounded-lg bg-[var(--danger-bg)] px-3 py-2 text-[15px] text-[var(--danger-fg)]"
         >
           スタ練の取得に失敗しました: {practicesResult.error.message}
         </p>

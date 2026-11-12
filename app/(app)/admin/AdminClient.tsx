@@ -128,7 +128,7 @@ export function AdminClient({
 
       <ErrorMessage>{error}</ErrorMessage>
       {notice ? (
-        <p className="rounded-lg bg-[var(--surface)] px-3 py-2 text-sm">
+        <p className="rounded-lg bg-[var(--surface)] px-3 py-2 text-[15px]">
           {notice}
         </p>
       ) : null}
@@ -150,7 +150,7 @@ export function AdminClient({
       <section className="space-y-3" data-tour="admin-users">
         <h2 className="text-[17px] font-semibold">
           ユーザー一覧
-          <span className="ml-2 text-xs font-normal text-[var(--muted)]">
+          <span className="ml-2 text-[13px] font-normal text-[var(--muted)]">
             {filtered.length} / {users.length}人
           </span>
         </h2>
@@ -208,7 +208,7 @@ export function AdminClient({
         />
 
         {filtered.length === 0 ? (
-          <p className="py-6 text-center text-sm text-[var(--muted)]">
+          <p className="py-6 text-center text-[15px] text-[var(--muted)]">
             該当するユーザーがいません
           </p>
         ) : (
@@ -362,7 +362,7 @@ function PassphraseSection({
   return (
     <section className="space-y-3 rounded-2xl bg-[var(--cell)] p-4" data-tour="admin-pass">
       <h2 className="text-[17px] font-semibold">合言葉</h2>
-      <p className="text-xs text-[var(--muted)]">
+      <p className="text-[13px] text-[var(--muted)]">
         <strong>代替わり・卒業の時期には必ず変えてください。</strong>
         空欄の項目は変わりません。
       </p>
@@ -714,7 +714,7 @@ function EditPanel({
         </select>
       </Field>
 
-      <p className="text-xs text-[var(--muted)]">
+      <p className="text-[13px] text-[var(--muted)]">
         変更後のログインID:{" "}
         <strong className="font-mono">{nextUsername}</strong>
       </p>
@@ -740,7 +740,7 @@ function EditPanel({
 
         {tempPassword ? (
           <div className="rounded-lg border border-[var(--foreground)] px-3 py-2">
-            <p className="text-xs text-[var(--muted)]">
+            <p className="text-[13px] text-[var(--muted)]">
               仮パスワード(この画面でしか見られません。本人に伝えてください)
             </p>
             <p className="select-all font-mono text-lg font-bold">
@@ -758,7 +758,7 @@ function EditPanel({
         >
           このアカウントを削除する
         </button>
-        <p className="text-xs text-[var(--muted)]">
+        <p className="text-[13px] text-[var(--muted)]">
           卒業した人は、削除ではなくOB/OGへ移してください。削除は誤登録の整理用で、活動の記録があるアカウントは消せません。
         </p>
       </div>
@@ -841,7 +841,7 @@ function BulkGraduateSection({
   return (
     <section className="space-y-3 rounded-2xl bg-[var(--cell)] p-4" data-tour="admin-graduate">
       <h2 className="text-[17px] font-semibold">卒業処理(一括OB化)</h2>
-      <p className="text-xs text-[var(--muted)]">
+      <p className="text-[13px] text-[var(--muted)]">
         ナンバーと購読URLは、OB/OGになっても使えます。
       </p>
 
@@ -862,7 +862,7 @@ function BulkGraduateSection({
           type="button"
           onClick={graduate}
           disabled={pending || targets.length === 0}
-          className="shrink-0 rounded-lg bg-[var(--fill)] px-3 text-sm font-semibold text-[var(--tint)] disabled:opacity-40"
+          className="shrink-0 rounded-lg bg-[var(--fill)] px-3 text-[15px] font-semibold text-[var(--tint)] disabled:opacity-40"
         >
           {targets.length}人を移行
         </button>

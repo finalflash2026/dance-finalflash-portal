@@ -715,7 +715,7 @@ function TimeEditor({
   }
 
   const button =
-    "w-full rounded-lg border border-[var(--border)] px-3 py-1.5 text-left text-xs";
+    "w-full rounded-[10px] bg-[var(--fill)] px-3 py-2 text-left text-[13px]";
 
   return (
     <>

@@ -240,7 +240,7 @@ export function BoardMessages({
               <h3 className="text-base font-bold">
                 {scope === "room" ? "今日の練習場所の連絡" : "部室の鍵の連絡"}
               </h3>
-              <span className="text-xs text-[var(--muted)]">
+              <span className="text-[13px] text-[var(--muted)]">
                 {messages.length}件
               </span>
             </header>
@@ -248,7 +248,7 @@ export function BoardMessages({
             {error ? (
               <p
                 role="alert"
-                className="px-4 pt-2 text-xs text-[var(--danger-fg)]"
+                className="px-4 pt-2 text-[13px] text-[var(--danger-fg)]"
               >
                 {error}
               </p>
@@ -259,7 +259,7 @@ export function BoardMessages({
               className="min-h-0 flex-1 space-y-2 overflow-y-auto px-4 py-3"
             >
               {messages.length === 0 ? (
-                <p className="flex h-full items-center justify-center text-sm text-[var(--muted)]">
+                <p className="flex h-full items-center justify-center text-[15px] text-[var(--muted)]">
                   連絡はまだありません
                 </p>
               ) : (
@@ -282,7 +282,7 @@ export function BoardMessages({
                         className={`flex max-w-[85%] items-end gap-1 ${mine ? "flex-row-reverse" : ""}`}
                       >
                         <p
-                          className={`min-w-0 whitespace-pre-wrap break-words rounded-2xl px-3 py-2 text-sm ${
+                          className={`min-w-0 whitespace-pre-wrap break-words rounded-2xl px-3 py-2 text-[15px] ${
                             mine ? "rounded-br-sm" : "rounded-bl-sm"
                           }`}
                           style={{

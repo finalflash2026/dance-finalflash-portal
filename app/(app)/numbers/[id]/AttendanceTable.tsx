@@ -91,7 +91,7 @@ export function AttendanceTable({
   const pickedEvent = picked ? events.find((e) => e.id === picked.eventId) : null;
 
   if (events.length === 0) {
-    return <p className="text-sm text-[var(--muted)]">登録されている日程はありません</p>;
+    return <p className="text-[15px] text-[var(--muted)]">登録されている日程はありません</p>;
   }
 
   return (
@@ -109,9 +109,9 @@ export function AttendanceTable({
       ) : null}
 
       {rows === null ? (
-        <p className="text-sm text-[var(--muted)]">読み込み中…</p>
+        <p className="text-[15px] text-[var(--muted)]">読み込み中…</p>
       ) : visible.length === 0 ? (
-        <p className="text-sm text-[var(--muted)]">今後の日程はありません</p>
+        <p className="text-[15px] text-[var(--muted)]">今後の日程はありません</p>
       ) : (
         // 横にスクロールし、名前の列は固定する
         <div className="h-scroll overflow-x-auto rounded-xl bg-[var(--cell)]">

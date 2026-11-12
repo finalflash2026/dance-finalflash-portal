@@ -107,7 +107,7 @@ export function HomeLayoutSection({ showStaff = false }: { showStaff?: boolean }
           resetHomeLayout();
           setLayout(readHomeLayout());
         }}
-        className="text-sm text-[var(--tint)]"
+        className="text-[15px] text-[var(--tint)]"
       >
         最初の並びに戻す
       </button>

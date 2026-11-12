@@ -61,7 +61,7 @@ export function NativeNotifySection() {
       hint="この端末だけの設定です。アプリを開いたときに、2週間先までの予定で通知を予約し直します。"
     >
       {permission === "denied" ? (
-        <p className="text-sm text-[var(--danger-fg)]">
+        <p className="text-[15px] text-[var(--danger-fg)]">
           通知がオフになっています。iPhone の設定 → 通知 → ff Calendar で許可してください。
         </p>
       ) : null}

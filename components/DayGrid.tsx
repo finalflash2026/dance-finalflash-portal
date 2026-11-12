@@ -1,5 +1,6 @@
 "use client";
 
+import { mediumButtonClass } from "@/components/ui";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
@@ -125,7 +126,7 @@ export function DayGrid({
 
   if (flatRooms.length === 0) {
     return (
-      <p className="rounded-xl border border-[var(--border)] px-4 py-8 text-center text-sm text-[var(--muted)]">
+      <p className="rounded-xl bg-[var(--cell)] px-4 py-8 text-center text-[15px] text-[var(--muted)]">
         {formatDateLabel(date)} の練習予定はありません
       </p>
     );
@@ -522,7 +523,7 @@ function DetailModal({
           <button
             type="button"
             onClick={onClose}
-            className="w-full rounded-lg border border-[var(--border)] py-2 text-sm font-medium"
+            className={`${mediumButtonClass} w-full`}
           >
             閉じる
           </button>

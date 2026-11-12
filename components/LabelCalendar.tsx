@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRef } from "react";
 
 import { eventColor, eventShortLabel } from "@/lib/event-display";
+import { eventInk, eventTint } from "@/lib/event-style";
 import {
   addMonths,
   daysInMonth,
@@ -171,13 +172,18 @@ export function LabelCalendar({
                 event.preventDefault();
                 onSelectDate(date);
               }}
-              className={`flex min-h-14 flex-col items-stretch rounded p-0.5 ${
-                isSelected ? "bg-[var(--surface)] ring-1 ring-[var(--foreground)]" : ""
-              }`}
+              className="flex min-h-14 flex-col items-stretch rounded-md p-0.5"
             >
+              {/* 日付の丸 (Apple のカレンダーと同じ: 今日は赤、選んだ日は黒。v1.50) */}
               <span
-                className={`mx-auto flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[11px] ${
-                  isToday ? "bg-[var(--primary)] font-bold text-[var(--primary-fg)]" : ""
+                className={`mx-auto flex h-[22px] w-[22px] shrink-0 items-center justify-center rounded-full text-[12px] tabular-nums ${
+                  isSelected
+                    ? isToday
+                      ? "bg-[var(--accent)] font-semibold text-white"
+                      : "bg-[var(--foreground)] font-semibold text-[var(--background)]"
+                    : isToday
+                      ? "font-semibold text-[var(--accent)]"
+                      : ""
                 }`}
               >
                 {parseDate(date).day}
@@ -186,22 +192,25 @@ export function LabelCalendar({
               <span className="mt-0.5 flex flex-col gap-px overflow-hidden">
                 {shown.map((event) => {
                   const color = eventColor(event);
+                  // 終日 (イベント・締切) は色の地に白い文字、時刻のある予定はうすい地に濃い文字
+                  const allDay = event.kind === "deadline" || event.allDay === true;
                   return (
                     <span
                       key={`${event.kind}-${event.sourceId}`}
-                      className="truncate rounded-sm px-0.5 text-[8px] leading-[11px]"
-                      style={{
-                        backgroundColor: color.bg,
-                        color: color.fg,
-                      }}
+                      className="truncate rounded-[3px] px-[3px] text-[9px] font-medium leading-[13px]"
+                      style={
+                        allDay
+                          ? { backgroundColor: color.bg, color: color.fg }
+                          : { backgroundColor: eventTint(color.bg), color: eventInk(color.bg) }
+                      }
                     >
                       {eventShortLabel(event)}
                     </span>
                   );
                 })}
                 {rest > 0 ? (
-                  <span className="text-center text-[8px] leading-[11px] text-[var(--muted)]">
-                    +{rest}
+                  <span className="px-[3px] text-[9px] leading-[13px] text-[var(--muted)]">
+                    ほか{rest}件
                   </span>
                 ) : null}
               </span>

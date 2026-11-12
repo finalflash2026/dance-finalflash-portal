@@ -2,7 +2,12 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 
-import { ErrorMessage, buttonClass, secondaryButtonClass } from "@/components/ui";
+import {
+  ErrorMessage,
+  buttonClass,
+  destructiveButtonClass,
+  secondaryButtonClass,
+} from "@/components/ui";
 import { confirmAction } from "@/lib/confirm";
 import { dbErrorMessage } from "@/lib/error-message";
 import { useRoomById, useRooms } from "@/lib/rooms";
@@ -1248,7 +1253,7 @@ function SlotEditor({
               type="button"
               disabled={disabled}
               onClick={onDelete}
-              className={`${secondaryButtonClass} text-[var(--danger-fg)]`}
+              className={destructiveButtonClass}
             >
               このコマを削除する
             </button>

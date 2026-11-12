@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 
+import { eventBlockStyle } from "@/lib/event-style";
 import { packLanes, timelineAxis } from "@/lib/timeline";
 import { formatDateLabel, formatTimeRange, fromMinutes, toMinutes } from "@/lib/time";
 import type { DateString } from "@/lib/types";
@@ -75,13 +76,13 @@ export function DayTimeline({
               type="button"
               disabled={!onSelect}
               onClick={() => onSelect?.(item)}
-              className="flex w-full items-center gap-2 rounded px-2 py-1 text-left text-[12px] leading-tight"
+              // 終日の予定は色の地に白い文字 (Apple のカレンダーと同じ。時刻のある予定と見分ける)
+              className="flex h-7 w-full items-center gap-2 rounded-[6px] px-2.5 text-left text-[13px]"
               style={{ backgroundColor: item.color.bg, color: item.color.fg }}
             >
-              <span className="shrink-0 opacity-80">終日</span>
-              <span className="min-w-0 flex-1 truncate font-bold">{item.title}</span>
+              <span className="min-w-0 flex-1 truncate font-semibold">{item.title}</span>
               {item.subtitle ? (
-                <span className="shrink-0 truncate opacity-80">{item.subtitle}</span>
+                <span className="shrink-0 truncate opacity-85">{item.subtitle}</span>
               ) : null}
             </button>
           </li>
@@ -146,16 +147,18 @@ export function DayTimeline({
   return (
     <div className="rounded-xl bg-[var(--cell)]">
       {allDayRows}
+      {/* 上下に余白を置く (端の時刻の文字が枠で切れないように) */}
+      <div className="py-3">
       <div className="relative flex" style={{ height }}>
         {/* 時間軸 */}
         <div
-          className="relative shrink-0 border-r border-[var(--border)]"
+          className="relative shrink-0"
           style={{ width: TIME_COLUMN_WIDTH }}
         >
           {hours.map((m) => (
             <span
               key={m}
-              className="absolute right-1 -translate-y-1/2 text-[10px] text-[var(--muted)] tabular-nums"
+              className="absolute right-1.5 -translate-y-1/2 text-[11px] text-[var(--muted)] tabular-nums"
               style={{ top: y(m) }}
             >
               {fromMinutes(m)}
@@ -186,11 +189,12 @@ export function DayTimeline({
                 type="button"
                 disabled={!onSelect}
                 onClick={() => onSelect?.(item)}
-                title={`${range} ${item.title}${item.subtitle ? ` @${item.subtitle}` : ""}`}
+                title={`${range} ${item.title}${item.subtitle ? `・${item.subtitle}` : ""}`}
                 // ボタンは中身を縦の中央に寄せるので、上詰めを明示する。
                 // 長いブロックだと見出しが開始時刻から離れた位置に出てしまう
-                className={`absolute flex flex-col justify-start overflow-hidden rounded px-1 py-0.5 text-left text-[11px] leading-tight ${
-                  item.pale ? "opacity-45" : ""
+                // Apple のカレンダーのブロック (v1.50): うすい地・左の線・濃い文字
+                className={`absolute flex flex-col justify-start overflow-hidden rounded-[5px] py-0.5 pl-[7px] pr-1 text-left text-[12px] leading-[15px] ${
+                  item.pale ? "opacity-55" : ""
                 }`}
                 style={{
                   top,
@@ -198,15 +202,14 @@ export function DayTimeline({
                   // 重なった予定は横に分ける。1件のときは全幅
                   left: `calc(${from + lane * laneWidth}% + 2px)`,
                   width: `calc(${laneWidth}% - 4px)`,
-                  backgroundColor: item.color.bg,
-                  color: item.color.fg,
+                  ...eventBlockStyle(item.color.bg),
                 }}
               >
-                <span className="block truncate font-bold">{item.title}</span>
+                <span className="block truncate font-semibold">{item.title}</span>
                 {compact ? null : (
-                  <span className="block truncate opacity-80">
+                  <span className="block truncate opacity-80 tabular-nums">
                     {range}
-                    {item.subtitle ? ` @${item.subtitle}` : ""}
+                    {item.subtitle ? `・${item.subtitle}` : ""}
                   </span>
                 )}
               </button>
@@ -266,6 +269,7 @@ export function DayTimeline({
               </span>
             </button>
           ))}
+      </div>
       </div>
 
       {/*

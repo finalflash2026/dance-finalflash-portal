@@ -175,7 +175,7 @@ export function RoomStatusBoard({
       </header>
 
       {error ? (
-        <p role="alert" className="mt-1 text-xs text-[var(--danger-fg)]">
+        <p role="alert" className="mt-1 text-[13px] text-[var(--danger-fg)]">
           {error}
         </p>
       ) : null}

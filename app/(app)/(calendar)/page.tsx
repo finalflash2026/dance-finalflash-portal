@@ -201,7 +201,7 @@ export default async function HomePage({
       {error ? (
         <p
           role="alert"
-          className="rounded-lg bg-[var(--danger-bg)] px-3 py-2 text-sm text-[var(--danger-fg)]"
+          className="rounded-lg bg-[var(--danger-bg)] px-3 py-2 text-[15px] text-[var(--danger-fg)]"
         >
           予定の取得に失敗しました: {error.message}
         </p>

@@ -247,9 +247,9 @@ export function ImportStep({
           <h2 className="text-[17px] font-semibold">読み取った予約枠</h2>
           <p className="text-sm text-[var(--muted)]">
             {rows.length}件
-            {invalidRows.length > 0 ? ` / 要修正 ${invalidRows.length}件` : ""}
-            {overlapCount > 0 ? ` / 時間の重なり ${overlapCount}件` : ""}
-            {duplicateCount > 0 ? ` / 重複 ${duplicateCount}件` : ""}
+            {invalidRows.length > 0 ? `・要修正 ${invalidRows.length}件` : ""}
+            {overlapCount > 0 ? `・時間の重なり ${overlapCount}件` : ""}
+            {duplicateCount > 0 ? `・重複 ${duplicateCount}件` : ""}
           </p>
 
           {/* 時刻や部屋が確定しない行はタイムラインに置けないので先に直させる */}

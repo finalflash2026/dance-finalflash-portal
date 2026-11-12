@@ -76,10 +76,10 @@ export function NumberList({
       <ErrorMessage>{error}</ErrorMessage>
 
       <section className="space-y-2" data-tour="numbers">
-        <h2 className="text-sm font-bold">現在進行中のナンバー</h2>
+        <h2 className="text-[15px] font-bold">現在進行中のナンバー</h2>
 
         {numbers.length === 0 ? (
-          <p className="rounded-xl bg-[var(--cell)] px-4 py-5 text-center text-sm text-[var(--muted)]">
+          <p className="rounded-xl bg-[var(--cell)] px-4 py-5 text-center text-[15px] text-[var(--muted)]">
             所属しているナンバーはありません
           </p>
         ) : (
@@ -101,9 +101,9 @@ export function NumberList({
                       <span className="block truncate font-medium">
                         {number.name}
                       </span>
-                      <span className="block text-xs text-[var(--muted)]">
+                      <span className="block text-[13px] text-[var(--muted)]">
                         メンバー{number.memberCount}人
-                        {number.isOwner ? " / 主催" : ""}
+                        {number.isOwner ? "・主催" : ""}
                       </span>
                     </span>
                     <span aria-hidden className="text-[var(--muted)]">
@@ -124,7 +124,7 @@ export function NumberList({
           className="space-y-2 rounded-xl bg-[var(--cell)] p-3"
           data-tour="number-create"
         >
-          <h2 className="text-sm font-bold">ナンバーを作る</h2>
+          <h2 className="text-[15px] font-bold">ナンバーを作る</h2>
           <input
             aria-label="ナンバー名"
             value={name}

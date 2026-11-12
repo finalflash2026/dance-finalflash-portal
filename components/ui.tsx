@@ -1,7 +1,13 @@
 /**
- * フォーム系の共通パーツ。
- * デザインシステムを作り込む段階ではないので、Tailwind のクラスをここに集約して
- * 画面側の記述を短く保つことだけを目的にしている。
+ * 画面の共通の部品 (SPEC.md §12 / v1.50)
+ *
+ * **ボタン・入力欄・まとまりの見た目はここの型だけを使う。** 画面ごとに Tailwind を
+ * 直書きすると、角の丸み・高さ・文字の大きさが少しずつずれていく。
+ *
+ * - ボタンの大きさは3つ: 大 (50px。窓の一番下の決定)・中 (44px。欄の横・並べるもの)・小 (32px。行の中の「編集」など)
+ * - 色は4つ: 主 (塗り)・副 (うすい地に青い文字)・消す (うすい地に赤い文字)・文字だけ
+ * - 枠線は使わない。まとまりは面の色 (var(--cell)) と区切り線で示す
+ * - 入力欄は 16px (iPhone で拡大されない大きさ)
  */
 
 export function Field({
@@ -15,7 +21,7 @@ export function Field({
 }) {
   return (
     <label className="block">
-      <span className="text-sm font-medium">{label}</span>
+      <span className="block text-[13px] font-medium text-[var(--muted)]">{label}</span>
       {children}
       {hint ? (
         <span className="mt-1 block text-xs text-[var(--muted)]">{hint}</span>
@@ -24,14 +30,33 @@ export function Field({
   );
 }
 
+/** 入力欄 (1行・複数行・選択) */
 export const inputClass =
-  "mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2 text-base outline-none focus:border-[var(--foreground)]";
+  "mt-1 block w-full rounded-[10px] bg-[var(--background)] px-3 py-2.5 text-[16px] outline-none ring-1 ring-[var(--separator)] transition-shadow focus:ring-2 focus:ring-[var(--tint)] disabled:opacity-50";
 
+/** 表の中などの小さい入力欄 */
+export const compactInputClass =
+  "rounded-[8px] bg-[var(--background)] px-2 py-1.5 text-[14px] outline-none ring-1 ring-[var(--separator)] focus:ring-2 focus:ring-[var(--tint)] disabled:opacity-50";
+
+/** 大の主ボタン (primaryButtonClass と同じ。前からの名前) */
 export const buttonClass =
-  "w-full rounded-lg bg-[var(--primary)] px-4 py-3 text-base font-bold text-[var(--primary-fg)] disabled:opacity-50";
+  "flex h-[50px] w-full items-center justify-center rounded-[14px] bg-[var(--tint)] px-4 text-[17px] font-semibold text-white transition-opacity active:opacity-80 disabled:opacity-40";
 
+/** 大の副ボタン (fillButtonClass と同じ。前からの名前) */
 export const secondaryButtonClass =
-  "w-full rounded-lg border border-[var(--border)] px-4 py-3 text-base font-medium disabled:opacity-50";
+  "flex h-[50px] w-full items-center justify-center rounded-[14px] bg-[var(--fill)] px-4 text-[17px] font-semibold text-[var(--tint)] transition-opacity active:opacity-70 disabled:opacity-40";
+
+/** 中の副ボタン (欄の横・並べるもの) */
+export const mediumButtonClass =
+  "inline-flex h-11 items-center justify-center gap-1.5 rounded-xl bg-[var(--fill)] px-4 text-[15px] font-semibold text-[var(--tint)] transition-opacity active:opacity-70 disabled:opacity-40";
+
+/** 小のボタン (行の中の「編集」など) */
+export const smallButtonClass =
+  "inline-flex h-8 shrink-0 items-center justify-center rounded-full bg-[var(--fill)] px-3 text-[13px] font-semibold text-[var(--tint)] transition-opacity active:opacity-70 disabled:opacity-40";
+
+/** 小の消すボタン */
+export const smallDestructiveButtonClass =
+  "inline-flex h-8 shrink-0 items-center justify-center rounded-full bg-[var(--fill)] px-3 text-[13px] font-semibold text-[var(--danger-solid)] transition-opacity active:opacity-70 disabled:opacity-40";
 
 /**
  * 設定画面の各項目のまとまり (SPEC §6.4.1 / §12 / v1.18.1 / v1.30)
@@ -90,16 +115,14 @@ export function GroupFooter({ children }: { children: React.ReactNode }) {
 export const tintTextClass = "text-[var(--tint)] font-medium";
 
 /** 塗りの主ボタン。窓の一番下などに1つだけ置く */
-export const primaryButtonClass =
-  "flex h-[50px] w-full items-center justify-center rounded-[14px] bg-[var(--tint)] px-4 text-[17px] font-semibold text-white disabled:opacity-40";
+export const primaryButtonClass = buttonClass;
 
 /** 薄い地の副ボタン */
-export const fillButtonClass =
-  "flex h-[50px] w-full items-center justify-center rounded-[14px] bg-[var(--fill)] px-4 text-[17px] font-semibold text-[var(--tint)] disabled:opacity-40";
+export const fillButtonClass = secondaryButtonClass;
 
 /** 消す操作。赤い文字だけで、塗りは使わない (iOS の destructive) */
 export const destructiveButtonClass =
-  "flex h-[50px] w-full items-center justify-center rounded-[14px] bg-[var(--fill)] px-4 text-[17px] font-semibold text-[var(--danger-solid)] disabled:opacity-40";
+  "flex h-[50px] w-full items-center justify-center rounded-[14px] bg-[var(--fill)] px-4 text-[17px] font-semibold text-[var(--danger-solid)] transition-opacity active:opacity-70 disabled:opacity-40";
 
 /**
  * 切り替えボタン (iOS の Segmented Control)。

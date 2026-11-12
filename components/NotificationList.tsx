@@ -90,7 +90,7 @@ export function NotificationList({
   return (
     <section className="space-y-2">
       {error ? (
-        <p role="alert" className="text-xs text-[var(--danger-fg)]">
+        <p role="alert" className="text-[13px] text-[var(--danger-fg)]">
           {error}
         </p>
       ) : null}

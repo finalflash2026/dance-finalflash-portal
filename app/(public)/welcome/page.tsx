@@ -17,7 +17,7 @@ export default async function WelcomePage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold">登録</h1>
+      <h1 className="text-[28px] font-bold leading-tight">登録</h1>
       <SignupForm google generationChoices={choices} />
     </div>
   );

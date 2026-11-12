@@ -22,8 +22,8 @@ export function HeaderIdentity({
   if (backTarget(pathname)) return null;
   return (
     <div className="min-w-0">
-      <p className="truncate text-sm font-bold">{username}</p>
-      {roleLabel ? <p className="text-xs text-[var(--muted)]">{roleLabel}</p> : null}
+      <p className="truncate text-[15px] font-bold">{username}</p>
+      {roleLabel ? <p className="text-[13px] text-[var(--muted)]">{roleLabel}</p> : null}
     </div>
   );
 }

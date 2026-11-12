@@ -17,11 +17,11 @@ export function Placeholder({
 }) {
   return (
     <section className="mx-auto max-w-2xl px-4 py-8">
-      <h1 className="text-xl font-bold">{title}</h1>
-      <p className="mt-2 text-sm text-[var(--muted)]">
+      <h1 className="text-[22px] font-bold">{title}</h1>
+      <p className="mt-2 text-[15px] text-[var(--muted)]">
         SPEC.md {spec} — {phase} で実装
       </p>
-      {children ? <div className="mt-6 text-sm">{children}</div> : null}
+      {children ? <div className="mt-6 text-[15px]">{children}</div> : null}
     </section>
   );
 }

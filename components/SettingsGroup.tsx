@@ -96,10 +96,12 @@ export function SettingsGroup({
   }, [phase]);
 
   const expanded = phase === "open";
-  const panelStyle: React.CSSProperties =
+  // **枠の大きさは動かさず、切り抜き (clip-path) だけを動かす** (v1.50)。
+  // 以前は top・left・width・height をバネで動かしていて、毎コマ組み直しが走り重かった
+  const clip =
     expanded || !rect
-      ? { top: 0, left: 0, width: "100vw", height: "100dvh", borderRadius: 0 }
-      : { top: rect.top, left: rect.left, width: rect.width, height: rect.height, borderRadius: 16 };
+      ? "inset(0px 0px 0px 0px round 0px)"
+      : `inset(${rect.top}px ${window.innerWidth - rect.right}px ${window.innerHeight - rect.bottom}px ${rect.left}px round 16px)`;
 
   return (
     <>
@@ -122,20 +124,30 @@ export function SettingsGroup({
           aria-modal="true"
           aria-label={title}
           data-no-swipe
-          className="fixed z-[70] overflow-hidden bg-[var(--background)] shadow-[0_10px_40px_rgba(0,0,0,0.35)]"
+          className="fixed inset-0 z-[70] bg-[var(--background)]"
           style={{
-            ...panelStyle,
-            // バネのような動き (少し行き過ぎて戻る。§12「動き」/ v1.36)
-            transition: `all ${DURATION}ms var(--ease-spring)`,
+            clipPath: clip,
+            transition: `clip-path ${DURATION}ms var(--ease-out-quick)`,
+            willChange: "clip-path",
           }}
         >
-          {/* 広がる途中はカードの見た目のまま。開ききったら中身に入れ替える */}
-          <div
-            className="absolute inset-0 flex flex-col items-start gap-1.5 bg-[var(--cell)] p-3"
-            style={{ opacity: expanded ? 0 : 1, transition: `opacity ${DURATION / 2}ms`, pointerEvents: "none" }}
-          >
-            <CardFace icon={icon} title={title} summary={summary} />
-          </div>
+          {/* 広がり始めはカードの見た目。すぐに消して中身を見せる */}
+          {rect ? (
+            <div
+              className="absolute flex flex-col items-start gap-1.5 bg-[var(--cell)] p-3"
+              style={{
+                top: rect.top,
+                left: rect.left,
+                width: rect.width,
+                height: rect.height,
+                opacity: expanded ? 0 : 1,
+                transition: `opacity ${DURATION / 2}ms linear`,
+                pointerEvents: "none",
+              }}
+            >
+              <CardFace icon={icon} title={title} summary={summary} />
+            </div>
+          ) : null}
           {/*
             中身は**最初から画面いっぱいの大きさで組む** (v1.33.1)。広がっていく枠
             (overflow-hidden) が切り抜いて見せるだけなので、広がる途中で文字の
@@ -144,7 +156,7 @@ export function SettingsGroup({
           */}
           <div
             className="absolute left-0 top-0 flex h-dvh w-screen flex-col"
-            style={{ opacity: expanded ? 1 : 0, transition: `opacity ${DURATION}ms` }}
+            style={{ opacity: expanded ? 1 : 0, transition: `opacity ${DURATION / 2}ms linear` }}
           >
             <header className="flex shrink-0 items-center gap-2 px-4 pb-2 pt-[max(env(safe-area-inset-top),12px)]">
               <button
@@ -202,8 +214,8 @@ export function SettingsGroup({
   );
 }
 
-/** 開閉の長さ (ms)。iOS の画面の出入りに近い速さ */
-const DURATION = 500;
+/** 開閉の長さ (ms)。軽く感じるよう短めにし、行き過ぎて戻る動きはつけない (v1.50) */
+const DURATION = 280;
 
 function CardFace({
   icon,

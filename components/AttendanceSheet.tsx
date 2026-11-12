@@ -326,13 +326,13 @@ export function AttendanceSheet({
           ) : null}
 
           {error ? (
-            <p role="alert" className="rounded-xl bg-[var(--danger-bg)] px-3 py-2 text-sm text-[var(--danger-fg)]">
+            <p role="alert" className="rounded-xl bg-[var(--danger-bg)] px-3 py-2 text-[15px] text-[var(--danger-fg)]">
               {error}
             </p>
           ) : null}
 
           {target.kind === "info" ? (
-            <p className="text-sm text-[var(--muted)]">この予定に出欠登録はありません</p>
+            <p className="text-[15px] text-[var(--muted)]">この予定に出欠登録はありません</p>
           ) : participants === null ? (
             <div className="space-y-3" aria-busy="true">
               <div className="h-3 animate-pulse rounded-full bg-[var(--fill)]" />
@@ -366,8 +366,9 @@ export function AttendanceSheet({
                           on ? "bg-[var(--cell)] shadow-[0_0_0_2px_var(--tint)]" : "bg-[var(--cell)]"
                         }`}
                       >
-                        <span className="flex items-center gap-1 text-[12px] text-[var(--muted)]">
-                          <span aria-hidden className="h-2 w-2 rounded-full" style={{ backgroundColor: bucket.color }} />
+                        {/* 4つ並べても1行に収まるよう、名前は折り返さない (v1.50) */}
+                        <span className="flex items-center gap-1 whitespace-nowrap text-[12px] tracking-tight text-[var(--muted)]">
+                          <span aria-hidden className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: bucket.color }} />
                           {bucket.label}
                         </span>
                         <span className="block text-[22px] font-bold leading-tight tabular-nums">
@@ -592,7 +593,7 @@ type Bucket = "present" | "partial" | "absent" | "none";
 /** 人数の帯と参加者の色。遅刻と早退は「一部だけ出る」としてまとめる */
 const BUCKETS: { id: Bucket; label: string; color: string; soft: string }[] = [
   { id: "present", label: "出席", color: "#34c759", soft: "rgba(52,199,89,0.16)" },
-  { id: "partial", label: "遅刻・早退", color: "#ff9f0a", soft: "rgba(255,159,10,0.18)" },
+  { id: "partial", label: "遅刻早退", color: "#ff9f0a", soft: "rgba(255,159,10,0.18)" },
   { id: "absent", label: "欠席", color: "#ff3b30", soft: "rgba(255,59,48,0.14)" },
   { id: "none", label: "未回答", color: "#8e8e93", soft: "rgba(142,142,147,0.18)" },
 ];

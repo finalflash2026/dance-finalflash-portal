@@ -599,25 +599,26 @@ function DeadlineRow({
   const days = daysBetween(today, deadline.dueDate);
   const inner = (
     <>
-      <span aria-hidden className="h-9 w-1 shrink-0 rounded-full bg-[var(--accent)]" />
+      {/* 予定の一覧と同じ並び (v1.50): 左に残りの日数 → 色の線 → 名前と期限 */}
       <span
-        className={`w-[92px] shrink-0 text-[14px] font-semibold tabular-nums ${
-          days <= 1 ? "text-[var(--danger-solid)]" : "text-[var(--muted)]"
+        className={`w-[46px] shrink-0 text-right text-[14px] leading-[20px] tabular-nums ${
+          days <= 1 ? "font-semibold text-[var(--danger-solid)]" : "text-[var(--muted)]"
         }`}
       >
-        〆 {days === 0 ? "今日" : days === 1 ? "明日" : `あと${days}日`}
+        {days === 0 ? "今日" : days === 1 ? "明日" : `${days}日後`}
       </span>
+      <span aria-hidden className="w-[4px] shrink-0 self-stretch rounded-full bg-[var(--accent)]" />
       <span className="min-w-0 flex-1">
-        <span className="flex items-center gap-1.5 text-[16px]">
+        <span className="flex items-center gap-1.5 text-[16px] font-semibold leading-[20px]">
           {deadline.important ? <ImportantBadge /> : null}
           <span className="truncate">{deadline.title}</span>
         </span>
-        <span className="block text-[13px] text-[var(--muted)]">
+        <span className="block text-[14px] leading-[20px] text-[var(--muted)] tabular-nums">
           {formatDateLabel(deadline.dueDate)}
           {deadline.dueTime ? ` ${deadline.dueTime}まで` : ""}
         </span>
       </span>
-      <span aria-hidden className="shrink-0 text-[17px] text-[var(--muted)]">›</span>
+      <span aria-hidden className="self-center shrink-0 text-[17px] text-[var(--muted)]">›</span>
     </>
   );
   return (
@@ -628,14 +629,14 @@ function DeadlineRow({
         押せず、中身を見る手段が無かった
       */}
       {deadline.url?.startsWith("/") ? (
-        <Link href={deadline.url} className="flex items-center gap-3 px-4 py-2.5">
+        <Link href={deadline.url} className="flex min-h-[56px] items-stretch gap-2.5 px-4 py-2">
           {inner}
         </Link>
       ) : (
         <button
           type="button"
           onClick={() => onOpen(deadline)}
-          className="flex w-full items-center gap-3 px-4 py-2.5 text-left active:bg-[var(--fill)]"
+          className="flex min-h-[56px] w-full items-stretch gap-2.5 px-4 py-2 text-left active:bg-[var(--fill)]"
         >
           {inner}
         </button>
@@ -1386,42 +1387,36 @@ function multiDayNote(event: MyEvent, date: DateString): string {
 }
 
 function ListRow({ row }: { row: Row }) {
+  // Apple のカレンダーの一覧と同じ並び (v1.50): 時刻 → 色の線 → 予定の名前と場所
   const content = (
     <>
-      <span
-        aria-hidden
-        className="w-1 shrink-0 self-stretch rounded-full"
-        style={{ backgroundColor: row.color.bg }}
-      />
-      {/*
-       * 開始と終了の間に「〜」と余白を入れる (v1.31.9)。詰めて2行に重ねると、
-       * どちらが開始か一目で分からなかった。開始を濃く、終了を薄く
-       */}
-      <span className="flex w-[52px] shrink-0 flex-col pt-px text-[13px] leading-none tabular-nums">
+      <span className="flex w-[46px] shrink-0 flex-col items-end text-[14px] leading-[20px] tabular-nums">
         {row.wholeDay ? (
-          <span className="text-[var(--muted)]">終日</span>
+          <span>終日</span>
         ) : (
           <>
-            <span className="font-semibold">{row.startTime}</span>
-            <span aria-hidden className="my-1 text-[10px] leading-none text-[var(--muted)]">
-              〜
-            </span>
+            <span>{row.startTime}</span>
             <span className="text-[var(--muted)]">{row.endTime}</span>
           </>
         )}
       </span>
+      <span
+        aria-hidden
+        className="w-[4px] shrink-0 self-stretch rounded-full"
+        style={{ backgroundColor: row.color.bg }}
+      />
       <span className="min-w-0 flex-1">
-        <span className="flex items-center gap-1.5 text-[16px] leading-snug">
+        <span className="flex items-center gap-1.5 text-[16px] font-semibold leading-[20px]">
           {row.important ? <ImportantBadge /> : null}
           <span className="truncate">{row.title}</span>
         </span>
         {row.subtitle ? (
-          <span className="block truncate text-[13px] text-[var(--muted)]">{row.subtitle}</span>
+          <span className="block truncate text-[14px] leading-[20px] text-[var(--muted)]">{row.subtitle}</span>
         ) : null}
       </span>
     </>
   );
-  const className = `flex w-full gap-3 px-4 py-2.5 text-left ${
+  const className = `flex w-full min-h-[56px] items-stretch gap-2.5 px-4 py-2 text-left ${
     row.pale ? "opacity-55" : row.ended ? "opacity-50" : ""
   }`;
   return (

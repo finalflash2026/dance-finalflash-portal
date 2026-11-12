@@ -44,7 +44,7 @@ const chevronClass =
 export default function DemoIndex() {
   return (
     <main className="mx-auto max-w-2xl px-4 pb-8 pt-3">
-      <h1 className="text-[28px] font-bold">画面の見本</h1>
+      <h1 className="text-[28px] font-bold leading-tight">画面の見本</h1>
       <div className="mt-4 space-y-6">
         {GROUPS.map((screens, index) => (
           <ul

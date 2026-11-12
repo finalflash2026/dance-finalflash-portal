@@ -105,7 +105,7 @@ export function ClubKeyBoard({
       <h2 className="text-[17px] font-bold">部室の鍵</h2>
 
       {error ? (
-        <p role="alert" className="mt-1 text-xs text-[var(--danger-fg)]">
+        <p role="alert" className="mt-1 text-[13px] text-[var(--danger-fg)]">
           {error}
         </p>
       ) : null}

@@ -7,9 +7,10 @@ import { useEffect, useState } from "react";
 import {
   ErrorMessage,
   Field,
-  buttonClass,
+  destructiveButtonClass,
   fillButtonClass,
   inputClass,
+  mediumButtonClass,
   primaryButtonClass,
   secondaryButtonClass,
 } from "@/components/ui";
@@ -107,7 +108,7 @@ export function SettingsClient({
 
       <ErrorMessage>{error}</ErrorMessage>
       {notice ? (
-        <p className="rounded-lg bg-[var(--surface)] px-3 py-2 text-sm">
+        <p className="rounded-lg bg-[var(--surface)] px-3 py-2 text-[15px]">
           {notice}
         </p>
       ) : null}
@@ -190,7 +191,7 @@ export function SettingsClient({
             </a>
           </div>
         ) : (
-          <p className="text-sm text-[var(--muted)]">
+          <p className="text-[15px] text-[var(--muted)]">
             購読URLがまだありません
           </p>
         )}
@@ -261,7 +262,8 @@ export function SettingsClient({
           type="button"
           onClick={logout}
           disabled={pending}
-          className={`${buttonClass} w-full`}
+          // iOS の設定と同じく、抜ける操作は赤い文字 (v1.50)
+          className={destructiveButtonClass}
         >
           ログアウト
         </button>
@@ -409,18 +411,18 @@ function UrlRow({ label, url }: { label: string; url: string }) {
 
   return (
     <div>
-      <p className="text-xs font-medium text-[var(--muted)]">{label}</p>
+      <p className="text-[13px] font-medium text-[var(--muted)]">{label}</p>
       <div className="mt-1 flex gap-2">
         <input
           readOnly
           value={url}
           onFocus={(e) => e.currentTarget.select()}
-          className={`${inputClass} mt-0 font-mono text-xs`}
+          className={`${inputClass} mt-0 font-mono text-[13px]`}
         />
         <button
           type="button"
           onClick={copy}
-          className="shrink-0 rounded-lg border border-[var(--border)] px-3 text-sm"
+          className={mediumButtonClass}
         >
           {copied ? "コピー済" : "コピー"}
         </button>
@@ -486,7 +488,7 @@ function RoleSection({
 
       {/* 運営の画面は1つの入口に (v1.39)。中の切り替えで 折衝・割り振り・イベント・管理者 を行き来する */}
       {isCoordinatorOrAbove(role) ? (
-        <Link href="/coordinator" className={`${secondaryButtonClass} block text-center`}>
+        <Link href="/coordinator" className={secondaryButtonClass}>
           運営の画面を開く
         </Link>
       ) : null}

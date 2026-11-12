@@ -20,8 +20,8 @@ export default async function LoginPage({
   return (
     <div className="space-y-6">
       <header>
-        <h1 className="text-2xl font-bold">ログイン</h1>
-        <p className="mt-1 text-sm text-[var(--muted)]">
+        <h1 className="text-[28px] font-bold leading-tight">ログイン</h1>
+        <p className="mt-1 text-[15px] text-[var(--muted)]">
           ダンスサークル練習管理
         </p>
       </header>
@@ -31,7 +31,7 @@ export default async function LoginPage({
         <>
           <GoogleSignInButton />
           {error === "google" ? (
-            <p role="alert" className="text-sm text-[var(--danger-fg)]">
+            <p role="alert" className="text-[15px] text-[var(--danger-fg)]">
               Google でログインできませんでした。もう一度試してください。
             </p>
           ) : null}

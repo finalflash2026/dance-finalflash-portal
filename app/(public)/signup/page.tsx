@@ -16,8 +16,8 @@ export default async function SignupPage() {
   return (
     <div className="space-y-6">
       <header>
-        <h1 className="text-2xl font-bold">新規登録</h1>
-        <p className="mt-1 text-sm text-[var(--muted)]">
+        <h1 className="text-[28px] font-bold leading-tight">新規登録</h1>
+        <p className="mt-1 text-[15px] text-[var(--muted)]">
           サークル生合言葉が必要です
         </p>
       </header>

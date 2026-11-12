@@ -188,9 +188,9 @@ export function SignupForm({
       </Field>
 
       {preview ? (
-        <p className="rounded-lg bg-[var(--surface)] px-3 py-2 text-sm">
+        <p className="rounded-lg bg-[var(--surface)] px-3 py-2 text-[15px]">
           あなたのユーザーID: <strong>{preview}</strong>
-          <span className="mt-1 block text-xs text-[var(--muted)]">
+          <span className="mt-1 block text-[13px] text-[var(--muted)]">
             ログインに使います。同じIDの人がいる場合は名前の表記を変えてください
           </span>
         </p>
@@ -259,7 +259,7 @@ export function SignupForm({
               required
             />
             {mismatch ? (
-              <p role="alert" className="mt-1 text-xs text-[var(--danger-fg)]">
+              <p role="alert" className="mt-1 text-[13px] text-[var(--danger-fg)]">
                 パスワードが一致しません
               </p>
             ) : null}
@@ -290,7 +290,7 @@ export function SignupForm({
       </button>
 
       {google ? null : (
-        <p className="text-center text-sm">
+        <p className="text-center text-[15px]">
           <Link href="/login" className="underline">
             登録済みの人はこちら(ログイン)
           </Link>

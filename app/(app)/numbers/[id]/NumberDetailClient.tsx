@@ -6,9 +6,13 @@ import { useEffect, useState } from "react";
 import { AttendanceSheet } from "@/components/AttendanceSheet";
 import {
   ErrorMessage,
+  Segmented,
   buttonClass,
+  destructiveButtonClass,
   inputClass,
   secondaryButtonClass,
+  smallButtonClass,
+  smallDestructiveButtonClass,
 } from "@/components/ui";
 import { confirmAction } from "@/lib/confirm";
 import { GENRES, GENRE_BY_ID } from "@/lib/constants";
@@ -92,44 +96,33 @@ export function NumberDetailClient({
       <div className="flex items-center gap-3">
         <span
           aria-hidden
-          className="h-8 w-1.5 shrink-0 rounded-full"
+          className="h-11 w-1.5 shrink-0 rounded-full"
           style={{ backgroundColor: color.bg }}
         />
         <div className="min-w-0">
-          <h1 className="truncate text-lg font-bold">{number.name}</h1>
-          <p className="text-xs text-[var(--muted)]">
-            メンバー{members.length}人{isOwner ? " / あなたが主催" : ""}
+          <h1 className="truncate text-[28px] font-bold leading-tight">{number.name}</h1>
+          <p className="text-[14px] text-[var(--muted)]">
+            メンバー{members.length}人{isOwner ? "・あなたが主催" : ""}
           </p>
         </div>
       </div>
 
-      <nav className="flex gap-1 rounded-xl bg-[var(--cell)] p-1">
-        {(
-          [
-            { id: "events", label: "日程" },
-            // 全部の日程とメンバーごとの出欠 (コレオ・主催向け。v1.35)
-            { id: "table", label: "出欠表" },
-            { id: "members", label: "メンバー" },
-          ] as const
-        ).map((item) => (
-          <button
-            key={item.id}
-            type="button"
-            onClick={() => {
-              setError(null);
-              setTab(item.id);
-            }}
-            aria-current={tab === item.id ? "page" : undefined}
-            className={`flex-1 rounded-lg px-2 py-2 text-sm font-medium ${
-              tab === item.id
-                ? "bg-[var(--primary)] text-[var(--primary-fg)]"
-                : "text-[var(--muted)]"
-            }`}
-          >
-            {item.label}
-          </button>
-        ))}
-      </nav>
+      {/* 切り替えはほかの画面と同じ Segmented (v1.50) */}
+      <Segmented
+        label="表示"
+        size="large"
+        value={tab}
+        options={[
+          { value: "events", label: "日程" },
+          // 全部の日程とメンバーごとの出欠 (コレオ・主催向け。v1.35)
+          { value: "table", label: "出欠表" },
+          { value: "members", label: "メンバー" },
+        ]}
+        onChange={(next) => {
+          setError(null);
+          setTab(next);
+        }}
+      />
 
       <ErrorMessage>{error}</ErrorMessage>
 
@@ -204,16 +197,16 @@ function DeleteSection({
   }
 
   return (
-    <section className="space-y-2 rounded-xl border border-[var(--danger-border)] p-3">
-      <h2 className="text-sm font-bold text-[var(--danger-fg)]">ナンバーを削除</h2>
+    // 枠で囲まず、消すボタンだけを置く (v1.50。iOS の設定の「削除」と同じ)
+    <section aria-label="ナンバーを削除" className="space-y-2 pt-2">
       {open ? (
         <>
-          <p className="text-xs text-[var(--muted)]">
+          <p className="text-[14px] text-[var(--muted)]">
             メンバー{memberCount}人と日程{eventCount}件も一緒に消えます。
             <strong>メンバー全員の予定と購読カレンダーからも消えます。</strong>
             元に戻せません。
           </p>
-          <p className="text-xs text-[var(--muted)]">
+          <p className="text-[14px] text-[var(--muted)]">
             続けるにはナンバー名「{number.name}」を入力してください
           </p>
           <input
@@ -227,7 +220,7 @@ function DeleteSection({
             type="button"
             disabled={pending || typed.trim() !== number.name}
             onClick={remove}
-            className="w-full rounded-lg bg-[var(--danger-fg)] px-4 py-3 text-base font-bold text-[var(--background)] disabled:opacity-40"
+            className="flex h-[50px] w-full items-center justify-center rounded-[14px] bg-[var(--danger-solid)] px-4 text-[17px] font-semibold text-white disabled:opacity-40"
           >
             完全に削除する
           </button>
@@ -246,7 +239,7 @@ function DeleteSection({
         <button
           type="button"
           onClick={() => setOpen(true)}
-          className={`${secondaryButtonClass} text-[var(--danger-fg)]`}
+          className={destructiveButtonClass}
         >
           このナンバーを削除する
         </button>
@@ -318,13 +311,13 @@ function EventsTab({
           日程を追加する
         </button>
       ) : (
-        <p className="text-xs text-[var(--muted)]">
+        <p className="text-[13px] text-[var(--muted)]">
           日程を変えられるのは主催だけです。
         </p>
       )}
 
       {events.length === 0 ? (
-        <p className="rounded-xl bg-[var(--cell)] px-4 py-6 text-center text-sm text-[var(--muted)]">
+        <p className="rounded-xl bg-[var(--cell)] px-4 py-6 text-center text-[15px] text-[var(--muted)]">
           登録されている日程はありません
         </p>
       ) : (
@@ -350,17 +343,16 @@ function EventsTab({
                 }}
                 className="min-w-0 flex-1 text-left"
               >
-                <p className="text-sm">
-                  <span className="font-medium">
+                <p className="text-[16px] leading-[22px]">
+                  <span className="font-semibold">
                     {formatDateLabel(event.date)}
                   </span>{" "}
-                  <span className="tabular-nums text-[var(--muted)]">
+                  <span className="tabular-nums">
                     {formatSpanRange(event.startTime, event.endTime)}
                   </span>
                 </p>
-                <p className="truncate text-xs text-[var(--muted)]">
-                  @{event.place}
-                  {event.note ? ` / ${event.note}` : ""}
+                <p className="truncate text-[14px] leading-[20px] text-[var(--muted)]">
+                  {[event.place, event.note].filter(Boolean).join("・")}
                 </p>
               </button>
               {isOwner ? (
@@ -372,7 +364,7 @@ function EventsTab({
                       onError(null);
                       setEditing(event);
                     }}
-                    className="rounded border border-[var(--border)] px-2 py-1 text-xs"
+                    className={smallButtonClass}
                   >
                     編集
                   </button>
@@ -380,7 +372,7 @@ function EventsTab({
                     type="button"
                     disabled={pending}
                     onClick={() => remove(event)}
-                    className="rounded border border-[var(--border)] px-2 py-1 text-xs text-[var(--danger-fg)]"
+                    className={smallDestructiveButtonClass}
                   >
                     削除
                   </button>
@@ -507,7 +499,7 @@ function EventEditor({
         </h3>
 
         <label className="block">
-          <span className="text-sm font-medium">日付</span>
+          <span className="text-[15px] font-medium">日付</span>
           <input
             value={date}
             placeholder="20260910"
@@ -518,14 +510,14 @@ function EventEditor({
             onBlur={(e) => setDate(normalizeDateInput(e.target.value))}
             className={inputClass}
           />
-          <span className="mt-1 block text-xs text-[var(--muted)]">
+          <span className="mt-1 block text-[13px] text-[var(--muted)]">
             数字だけで入力できます (20260910 → 2026-09-10)
           </span>
         </label>
 
         <div className="flex items-end gap-2">
           <label className="block flex-1">
-            <span className="text-sm font-medium">開始</span>
+            <span className="text-[15px] font-medium">開始</span>
             <input
               value={startTime}
               placeholder="1900"
@@ -536,9 +528,9 @@ function EventEditor({
               className={inputClass}
             />
           </label>
-          <span className="pb-2 text-sm">〜</span>
+          <span className="pb-2 text-[15px]">〜</span>
           <label className="block flex-1">
-            <span className="text-sm font-medium">終了</span>
+            <span className="text-[15px] font-medium">終了</span>
             <input
               value={endTime}
               placeholder="2100"
@@ -558,14 +550,14 @@ function EventEditor({
         {spansMidnight(startTime, endTime) &&
         /^\d{2}:\d{2}$/.test(startTime) &&
         /^\d{2}:\d{2}$/.test(endTime) ? (
-          <p className="rounded-lg bg-[var(--surface)] px-3 py-2 text-xs">
+          <p className="rounded-lg bg-[var(--surface)] px-3 py-2 text-[13px]">
             日をまたぐ予定として登録します ({formatSpanRange(startTime, endTime)})。
             カレンダーには両日に出ます
           </p>
         ) : null}
 
         <label className="block">
-          <span className="text-sm font-medium">場所</span>
+          <span className="text-[15px] font-medium">場所</span>
           <input
             value={place}
             placeholder="例: スタジオ○○ / 剣道場"
@@ -576,7 +568,7 @@ function EventEditor({
         </label>
 
         <label className="block">
-          <span className="text-sm font-medium">
+          <span className="text-[15px] font-medium">
             メモ <span className="font-normal text-[var(--muted)]">(任意)</span>
           </span>
           <input
@@ -736,7 +728,7 @@ function MembersTab({
   }
 
   const chipClass = (on: boolean) =>
-    `rounded-full border px-2.5 py-1 text-xs ${
+    `rounded-full border px-2.5 py-1 text-[13px] ${
       on
         ? "border-[var(--primary)] bg-[var(--primary)] font-bold text-[var(--primary-fg)]"
         : "border-[var(--border)]"
@@ -745,14 +737,14 @@ function MembersTab({
   return (
     <div className="space-y-4">
       <section className="space-y-2">
-        <h2 className="text-sm font-bold">メンバー({members.length}人)</h2>
+        <h2 className="text-[15px] font-bold">メンバー({members.length}人)</h2>
         <ul className="divide-y divide-[var(--separator)] rounded-xl bg-[var(--cell)]">
           {members.map((member) => (
             <li key={member.userId} className="flex items-center gap-2 px-3 py-2">
-              <span className="min-w-0 flex-1 truncate text-sm">
+              <span className="min-w-0 flex-1 truncate text-[15px]">
                 {member.username}
                 {member.userId === number.ownerId ? (
-                  <span className="ml-1 text-xs text-[var(--muted)]">(主催)</span>
+                  <span className="ml-1 text-[13px] text-[var(--muted)]">(主催)</span>
                 ) : null}
                 {member.isOb ? (
                   <span className="ml-1 rounded bg-[var(--surface)] px-1 text-[10px] text-[var(--muted)]">
@@ -767,7 +759,7 @@ function MembersTab({
                   type="button"
                   disabled={pending}
                   onClick={() => remove(member)}
-                  className="shrink-0 rounded border border-[var(--border)] px-2 py-1 text-xs"
+                  className={smallButtonClass}
                 >
                   {member.userId === currentUserId ? "脱退" : "外す"}
                 </button>
@@ -779,7 +771,7 @@ function MembersTab({
 
       {isOwner ? (
         <section className="space-y-2">
-          <h2 className="text-sm font-bold">メンバーを追加</h2>
+          <h2 className="text-[15px] font-bold">メンバーを追加</h2>
 
           <input
             aria-label="名前で検索"
@@ -837,9 +829,9 @@ function MembersTab({
           </div>
 
           {candidates === null ? (
-            <p className="text-sm text-[var(--muted)]">名簿を読み込み中…</p>
+            <p className="text-[15px] text-[var(--muted)]">名簿を読み込み中…</p>
           ) : filtered.length === 0 ? (
-            <p className="rounded-xl bg-[var(--cell)] px-4 py-4 text-center text-sm text-[var(--muted)]">
+            <p className="rounded-xl bg-[var(--cell)] px-4 py-4 text-center text-[15px] text-[var(--muted)]">
               該当する人がいません
             </p>
           ) : (
@@ -849,14 +841,14 @@ function MembersTab({
                   key={candidate.userId}
                   className="flex items-center gap-2 px-3 py-2"
                 >
-                  <span className="min-w-0 flex-1 truncate text-sm">
+                  <span className="min-w-0 flex-1 truncate text-[15px]">
                     {candidate.username}
                     {candidate.isOb ? (
                       <span className="ml-1 rounded bg-[var(--surface)] px-1 text-[10px] text-[var(--muted)]">
                         OB/OG
                       </span>
                     ) : null}
-                    <span className="ml-1 text-xs text-[var(--muted)]">
+                    <span className="ml-1 text-[13px] text-[var(--muted)]">
                       {GENRE_BY_ID.get(candidate.mainGenreId)?.code ?? ""}
                     </span>
                   </span>
@@ -864,7 +856,7 @@ function MembersTab({
                     type="button"
                     disabled={pending}
                     onClick={() => add(candidate.userId)}
-                    className="shrink-0 rounded border border-[var(--border)] px-2 py-1 text-xs"
+                    className={smallButtonClass}
                   >
                     追加
                   </button>

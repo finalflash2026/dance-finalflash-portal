@@ -287,22 +287,22 @@ export function PushSection({ vapidPublicKey }: { vapidPublicKey: string }) {
     >
 
       {error ? (
-        <p role="alert" className="text-sm text-[var(--danger-fg)]">
+        <p role="alert" className="text-[15px] text-[var(--danger-fg)]">
           {error}
         </p>
       ) : null}
       {notice ? (
-        <p className="rounded-lg bg-[var(--surface)] px-3 py-2 text-sm">
+        <p className="rounded-lg bg-[var(--surface)] px-3 py-2 text-[15px]">
           {notice}
         </p>
       ) : null}
 
       {status === "checking" ? (
-        <p className="text-sm text-[var(--muted)]">確認しています…</p>
+        <p className="text-[15px] text-[var(--muted)]">確認しています…</p>
       ) : null}
 
       {status === "unsupported" ? (
-        <div className="rounded-lg border border-[var(--border)] px-3 py-3 text-sm">
+        <div className="rounded-xl bg-[var(--cell)] px-4 py-3 text-[15px] text-[var(--muted)]">
           {ios && !standalone ? (
             <>
               <p className="font-bold">ホーム画面に追加すると使えます</p>
@@ -323,7 +323,7 @@ export function PushSection({ vapidPublicKey }: { vapidPublicKey: string }) {
       {status === "ready" && !subscribed ? (
         <div className="space-y-2">
           {denied ? (
-            <p className="text-sm text-[var(--danger-fg)]">
+            <p className="text-[15px] text-[var(--danger-fg)]">
               通知がブロックされています。端末の設定でこのサイトの通知を許可してから、もう一度押してください。
             </p>
           ) : null}

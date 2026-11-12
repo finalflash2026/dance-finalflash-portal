@@ -4,7 +4,15 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 
 import { AttendanceSheet } from "@/components/AttendanceSheet";
-import { ErrorMessage, buttonClass, inputClass } from "@/components/ui";
+import {
+  ErrorMessage,
+  buttonClass,
+  inputClass,
+  mediumButtonClass,
+  secondaryButtonClass,
+  smallButtonClass,
+  smallDestructiveButtonClass,
+} from "@/components/ui";
 import { confirmAction } from "@/lib/confirm";
 import { formatSpanRange, spansMidnight } from "@/lib/day-span";
 import { dbErrorMessage } from "@/lib/error-message";
@@ -196,7 +204,7 @@ export function StudioPracticeSection({
 
   return (
     <section className="space-y-2" data-tour={tour ? "studio" : undefined}>
-      <h2 className="text-sm font-bold">{genreCode}スタ練</h2>
+      <h2 className="text-[15px] font-bold">{genreCode}スタ練</h2>
 
       <ErrorMessage>{error}</ErrorMessage>
 
@@ -217,21 +225,20 @@ export function StudioPracticeSection({
                 }}
                 className="min-w-0 flex-1 text-left"
               >
-                <p className="text-sm">
-                  <span className="font-medium">
+                <p className="text-[16px] leading-[22px]">
+                  <span className="font-semibold">
                     {formatDateLabel(practice.date)}
                   </span>{" "}
-                  <span className="tabular-nums text-[var(--muted)]">
+                  <span className="tabular-nums">
                     {formatSpanRange(practice.startTime, practice.endTime)}
                   </span>
                 </p>
-                <p className="truncate text-xs text-[var(--muted)]">
-                  @{practice.place}
-                  {practice.note ? ` / ${practice.note}` : ""}
-                  <span className="ml-1">({practice.createdByName})</span>
+                <p className="truncate text-[14px] leading-[20px] text-[var(--muted)]">
+                  {[practice.place, practice.note].filter(Boolean).join("・")}
+                  {`(${practice.createdByName})`}
                 </p>
                 {practice.targetGenerations ? (
-                  <p className="text-xs text-[var(--muted)]">
+                  <p className="text-[14px] leading-[20px] text-[var(--muted)]">
                     対象: {practice.targetGenerations.join("・")}期
                   </p>
                 ) : null}
@@ -243,7 +250,7 @@ export function StudioPracticeSection({
                     type="button"
                     disabled={pending}
                     onClick={() => startEdit(practice)}
-                    className="rounded border border-[var(--border)] px-2 py-1 text-xs"
+                    className={smallButtonClass}
                   >
                     編集
                   </button>
@@ -251,7 +258,7 @@ export function StudioPracticeSection({
                     type="button"
                     disabled={pending}
                     onClick={() => remove(practice)}
-                    className="rounded border border-[var(--border)] px-2 py-1 text-xs text-[var(--danger-fg)]"
+                    className={smallDestructiveButtonClass}
                   >
                     削除
                   </button>
@@ -265,7 +272,7 @@ export function StudioPracticeSection({
       {open ? (
         <div className="space-y-2 rounded-xl bg-[var(--cell)] p-3">
           <label className="block">
-            <span className="text-sm font-medium">日付</span>
+            <span className="text-[15px] font-medium">日付</span>
             <input
               value={date}
               placeholder="20260910"
@@ -279,7 +286,7 @@ export function StudioPracticeSection({
 
           <div className="flex items-end gap-2">
             <label className="block flex-1">
-              <span className="text-sm font-medium">開始</span>
+              <span className="text-[15px] font-medium">開始</span>
               <input
                 value={startTime}
                 placeholder="1900"
@@ -290,9 +297,9 @@ export function StudioPracticeSection({
                 className={inputClass}
               />
             </label>
-            <span className="pb-2 text-sm">〜</span>
+            <span className="pb-2 text-[15px]">〜</span>
             <label className="block flex-1">
-              <span className="text-sm font-medium">終了</span>
+              <span className="text-[15px] font-medium">終了</span>
               <input
                 value={endTime}
                 placeholder="2100"
@@ -307,14 +314,14 @@ export function StudioPracticeSection({
           {spansMidnight(startTime, endTime) &&
           /^\d{2}:\d{2}$/.test(startTime) &&
           /^\d{2}:\d{2}$/.test(endTime) ? (
-            <p className="rounded-lg bg-[var(--surface)] px-3 py-2 text-xs">
+            <p className="rounded-lg bg-[var(--surface)] px-3 py-2 text-[13px]">
               日をまたぐ予定として登録します (
               {formatSpanRange(startTime, endTime)})
             </p>
           ) : null}
 
           <label className="block">
-            <span className="text-sm font-medium">場所</span>
+            <span className="text-[15px] font-medium">場所</span>
             <input
               value={place}
               placeholder="例: スタジオ○○"
@@ -330,7 +337,7 @@ export function StudioPracticeSection({
             普段は触らない想定なので既定のまま進めても登録できる
           */}
           <div>
-            <span className="text-sm font-medium">対象の期</span>
+            <span className="text-[15px] font-medium">対象の期</span>
             <div className="mt-1 flex flex-wrap gap-1">
               {generations.map((generation) => {
                 const on = targets === null || targets.includes(generation);
@@ -341,7 +348,7 @@ export function StudioPracticeSection({
                     disabled={pending}
                     onClick={() => toggleGeneration(generation)}
                     aria-pressed={on}
-                    className={`rounded-full border px-3 py-1 text-xs ${
+                    className={`rounded-full border px-3 py-1 text-[13px] ${
                       on
                         ? "border-[var(--primary)] bg-[var(--primary)] font-bold text-[var(--primary-fg)]"
                         : "border-[var(--border)] text-[var(--muted)]"
@@ -355,7 +362,7 @@ export function StudioPracticeSection({
           </div>
 
           <label className="block">
-            <span className="text-sm font-medium">メモ(任意)</span>
+            <span className="text-[15px] font-medium">メモ(任意)</span>
             <input
               value={note}
               placeholder="例: 振り入れ"
@@ -382,7 +389,7 @@ export function StudioPracticeSection({
             type="button"
             disabled={pending}
             onClick={reset}
-            className="w-full rounded-lg border border-[var(--border)] px-4 py-2 text-sm"
+            className={`${mediumButtonClass} w-full`}
           >
             やめる
           </button>
@@ -391,7 +398,7 @@ export function StudioPracticeSection({
         <button
           type="button"
           onClick={() => setOpen(true)}
-          className="w-full rounded-lg border border-[var(--border)] px-4 py-3 text-sm font-medium"
+          className={secondaryButtonClass}
         >
           スタ練の日程を追加する
         </button>
@@ -416,7 +423,7 @@ export function StudioPracticeSection({
       ) : null}
 
       {practices.length === 0 && !open ? (
-        <p className="text-xs text-[var(--muted)]">
+        <p className="text-[13px] text-[var(--muted)]">
           今後のスタ練はありません
         </p>
       ) : null}

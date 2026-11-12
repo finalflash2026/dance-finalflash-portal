@@ -148,7 +148,7 @@ export function GoogleSignInButton() {
         className={officialButton ? "flex h-12 w-full justify-center" : "hidden"}
       />
       {officialButton && pending ? (
-        <p className="text-center text-sm text-[var(--muted)]">ログインしています…</p>
+        <p className="text-center text-[15px] text-[var(--muted)]">ログインしています…</p>
       ) : null}
       {officialButton ? null : (
       <button
@@ -167,7 +167,7 @@ export function GoogleSignInButton() {
       </button>
       )}
       {error ? (
-        <p role="alert" className="text-sm text-[var(--danger-fg)]">
+        <p role="alert" className="text-[15px] text-[var(--danger-fg)]">
           {error}
         </p>
       ) : null}
