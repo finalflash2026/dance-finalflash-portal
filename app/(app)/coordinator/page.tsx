@@ -5,6 +5,8 @@ import { canUseCoordinator } from "@/lib/auth/guard";
 import { getCurrentProfile } from "@/lib/auth/session";
 import { hasSupabaseEnv } from "@/lib/env";
 
+import { getOpenRound } from "@/lib/scheduling/live";
+import { todayInTokyo } from "@/lib/time";
 import { CoordinatorClient } from "./CoordinatorClient";
 
 /**
@@ -26,5 +28,7 @@ export default async function CoordinatorPage() {
     notFound();
   }
 
-  return <CoordinatorClient />;
+  // 日程調整の欄は、表で選んでいる月の回と回答を画面が読みにいく (§6.2 / v1.44)
+  const openRound = await getOpenRound(todayInTokyo(), profile!.user_id);
+  return <CoordinatorClient openRoundMonth={openRound?.month ?? null} />;
 }

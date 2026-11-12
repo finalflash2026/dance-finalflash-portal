@@ -15,7 +15,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 export type AdminAction =
   | "update_profile" // 表示名・期・1ジャン・ロールの変更 (§6.5.1)
   | "graduate_ob" // OB/OGへ移行 (§3.6)
-  | "make_viewer" // 閲覧のみへ切り替え (§3.7 / v1.30)
+  | "make_viewer" // 閲覧のみへ切り替え (§3.8 / v1.30)
   | "restore_member" // 現役へ復帰 (§3.6)
   | "reset_password" // 仮パスワード再設定 (§3.5)
   | "delete_user" // アカウント削除
@@ -112,7 +112,7 @@ export async function graduateToOb(
 }
 
 /**
- * 閲覧のみへ切り替える (SPEC §3.7 / v1.30)。
+ * 閲覧のみへ切り替える (SPEC §3.8 / v1.30)。
  *
  * OB への移行と同じく、未来の空き申請・出欠 (公式練とスタ練)・サブジャンルを
  * 消してからロールを変える。DB 関数 `make_viewer` が1トランザクションで行う

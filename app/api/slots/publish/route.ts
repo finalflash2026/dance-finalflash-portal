@@ -42,7 +42,7 @@ export async function POST(request: Request) {
 
   const parsed = schema.safeParse(await request.json().catch(() => null));
   if (!parsed.success || !isValidDateString(parsed.data.month)) {
-    return Response.json({ error: "月の指定が不正です" }, { status: 400 });
+    return Response.json({ error: "月の指定が不正です。" }, { status: 400 });
   }
 
   const monthStart = startOfMonth(parsed.data.month);
@@ -183,7 +183,7 @@ export async function POST(request: Request) {
     user_id: r.user_id,
     type: "schedule_updated" as const,
     title,
-    body: `${published}件のコマが公開されました。全体カレンダーで確認してください`,
+    body: `${published}件のコマが公開されました。カレンダーで確認してください`,
   }));
 
   const { error: notifyError } = rows.length
@@ -214,7 +214,7 @@ export async function POST(request: Request) {
         // アプリ内のお知らせ (notifications) は月と件数まで出すが、
         // 端末の通知は開くきっかけになれば足りるので短く固定する
         title: "新しい日程が公開されました",
-        url: "/overview",
+        url: "/",
         // 同じ月の公開を繰り返しても通知が積み上がらないようにする
         tag: `schedule-${monthStart}`,
       },

@@ -17,7 +17,7 @@ export function MonthNav({
   const { year, month: monthNumber } = parseDate(month);
 
   return (
-    <nav className="flex items-center justify-between rounded-xl border border-[var(--border)] px-2 py-1">
+    <nav className="flex items-center justify-between rounded-2xl bg-[var(--cell)] px-2 py-1">
       <button
         type="button"
         aria-label="前の月"
@@ -27,7 +27,7 @@ export function MonthNav({
       >
         ‹
       </button>
-      <h2 className="text-base font-bold">
+      <h2 className="text-[17px] font-semibold">
         {year}年{monthNumber}月
       </h2>
       <button

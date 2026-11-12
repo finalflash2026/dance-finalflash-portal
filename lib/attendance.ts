@@ -12,6 +12,7 @@
 import type { AttendanceStatus, TimeString } from "@/lib/types";
 
 export const ATTENDANCE_LABELS: Record<AttendanceStatus, string> = {
+  present: "出席",
   absent: "欠席",
   late: "遅刻",
   leave_early: "早退",
@@ -19,6 +20,7 @@ export const ATTENDANCE_LABELS: Record<AttendanceStatus, string> = {
 
 /** 時刻の意味が状態で変わるので、入力欄の見出しもここで決める */
 export const ATTENDANCE_TIME_LABELS: Record<AttendanceStatus, string> = {
+  present: "",
   absent: "",
   late: "到着予定",
   leave_early: "退出予定",
@@ -29,18 +31,29 @@ export interface AttendanceRow {
   status: AttendanceStatus;
   /** late=到着予定時刻 / leave_early=退出予定時刻 */
   timeValue: TimeString | null;
+  /** 理由 (v1.33)。書かなくてもよい */
+  reason?: string | null;
 }
+
+/**
+ * 押すだけで入る理由 (SPEC §6.4.2 / v1.33)。毎回打つのは面倒で、
+ * 結局書かれなくなるので、よくあるものを並べておく
+ */
+export const ATTENDANCE_REASON_PRESETS = ["授業", "バイト", "体調不良", "就活", "用事"] as const;
+
+/** 理由の長さの上限。DB の CHECK (0024) と同じ */
+export const ATTENDANCE_REASON_MAX = 40;
 
 export interface Participant {
   userId: string;
   username: string;
-  /** 行が無ければ null = 出席 */
+  /** 行が無ければ null = 未回答 (v1.36。それまでは出席扱い) */
   attendance: AttendanceRow | null;
 }
 
-/** 一覧に出す表示。「欠席」「遅刻 15:00」「早退 15:00」/ 行が無ければ「出席」 */
-export function formatAttendance(row: AttendanceRow | null): string {
-  if (!row) return "出席";
+/** 一覧に出す表示。「出席」「欠席」「遅刻 15:00」「早退 15:00」/ 行が無ければ「未回答」 */
+export function formatAttendance(row: AttendanceRow | null, unansweredLabel = "未回答"): string {
+  if (!row) return unansweredLabel;
   const label = ATTENDANCE_LABELS[row.status];
   return row.timeValue ? `${label} ${row.timeValue}` : label;
 }
@@ -62,7 +75,9 @@ export function buildParticipants(
       attendance: byUser.get(person.userId) ?? null,
     }))
     .sort((a, b) => {
-      const rank = (p: Participant) => (p.attendance ? 0 : 1);
+      // 来られない人 → 未回答 → 出席 の順。誰が来られないかを上から探さずに済む
+      const rank = (p: Participant) =>
+        !p.attendance ? 1 : p.attendance.status === "present" ? 2 : 0;
       return rank(a) - rank(b) || a.username.localeCompare(b.username, "ja");
     });
 }

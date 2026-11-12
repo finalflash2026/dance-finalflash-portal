@@ -1,9 +1,11 @@
 "use client";
 
+import { mediumButtonClass } from "@/components/ui";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
 import { ClaimSheet } from "@/components/ClaimSheet";
+import { confirmAction } from "@/lib/confirm";
 import {
   GENRE_COLORS,
   SLOT_CLAIMED_COLOR,
@@ -12,6 +14,7 @@ import {
   type GenreCode,
 } from "@/lib/constants";
 import { splitOpenSlot, type ClaimInfo, type OpenSegment } from "@/lib/claims";
+import { dbErrorMessage } from "@/lib/error-message";
 import { useCanWrite } from "@/lib/role";
 import { useRoomById, useRoomSections } from "@/lib/rooms";
 import { createClient } from "@/lib/supabase/client";
@@ -35,7 +38,10 @@ import type { DateString, SlotStatus } from "@/lib/types";
  * - 行は 09:00〜22:00 の時間軸 (30分刻みの目盛)
  * - **空きコマ (status='open') は枠内をさらに分割**して描く:
  *   申請済の時間帯は申請者username入りブロック、残りは「空き」ブロック
- * - 横スクロール可。時間軸列は sticky 固定
+ * - **スマホの幅に収める** (v1.31.10)。列は画面の幅を部屋の数で割り、
+ *   縦はその日の予定がある時間帯だけを 1時間 34px で描く。以前は列 112px・
+ *   1時間 48px の固定で、上下左右にスクロールしないと全体が見えなかった。
+ *   部屋が多くて1列が MIN_COLUMN_WIDTH を切るときだけ横スクロールにする
  */
 
 export interface DayBlock {
@@ -51,16 +57,17 @@ export interface DayBlock {
   claims: ClaimInfo[];
 }
 
-const COLUMN_WIDTH = 112;
-const TIME_COLUMN_WIDTH = 44;
+/** 1列の最小幅。これより狭くなる部屋数のときだけ横スクロールにする */
+const MIN_COLUMN_WIDTH = 44;
+const TIME_COLUMN_WIDTH = 34;
 /**
  * 縦の縮尺。09:00〜22:00 = 780分なので、この値が日別ビューの高さを決める。
  * 1.2 だと 936px あり、施錠ボードとミニカレンダーの下でほぼ画面外だった。
  * 0.8 = 624px なら、90分のコマでも 72px 取れて2行の文字が収まる。
  */
-const PX_PER_MINUTE = 0.8;
+const PX_PER_MINUTE = 34 / 60;
 /** これより低いブロックは時刻の行を省く (label だけにする) */
-const COMPACT_BLOCK_HEIGHT = 30;
+const COMPACT_BLOCK_HEIGHT = 28;
 
 /** グリッド上に描く1ブロック。slot そのものか、空きコマを分割した区間 */
 type Drawable = {
@@ -91,8 +98,15 @@ export function DayGrid({
   } | null>(null);
 
   const sections = useRoomSections();
-  const dayStart = toMinutes(DAY_START_TIME);
-  const dayEnd = toMinutes(DAY_END_TIME);
+  // 縦はその日の予定がある時間帯だけ (1時間単位に丸め、09:00〜22:00 の中で)
+  const dayStart = Math.max(
+    toMinutes(DAY_START_TIME),
+    Math.floor(Math.min(...blocks.map((b) => toMinutes(b.startTime)), Infinity) / 60) * 60,
+  );
+  const dayEnd = Math.min(
+    toMinutes(DAY_END_TIME),
+    Math.ceil(Math.max(...blocks.map((b) => toMinutes(b.endTime)), -Infinity) / 60) * 60,
+  );
   const totalHeight = (dayEnd - dayStart) * PX_PER_MINUTE;
 
   // その日に slot がある部屋だけを §4.2 の順で、section ごとにまとめる
@@ -112,7 +126,7 @@ export function DayGrid({
 
   if (flatRooms.length === 0) {
     return (
-      <p className="rounded-xl border border-[var(--border)] px-4 py-8 text-center text-sm text-[var(--muted)]">
+      <p className="rounded-xl bg-[var(--cell)] px-4 py-8 text-center text-[15px] text-[var(--muted)]">
         {formatDateLabel(date)} の練習予定はありません
       </p>
     );
@@ -128,7 +142,7 @@ export function DayGrid({
        * 高さは中身なりで、外から制限していないので隠れる部分は無い。
        */}
       <div className="h-scroll overflow-x-auto overflow-y-hidden rounded-xl border border-[var(--border)]">
-        <div className="w-max">
+        <div style={{ width: `max(100%, ${TIME_COLUMN_WIDTH + flatRooms.length * MIN_COLUMN_WIDTH}px)` }}>
           {/* section 見出し */}
           <div className="flex border-b border-[var(--border)] bg-[var(--surface)]">
             <div
@@ -138,8 +152,8 @@ export function DayGrid({
             {groups.map((group) => (
               <div
                 key={group.section}
-                className="shrink-0 border-l border-[var(--border)] px-1 py-1 text-center text-xs font-bold"
-                style={{ width: group.rooms.length * COLUMN_WIDTH }}
+                className="min-w-0 truncate border-l border-[var(--border)] px-0.5 py-1 text-center text-[11px] font-bold"
+                style={{ flex: group.rooms.length }}
               >
                 {group.section}
               </div>
@@ -155,10 +169,9 @@ export function DayGrid({
             {flatRooms.map((room) => (
               <div
                 key={room.id}
-                className="shrink-0 border-l border-[var(--border)] px-1 py-1 text-center text-[10px] leading-tight"
-                style={{ width: COLUMN_WIDTH }}
+                className="min-w-0 flex-1 break-all border-l border-[var(--border)] px-0.5 py-1 text-center text-[10px] leading-tight"
               >
-                {room.name}
+                {shortRoomName(room.name)}
               </div>
             ))}
           </div>
@@ -173,7 +186,14 @@ export function DayGrid({
               {ticks.map((minute) => (
                 <div
                   key={minute}
-                  className="absolute right-1 -translate-y-1/2 text-[10px] text-[var(--muted)]"
+                  // 一番上と一番下の目盛は、枠の外にはみ出さないよう内側に寄せる
+                  className={`absolute right-1 text-[10px] text-[var(--muted)] ${
+                    minute === dayStart
+                      ? "translate-y-0.5"
+                      : minute === dayEnd
+                        ? "-translate-y-full"
+                        : "-translate-y-1/2"
+                  }`}
                   style={{ top: (minute - dayStart) * PX_PER_MINUTE }}
                 >
                   {minute % 60 === 0 ? fromMinutes(minute) : ""}
@@ -184,8 +204,7 @@ export function DayGrid({
             {flatRooms.map((room) => (
               <div
                 key={room.id}
-                className="relative shrink-0 border-l border-[var(--border)]"
-                style={{ width: COLUMN_WIDTH }}
+                className="relative min-w-0 flex-1 border-l border-[var(--border)]"
               >
                 {/* 目盛線 */}
                 {ticks.map((minute) => (
@@ -302,7 +321,7 @@ function GridBlock({
       type="button"
       onClick={() => onSelect(drawable)}
       title={`${drawable.label} ${formatTimeRange(drawable.startTime, drawable.endTime)}`}
-      className="absolute inset-x-0.5 overflow-hidden rounded px-1 py-0.5 text-left text-[11px] leading-tight"
+      className="absolute inset-x-px overflow-hidden rounded px-0.5 py-0.5 text-left text-[10px] leading-tight"
       style={{
         top: (start - dayStart) * PX_PER_MINUTE,
         height,
@@ -311,9 +330,11 @@ function GridBlock({
       }}
     >
       <span className="block truncate font-bold">{drawable.label}</span>
+      {/* 列が細いので、開始と終了は2行に分ける */}
       {compact ? null : (
-        <span className="block opacity-80">
-          {formatTimeRange(drawable.startTime, drawable.endTime)}
+        <span className="block opacity-80 tabular-nums">
+          {drawable.startTime}
+          <br />〜{drawable.endTime}
         </span>
       )}
     </button>
@@ -389,7 +410,7 @@ function DetailModal({
   async function cancelClaim() {
     if (!claim) return;
     if (
-      !window.confirm(
+      !await confirmAction(
         `${formatTimeRange(claim.startTime, claim.endTime)} の申請を取り消しますか?`,
       )
     ) {
@@ -406,7 +427,7 @@ function DetailModal({
 
     setPending(false);
     if (deleteError) {
-      setError(`取消に失敗しました: ${deleteError.message}`);
+      setError(dbErrorMessage("取消に失敗しました", deleteError));
       return;
     }
     onClose();
@@ -502,7 +523,7 @@ function DetailModal({
           <button
             type="button"
             onClick={onClose}
-            className="w-full rounded-lg border border-[var(--border)] py-2 text-sm font-medium"
+            className={`${mediumButtonClass} w-full`}
           >
             閉じる
           </button>
@@ -510,4 +531,12 @@ function DetailModal({
       </div>
     </div>
   );
+}
+
+/**
+ * 部屋名の括弧を落とす (「練習室1(フレスコ)」→「練習室1」)。
+ * 建物は上の見出しの行に出ているので、細い列では繰り返さない (v1.31.10)
+ */
+function shortRoomName(name: string): string {
+  return name.replace(/[(（][^)）]*[)）]$/, "") || name;
 }

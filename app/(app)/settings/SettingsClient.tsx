@@ -7,11 +7,14 @@ import { useEffect, useState } from "react";
 import {
   ErrorMessage,
   Field,
-  buttonClass,
+  destructiveButtonClass,
+  fillButtonClass,
   inputClass,
+  mediumButtonClass,
+  primaryButtonClass,
   secondaryButtonClass,
-  settingsSectionClass,
 } from "@/components/ui";
+import { confirmAction } from "@/lib/confirm";
 import {
   GENRES,
   GENRE_BY_ID,
@@ -19,6 +22,7 @@ import {
   isActiveMember,
   isCoordinatorOrAbove,
 } from "@/lib/constants";
+import { dbErrorMessage } from "@/lib/error-message";
 import { createClient } from "@/lib/supabase/client";
 import {
   THEME_HINTS,
@@ -30,6 +34,9 @@ import {
 } from "@/lib/theme";
 import type { Profile } from "@/lib/types";
 
+import { SettingsGroup } from "@/components/SettingsGroup";
+
+import { HomeLayoutSection } from "./HomeLayoutSection";
 import { PushSection } from "./PushSection";
 
 /**
@@ -65,7 +72,7 @@ export function SettingsClient({
 
   async function regenerate() {
     if (
-      !window.confirm(
+      !await confirmAction(
         "購読URLを再発行しますか?\n古いURLは即座に使えなくなるため、カレンダーアプリへの再登録が必要です。",
       )
     ) {
@@ -78,7 +85,7 @@ export function SettingsClient({
       const res = await fetch("/api/cal/regenerate", { method: "POST" });
       const body = await res.json().catch(() => ({}));
       if (!res.ok) {
-        setError(body.error ?? "再発行に失敗しました");
+        setError(body.error ?? "再発行に失敗しました。");
         return;
       }
       setToken(body.token);
@@ -96,19 +103,25 @@ export function SettingsClient({
   }
 
   return (
-    <main className="mx-auto max-w-2xl space-y-8 px-4 py-6">
-      <h1 className="text-xl font-bold">設定</h1>
+    <main className="mx-auto max-w-2xl space-y-4 px-4 py-3">
+      <h1 className="text-[28px] font-bold leading-tight">設定</h1>
 
       <ErrorMessage>{error}</ErrorMessage>
       {notice ? (
-        <p className="rounded-lg bg-[var(--surface)] px-3 py-2 text-sm">
+        <p className="rounded-lg bg-[var(--surface)] px-3 py-2 text-[15px]">
           {notice}
         </p>
       ) : null}
 
-      <section className={settingsSectionClass}>
-        <h2 className="text-base font-bold">アカウント</h2>
-        <dl className="space-y-1 text-sm">
+      {/* カードを2列に並べる (v1.31.11)。押すと下から窓が開く */}
+      <div className="grid grid-cols-2 gap-3">
+      <SettingsGroup
+        title="アカウント"
+        icon="account"
+        summary={profile.username}
+        hint="期・1ジャンを直したいときは、管理者に頼んでください。"
+      >
+        <dl className="space-y-1.5 text-[15px]">
           <div className="flex gap-3">
             <dt className="w-24 shrink-0 text-[var(--muted)]">ユーザーID</dt>
             <dd>{profile.username}</dd>
@@ -122,10 +135,7 @@ export function SettingsClient({
             <dd>{GENRE_BY_ID.get(profile.main_genre_id)?.code ?? "-"}</dd>
           </div>
         </dl>
-        <p className="text-xs text-[var(--muted)]">
-          期・1ジャンの修正は管理者のみ行えます (SPEC §6.5.1)
-        </p>
-      </section>
+      </SettingsGroup>
 
       {/*
         OB と閲覧のみ (v1.30) には表示しない: 公式練の参加者を決める設定で、
@@ -142,50 +152,75 @@ export function SettingsClient({
         />
       ) : null}
 
-      <section className={settingsSectionClass}>
-        <h2 className="text-base font-bold">カレンダー購読URL</h2>
-        <p className="text-sm text-[var(--muted)]">
-          Google / Apple カレンダーに登録すると、自分の予定が自動で反映されます。
-          <strong>URLは他人に教えないでください</strong>(知っている人は予定を見られます)。
-        </p>
+      {/*
+        自分のカレンダーアプリへの登録 (§6.4.1 / v1.30 §6.7.9)。
+        **URL を見せる前にボタンで登録できるようにした。** URL をコピーして
+        貼る手順は、Google カレンダーのアプリからは行えず(ブラウザが要る)、
+        やり方が分からないまま止まっている人が多かった。
+      */}
+      <SettingsGroup
+        title="カレンダーに追加"
+        icon="calendar"
+        summary="iPhone・Google"
+        tour="subscribe"
+        hint={
+          <ul className="space-y-1.5">
+            <li>自分の練習・ナンバー・イベント・締切が、普段使っているカレンダーに自動で入り続けます。</li>
+            <li>iPhone は押すと「照会カレンダーを追加」と出るので「照会」を押すだけです。</li>
+            <li>
+              Google カレンダーは<strong>アプリからは追加できません</strong>。ボタンを押すと
+              ブラウザで開くので、ログインして「追加」を押してください。
+            </li>
+            <li>Google カレンダーは反映が半日〜1日遅れることがあります。</li>
+          </ul>
+        }
+      >
 
         {httpsUrl && webcalUrl ? (
-          <div className="space-y-3">
-            <UrlRow label="https" url={httpsUrl} />
-            <UrlRow label="webcal" url={webcalUrl} />
+          <div className="space-y-2">
+            <a href={webcalUrl} className={`${primaryButtonClass} gap-2`}>
+              iPhone / Mac のカレンダーに追加
+            </a>
+            <a
+              href={`https://calendar.google.com/calendar/r?cid=${encodeURIComponent(webcalUrl)}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className={fillButtonClass}
+            >
+              Google カレンダーに追加
+            </a>
           </div>
         ) : (
-          <p className="text-sm text-[var(--muted)]">
-            購読トークンがまだありません。再発行を押すと作成されます。
+          <p className="text-[15px] text-[var(--muted)]">
+            購読URLがまだありません
           </p>
         )}
 
-        <details className="rounded-lg border border-[var(--border)] p-3 text-sm">
-          <summary className="cursor-pointer font-medium">登録手順</summary>
-          <div className="mt-2 space-y-2 text-[var(--muted)]">
-            <p>
-              <strong>Google カレンダー (PC)</strong>: 左側「他のカレンダー」→
-              「+」→「URLで追加」→ https の URL を貼る
+        <details className="rounded-lg bg-[var(--fill)] p-3 text-[15px]">
+          <summary className="cursor-pointer font-medium">
+            URL を直接使う・再発行する
+          </summary>
+          <div className="mt-3 space-y-3">
+            <p className="text-[var(--muted)]">
+              <strong>URLは他人に教えないでください。</strong>知っている人は予定を見られます。
             </p>
-            <p>
-              <strong>iPhone / Mac</strong>: webcal の URL
-              をタップ(またはカレンダーApp →「ファイル」→「新規照会カレンダー」)
-            </p>
-            <p>
-              反映の間隔はカレンダーアプリ側の都合で数時間〜1日ほどかかります。
-            </p>
+            {httpsUrl && webcalUrl ? (
+              <>
+                <UrlRow label="https" url={httpsUrl} />
+                <UrlRow label="webcal" url={webcalUrl} />
+              </>
+            ) : null}
+            <button
+              type="button"
+              onClick={regenerate}
+              disabled={pending}
+              className={secondaryButtonClass}
+            >
+              購読URLを再発行する
+            </button>
           </div>
         </details>
-
-        <button
-          type="button"
-          onClick={regenerate}
-          disabled={pending}
-          className={secondaryButtonClass}
-        >
-          購読URLを再発行する
-        </button>
-      </section>
+      </SettingsGroup>
 
       {/*
         通知は現役だけに配る (練習日程・鍵はどちらも OB に関係が無い。SPEC §6.6)。
@@ -194,6 +229,11 @@ export function SettingsClient({
       */}
       {isActiveMember(profile.role) ? (
         <PushSection vapidPublicKey={vapidPublicKey} />
+      ) : null}
+
+      {/* OB はホームの欄がカレンダーだけなので出さない (§6.7.13 / v1.31.6) */}
+      {profile.role !== "ob" ? (
+        <HomeLayoutSection showStaff={isCoordinatorOrAbove(profile.role)} />
       ) : null}
 
       <ThemeSection />
@@ -214,18 +254,20 @@ export function SettingsClient({
         />
       ) : null}
 
+      </div>
+
       {/* ログアウトは設定ではなく操作なので、すべての後ろに置く */}
-      <section className={settingsSectionClass}>
-        <h2 className="text-base font-bold">ログアウト</h2>
+      <div className="pt-4">
         <button
           type="button"
           onClick={logout}
           disabled={pending}
-          className={buttonClass}
+          // iOS の設定と同じく、抜ける操作は赤い文字 (v1.50)
+          className={destructiveButtonClass}
         >
           ログアウト
         </button>
-      </section>
+      </div>
     </main>
   );
 }
@@ -252,44 +294,105 @@ function ThemeSection() {
     setTheme(next);
   }
 
+  /*
+   * **押す前にどうなるか分かるように、小さな見本を並べる** (v1.30 §6.7.8)。
+   * 「ライトモード」「ダークモード」と文字だけ並べていたときは、
+   * どこで切り替えるのか自体に気付かれていなかった。iOS の「画面表示と明るさ」と同じ形。
+   */
   return (
-    <section className={settingsSectionClass}>
-      <h2 className="text-base font-bold">表示テーマ</h2>
-      <p className="text-sm text-[var(--muted)]">
-        この端末だけの設定です。別の端末では別に選べます。
-      </p>
-
-      <div className="flex gap-2">
-        {(["light", "dark"] as const).map((value) => {
+    <SettingsGroup
+      title="外観モード"
+      icon="theme"
+      summary={theme ? THEME_LABELS[theme] : null}
+      tour="theme"
+      hint={
+        <>
+          {theme ? THEME_HINTS[theme] : ""}
+          この端末だけの設定です。
+        </>
+      }
+    >
+      <div role="radiogroup" aria-label="表示テーマ" className="grid grid-cols-3 gap-3">
+        {(["system", "light", "dark"] as const).map((value) => {
           const selected = theme === value;
           return (
             <button
               key={value}
               type="button"
+              role="radio"
+              aria-checked={selected}
               onClick={() => select(value)}
-              aria-pressed={selected}
-              className={`flex-1 rounded-lg border px-3 py-3 text-left ${
-                selected
-                  ? "border-[var(--primary)] bg-[var(--surface)]"
-                  : "border-[var(--border)]"
-              }`}
+              className="flex flex-col items-center gap-2"
             >
-              <span className="block text-sm font-bold">
-                {THEME_LABELS[value]}
+              <ThemePreview kind={value} selected={selected} />
+              <span className="text-[15px] font-medium">{THEME_LABELS[value]}</span>
+              <span
+                aria-hidden
+                className={`grid h-[22px] w-[22px] place-items-center rounded-full border-2 ${
+                  selected
+                    ? "border-[var(--tint)] bg-[var(--tint)]"
+                    : "border-[var(--border)]"
+                }`}
+              >
                 {selected ? (
-                  <span className="ml-1 text-xs font-normal text-[var(--muted)]">
-                    選択中
-                  </span>
+                  <svg viewBox="0 0 12 12" width="11" height="11" aria-hidden>
+                    <path
+                      d="M2.5 6.2l2.3 2.3 4.7-5"
+                      fill="none"
+                      stroke="#fff"
+                      strokeWidth="1.9"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  </svg>
                 ) : null}
-              </span>
-              <span className="mt-0.5 block text-xs text-[var(--muted)]">
-                {THEME_HINTS[value]}
               </span>
             </button>
           );
         })}
       </div>
-    </section>
+    </SettingsGroup>
+  );
+}
+
+/** テーマの見本。小さな画面に、文字の行とカレンダーのマスを描く */
+function ThemePreview({ kind, selected }: { kind: Theme; selected: boolean }) {
+  const light = { bg: "#ffffff", fg: "#1f2933", sub: "#e2e8f0", accent: "#C0392B" };
+  const dark = { bg: "#22272e", fg: "#e6edf3", sub: "#444c56", accent: "#f08379" };
+  const screen = (c: typeof light) => (
+    <>
+      <rect width="60" height="96" fill={c.bg} />
+      <rect x="8" y="10" width="26" height="5" rx="2.5" fill={c.fg} />
+      <rect x="8" y="22" width="44" height="30" rx="4" fill={c.sub} />
+      <rect x="12" y="27" width="10" height="4" rx="1.5" fill={c.accent} />
+      <rect x="8" y="58" width="44" height="6" rx="3" fill={c.sub} />
+      <rect x="8" y="68" width="34" height="6" rx="3" fill={c.sub} />
+    </>
+  );
+  return (
+    <svg
+      viewBox="0 0 60 96"
+      className={`w-full max-w-[72px] overflow-hidden rounded-[10px] ${
+        selected
+          ? "ring-2 ring-[var(--tint)] ring-offset-2 ring-offset-[var(--background)]"
+          : "ring-1 ring-[var(--border)]"
+      }`}
+      aria-hidden
+    >
+      <defs>
+        <clipPath id="theme-half">
+          <polygon points="0,0 60,0 0,96" />
+        </clipPath>
+      </defs>
+      {kind === "light" ? screen(light) : null}
+      {kind === "dark" ? screen(dark) : null}
+      {kind === "system" ? (
+        <>
+          {screen(dark)}
+          <g clipPath="url(#theme-half)">{screen(light)}</g>
+        </>
+      ) : null}
+    </svg>
   );
 }
 
@@ -308,18 +411,18 @@ function UrlRow({ label, url }: { label: string; url: string }) {
 
   return (
     <div>
-      <p className="text-xs font-medium text-[var(--muted)]">{label}</p>
+      <p className="text-[13px] font-medium text-[var(--muted)]">{label}</p>
       <div className="mt-1 flex gap-2">
         <input
           readOnly
           value={url}
           onFocus={(e) => e.currentTarget.select()}
-          className={`${inputClass} mt-0 font-mono text-xs`}
+          className={`${inputClass} mt-0 font-mono text-[13px]`}
         />
         <button
           type="button"
           onClick={copy}
-          className="shrink-0 rounded-lg border border-[var(--border)] px-3 text-sm"
+          className={mediumButtonClass}
         >
           {copied ? "コピー済" : "コピー"}
         </button>
@@ -363,7 +466,7 @@ function RoleSection({
       });
       const body = await res.json().catch(() => ({}));
       if (!res.ok) {
-        onError(body.error ?? "権限を追加できませんでした");
+        onError(body.error ?? "権限を追加できませんでした。");
         return;
       }
       setRolePassword("");
@@ -376,36 +479,22 @@ function RoleSection({
   }
 
   return (
-    <section className={settingsSectionClass}>
-      <h2 className="text-base font-bold">権限</h2>
-      <p className="text-sm text-[var(--muted)]">
-        現在: <strong>{ROLE_LABELS[role]}</strong>
-      </p>
+    <SettingsGroup
+      title="権限"
+      icon="key"
+      summary={ROLE_LABELS[role]}
+      hint="折衝か3役の合言葉を入れると、その担当の画面が使えます。今の権限が減ることはありません。"
+    >
 
+      {/* 運営の画面は1つの入口に (v1.39)。中の切り替えで 折衝・割り振り・イベント・管理者 を行き来する */}
       {isCoordinatorOrAbove(role) ? (
-        <div className="space-y-2">
-          <Link
-            href="/coordinator"
-            className={`${secondaryButtonClass} block text-center`}
-          >
-            折衝ワークフローを開く
-          </Link>
-          {role === "admin" ? (
-            <Link
-              href="/admin"
-              className={`${secondaryButtonClass} block text-center`}
-            >
-              管理者画面を開く
-            </Link>
-          ) : null}
-        </div>
+        <Link href="/coordinator" className={secondaryButtonClass}>
+          運営の画面を開く
+        </Link>
       ) : null}
 
       <form onSubmit={elevate} className="space-y-3">
-        <Field
-          label="合言葉を入れて権限を追加する"
-          hint="折衝または3役の合言葉を入れると、その担当の画面が使えるようになります。いま持っている権限が減ることはありません。"
-        >
+        <Field label="合言葉を入れて権限を追加する">
           <input
             type="password"
             className={inputClass}
@@ -422,7 +511,7 @@ function RoleSection({
           権限を追加する
         </button>
       </form>
-    </section>
+    </SettingsGroup>
   );
 }
 
@@ -456,11 +545,11 @@ function SubgenreSection({
     const other = slot === 2 ? values[3] : values[2];
 
     if (genreId !== null && genreId === mainGenreId) {
-      onError("1ジャンと同じジャンルは選べません");
+      onError("1ジャンと同じジャンルは選べません。");
       return;
     }
     if (genreId !== null && genreId === other) {
-      onError("2ジャンと3ジャンに同じジャンルは選べません");
+      onError("2ジャンと3ジャンに同じジャンルは選べません。");
       return;
     }
 
@@ -486,7 +575,7 @@ function SubgenreSection({
     setPending(false);
 
     if (error) {
-      onError(`保存に失敗しました: ${error.message}`);
+      onError(dbErrorMessage("保存に失敗しました", error));
       return;
     }
 
@@ -495,11 +584,15 @@ function SubgenreSection({
   }
 
   return (
-    <section className={settingsSectionClass}>
-      <h2 className="text-base font-bold">サブジャンル</h2>
-      <p className="text-sm text-[var(--muted)]">
-        ここで選んだジャンルの公式練が、マイカレンダーと購読URLに含まれます。
-      </p>
+    <SettingsGroup
+      title="サブジャンル"
+      icon="genre"
+      summary={[values[2], values[3]]
+        .map((id) => (id ? GENRE_BY_ID.get(id)?.code : null))
+        .filter(Boolean)
+        .join("・") || "なし"}
+      hint="選んだジャンルの公式練が自分の予定に入ります。変えると今日から先の予定にだけ反映され、昨日までの予定は残ります。"
+    >
       {([2, 3] as const).map((slot) => (
         <Field key={slot} label={`${slot}ジャン`}>
           <select
@@ -517,6 +610,8 @@ function SubgenreSection({
           </select>
         </Field>
       ))}
-    </section>
+      {/* 変えると過去の練習が消えるのでは、と迷わないように (§6.4.1 / v1.36) */}
+      <p className="text-[14px] text-[var(--muted)]">今日から先の予定に反映されます。</p>
+    </SettingsGroup>
   );
 }

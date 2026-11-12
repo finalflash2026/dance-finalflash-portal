@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useEffect, useState } from "react";
+import { Fragment, useEffect, useRef, useState } from "react";
 
 import {
   GENRES,
@@ -31,6 +31,7 @@ import {
   formatTimeRange,
   normalizeTimeInput,
 } from "@/lib/time";
+import { availabilityRatio, type AvailabilityLookup } from "@/lib/scheduling/availability";
 import type { DateString } from "@/lib/types";
 
 import type { ReservationInfo } from "./useMonthReservations";
@@ -78,15 +79,6 @@ const CELL_CLASS = "border border-[var(--border)] p-0 align-middle";
 const HEAD_CLASS =
   "border border-[var(--border)] bg-[var(--surface)] px-1.5 py-1 text-[11px] font-bold whitespace-nowrap";
 
-function brushLabel(brush: Brush): string {
-  if (brush.kind === "genre") {
-    return GENRE_BY_ID.get(brush.genreId)?.code ?? "公式練";
-  }
-  if (brush.kind === "open") return "空き ○";
-  if (brush.kind === "unavailable") return "使用不可 −";
-  return "消す";
-}
-
 function cellFace(cell: GridCell): {
   text: string;
   bg: string;
@@ -112,7 +104,7 @@ function cellFace(cell: GridCell): {
         text: "○",
         bg: SLOT_OPEN_COLOR.bg,
         fg: SLOT_OPEN_COLOR.fg,
-        title: "空き (個人練に開放)",
+        title: "空き(個人練に開放)",
       };
     case "unavailable":
       return {
@@ -126,7 +118,7 @@ function cellFace(cell: GridCell): {
         text: "○",
         bg: "transparent",
         fg: "var(--foreground)",
-        title: "練習できます (未割当。公開すると「空き」になります)",
+        title: "練習できます(未割当。公開すると「空き」になります)",
       };
     case "conflict": {
       const labels = cell.overlapping
@@ -165,6 +157,7 @@ export function SlotGrid({
   onPaint,
   onSavePeriods,
   onChangeRowCount,
+  availability = null,
 }: {
   dates: readonly DateString[];
   rooms: readonly Room[];
@@ -175,6 +168,8 @@ export function SlotGrid({
   onPaint: (targets: PaintTarget[], brush: Brush) => void;
   onSavePeriods: (edits: PeriodEdit[]) => void;
   onChangeRowCount: (date: DateString, delta: 1 | -1) => void;
+  /** 日程調整の回答から数えた出られる人の数 (v1.47)。回答が無ければ null */
+  availability?: AvailabilityLookup | null;
 }) {
   const [brush, setBrush] = useState<Brush | null>(null);
   const [menu, setMenu] = useState<{
@@ -190,17 +185,65 @@ export function SlotGrid({
     index: number;
   } | null>(null);
 
-  // 置くものを選んだままにしておくと事故のもとなので、Esc で必ず外せる
+  // 置くものを選んだままにしておくと事故のもとなので、Esc で必ず外せる。
+  // 数字キーで選べる (v1.45): 1〜9 ジャンル / 0 空き / - 使用不可
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key !== "Escape") return;
-      if (timeEdit) setTimeEdit(null);
-      else if (menu) setMenu(null);
-      else setBrush(null);
+      const target = event.target as HTMLElement | null;
+      if (target && /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName)) return;
+      if (event.metaKey || event.ctrlKey || event.altKey) return;
+      if (event.key === "Escape") {
+        if (timeEdit) setTimeEdit(null);
+        else if (menu) setMenu(null);
+        else setBrush(null);
+        return;
+      }
+      if (disabled) return;
+      const index = Number(event.key);
+      if (event.key >= "1" && event.key <= "9" && GENRES[index - 1]) {
+        setBrush({ kind: "genre", genreId: GENRES[index - 1].id });
+      } else if (event.key === "0") {
+        setBrush({ kind: "open" });
+      } else if (event.key === "-") {
+        setBrush({ kind: "unavailable" });
+      }
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [menu, timeEdit]);
+  }, [menu, timeEdit, disabled]);
+
+  /*
+   * なぞって塗る (v1.45)。押したまま動かすと通ったセルを集め、離したときに
+   * まとめて置く。1セルずつ押すと1か月で数十回のクリックになっていた
+   */
+  const [dragKeys, setDragKeys] = useState<Set<string>>(new Set());
+  const drag = useRef<{ targets: Map<string, PaintTarget[]> } | null>(null);
+  useEffect(() => {
+    const finish = () => {
+      const current = drag.current;
+      drag.current = null;
+      setDragKeys(new Set());
+      if (!current || !brush) return;
+      const all = [...current.targets.values()].flat();
+      if (all.length > 0) onPaint(all, brush);
+    };
+    window.addEventListener("pointerup", finish);
+    window.addEventListener("pointercancel", finish);
+    return () => {
+      window.removeEventListener("pointerup", finish);
+      window.removeEventListener("pointercancel", finish);
+    };
+  }, [brush, onPaint]);
+
+  function startDrag(key: string, targets: PaintTarget[]) {
+    drag.current = { targets: new Map([[key, targets]]) };
+    setDragKeys(new Set([key]));
+  }
+  function extendDrag(key: string, targets: PaintTarget[]) {
+    if (!drag.current || drag.current.targets.has(key)) return;
+    drag.current.targets.set(key, targets);
+    setDragKeys((prev) => new Set(prev).add(key));
+  }
 
   const sections = groupRoomsBySection(rooms);
   const sectionNames = sections.map((group) => group.section);
@@ -228,10 +271,8 @@ export function SlotGrid({
 
   function handleCell(event: React.MouseEvent, targets: PaintTarget[]) {
     if (targets.length === 0) return;
-    if (brush) {
-      onPaint(targets, brush);
-      return;
-    }
+    // 置くものを選んでいるときは、押した (なぞった) 時点で塗っている
+    if (brush) return;
     // まだ何も選んでいなければ、その場で選ばせる。
     // 選んだものはそのまま「いま置くもの」になり、次からは1クリックで置ける
     setMenu({ x: event.clientX, y: event.clientY, targets });
@@ -239,10 +280,15 @@ export function SlotGrid({
 
   return (
     <div className="space-y-2">
-      <BrushPalette brush={brush} onChange={setBrush} disabled={disabled} />
+      <BrushPalette
+        brush={brush}
+        onChange={setBrush}
+        disabled={disabled}
+        counts={totals.byGenre}
+      />
 
-      <div className="h-scroll max-h-[70vh] overflow-auto rounded-xl border border-[var(--border)]">
-        <table className="border-separate border-spacing-0 text-[11px]">
+      <div className="h-scroll max-h-[70vh] overflow-auto rounded-2xl bg-[var(--cell)] ring-1 ring-[var(--separator)]">
+        <table className={`border-separate border-spacing-0 text-[11px] ${brush ? "select-none" : ""}`}>
           <thead>
             <tr>
               <th
@@ -270,7 +316,7 @@ export function SlotGrid({
                       : `r-${column.room.id}`
                   }
                   className={`${HEAD_CLASS} sticky top-[25px] z-30`}
-                  style={{ minWidth: column.kind === "time" ? 86 : 62 }}
+                  style={{ minWidth: column.kind === "time" ? 92 : 72 }}
                   title={column.kind === "room" ? column.room.name : undefined}
                 >
                   {column.kind === "time"
@@ -296,13 +342,11 @@ export function SlotGrid({
                       colSpan={columns.length}
                       className="border border-[var(--border)] bg-[var(--surface)] px-2 py-0.5"
                     >
-                      <span className="mr-2 text-[10px] text-[var(--muted)]">
-                        この日のコマ数 {rows}
-                      </span>
                       <button
                         type="button"
                         disabled={disabled}
                         onClick={() => onChangeRowCount(date, 1)}
+                        aria-label={`${formatDateLabel(date)}のコマを1つ増やす`}
                         title="この日だけコマを1つ増やす"
                         className="mr-1 rounded border border-[var(--border)] bg-[var(--background)] px-1.5 text-[11px] disabled:opacity-50"
                       >
@@ -312,6 +356,7 @@ export function SlotGrid({
                         type="button"
                         disabled={disabled || rows <= 1}
                         onClick={() => onChangeRowCount(date, -1)}
+                        aria-label={`${formatDateLabel(date)}のコマを1つ減らす`}
                         title="この日だけコマを1つ減らす"
                         className="rounded border border-[var(--border)] bg-[var(--background)] px-1.5 text-[11px] disabled:opacity-50"
                       >
@@ -343,6 +388,12 @@ export function SlotGrid({
                             index,
                           }),
                         onCell: handleCell,
+                        painting: brush !== null,
+                        dragKeys,
+                        onDragStart: startDrag,
+                        onDragEnter: extendDrag,
+                        availability,
+                        brushGenreId: brush?.kind === "genre" ? brush.genreId : null,
                       })}
                     </tr>
                   ))}
@@ -354,7 +405,6 @@ export function SlotGrid({
       </div>
 
       <Totals totals={totals} />
-      <Legend />
       <OffGridNotice offGrid={offGrid} rooms={rooms} />
 
       {menu ? (
@@ -405,7 +455,15 @@ function renderRow({
   disabled,
   onTime,
   onCell,
+  painting,
+  dragKeys,
+  onDragStart,
+  onDragEnter,
+  availability,
+  brushGenreId,
 }: {
+  availability: AvailabilityLookup | null;
+  brushGenreId: number | null;
   columns: (
     | { kind: "time"; section: string }
     | { kind: "room"; room: Room }
@@ -417,6 +475,11 @@ function renderRow({
   disabled: boolean;
   onTime: (event: React.MouseEvent, section: string) => void;
   onCell: (event: React.MouseEvent, targets: PaintTarget[]) => void;
+  /** 置くものを選んでいる (なぞって塗れる) */
+  painting: boolean;
+  dragKeys: Set<string>;
+  onDragStart: (key: string, targets: PaintTarget[]) => void;
+  onDragEnter: (key: string, targets: PaintTarget[]) => void;
 }) {
   const out: React.ReactNode[] = [];
 
@@ -433,7 +496,7 @@ function renderRow({
             disabled={disabled || !period}
             onClick={(event) => onTime(event, column.section)}
             title={`${formatDateLabel(date)} ${column.section} の${index + 1}コマ目 — 押すと時間を直せます`}
-            className={`h-6 w-full px-1 text-center text-[11px] tabular-nums disabled:cursor-default ${
+            className={`h-8 w-full px-1 text-center text-[12px] tabular-nums disabled:cursor-default ${
               overridden
                 ? "font-bold text-[var(--info)]"
                 : "text-[var(--muted)]"
@@ -496,6 +559,25 @@ function renderRow({
     }
 
     const face = cellFace(cell);
+    // 出られる人の数 (v1.47)。置いた公式練はそのジャンル、空いているセルは選んでいるジャンル
+    const placedGenre = cell.kind === "genre" ? (cell.slot?.genreId ?? null) : null;
+    const placed =
+      availability && placedGenre != null
+        ? availability(date, period.startTime, period.endTime, placedGenre)
+        : null;
+    const heatGenre =
+      brushGenreId != null && (cell.kind === "unassigned" || cell.kind === "open")
+        ? GENRE_BY_ID.get(brushGenreId)
+        : null;
+    const heat =
+      availability && heatGenre
+        ? availability(date, period.startTime, period.endTime, heatGenre.id)
+        : null;
+    const heatBg =
+      heat && heatGenre
+        ? `color-mix(in srgb, ${GENRE_COLORS[heatGenre.code as GenreCode].bg} ${Math.round(15 + availabilityRatio(heat) * 85)}%, transparent)`
+        : null;
+    const peopleLabel = placed ?? heat;
     const clickable = run.some(
       (entry) =>
         entry.cell.kind !== "none" &&
@@ -510,6 +592,8 @@ function renderRow({
       cell: entry.cell,
     }));
     const roomLabel = run.map((entry) => entry.room.name).join(" + ");
+    const dragKey = `${date}|${room.id}|${period.position}`;
+    const inDrag = dragKeys.has(dragKey);
 
     out.push(
       <td key={`r-${room.id}`} colSpan={run.length} className={CELL_CLASS}>
@@ -517,17 +601,33 @@ function renderRow({
           type="button"
           disabled={disabled || !clickable}
           onClick={(event) => onCell(event, targets)}
+          onPointerDown={(event) => {
+            if (!painting || disabled || !clickable) return;
+            // なぞれるように、押したセルが指 (マウス) をつかまないようにする
+            (event.target as Element).releasePointerCapture?.(event.pointerId);
+            event.preventDefault();
+            onDragStart(dragKey, targets);
+          }}
+          onPointerEnter={() => {
+            if (painting && !disabled && clickable) onDragEnter(dragKey, targets);
+          }}
           title={`${formatDateLabel(date)} ${formatTimeRange(period.startTime, period.endTime)} ${roomLabel} — ${face.title}`}
-          aria-label={`${formatDateLabel(date)} ${formatTimeRange(period.startTime, period.endTime)} ${roomLabel} ${face.title}`}
-          className="relative h-6 w-full cursor-pointer text-[11px] font-bold disabled:cursor-default"
-          style={{ backgroundColor: face.bg, color: face.fg }}
+          aria-label={`${formatDateLabel(date)} ${formatTimeRange(period.startTime, period.endTime)} ${roomLabel} ${face.title}${peopleLabel ? ` ○${peopleLabel.ok}人 △${peopleLabel.maybe}人 / ${peopleLabel.total}人` : ""}`}
+          className={`relative h-8 w-full cursor-pointer text-[12px] font-bold transition-[box-shadow] disabled:cursor-default ${
+            painting && clickable ? "cursor-crosshair" : ""
+          } ${inDrag ? "z-10 shadow-[inset_0_0_0_2px_var(--tint)]" : ""}`}
+          style={{
+            backgroundColor: heatBg ?? face.bg,
+            color: heatBg ? "var(--foreground)" : face.fg,
+            touchAction: painting ? "none" : undefined,
+          }}
         >
           {/*
             ①で取り込んだ予約を裏に薄く敷く (v1.29)。
             コマの時間を直すときに、何時から何時まで借りているのかが
             見えていないと直しようがない。コマの時間を変えると帯も伸び縮みする
           */}
-          {face.bg === "transparent"
+          {face.bg === "transparent" && !heatBg
             ? cell.coverage.map((bar, barIndex) => (
                 <span
                   key={barIndex}
@@ -541,7 +641,21 @@ function renderRow({
                 />
               ))
             : null}
-          <span className="relative">{face.text}</span>
+          {heat ? (
+            <span aria-hidden className="relative tabular-nums">
+              {heat.ok}
+              <span className="text-[10px] font-semibold opacity-60">/{heat.total}</span>
+            </span>
+          ) : placed ? (
+            <span aria-hidden className="relative block leading-[1.05]">
+              {face.text}
+              <span className="block text-[10px] font-semibold tabular-nums opacity-75">
+                ○{placed.ok}/{placed.total}
+              </span>
+            </span>
+          ) : (
+            <span className="relative">{face.text}</span>
+          )}
         </button>
       </td>,
     );
@@ -601,7 +715,7 @@ function TimeEditor({
   }
 
   const button =
-    "w-full rounded-lg border border-[var(--border)] px-3 py-1.5 text-left text-xs";
+    "w-full rounded-[10px] bg-[var(--fill)] px-3 py-2 text-left text-[13px]";
 
   return (
     <>
@@ -614,7 +728,7 @@ function TimeEditor({
       <div
         role="dialog"
         aria-label="コマの時間を直す"
-        className="fixed z-50 w-60 space-y-2 rounded-xl border border-[var(--border)] bg-[var(--background)] p-3 shadow-lg"
+        className="fixed z-50 w-60 space-y-2 rounded-2xl bg-[var(--background)] p-3 shadow-[0_8px_30px_rgba(0,0,0,0.16)] ring-1 ring-[var(--separator)]"
         style={{
           left: Math.min(x, (globalThis.innerWidth ?? 800) - 260),
           top: Math.min(y, (globalThis.innerHeight ?? 600) - 280),
@@ -708,98 +822,90 @@ function BrushPalette({
   brush,
   onChange,
   disabled,
+  counts,
 }: {
   brush: Brush | null;
   onChange: (brush: Brush | null) => void;
   disabled: boolean;
+  /** ジャンルごとのこの月のコマ数 */
+  counts: Map<number, number>;
 }) {
-  const chip = (active: boolean) =>
-    `rounded-full border px-2.5 py-1 text-xs disabled:opacity-50 ${
+  const tool = (active: boolean) =>
+    `flex h-9 items-center gap-1.5 rounded-xl px-3 text-[13px] font-semibold transition-[background-color,box-shadow] disabled:opacity-40 ${
       active
-        ? "border-[var(--primary)] bg-[var(--primary)] font-bold text-[var(--primary-fg)]"
-        : "border-[var(--border)]"
+        ? "bg-[var(--background)] shadow-[0_0_0_2px_var(--tint)]"
+        : "bg-[var(--fill)]"
     }`;
 
   return (
-    <div className="flex flex-wrap items-center gap-1.5 rounded-xl border border-[var(--border)] p-2">
-      <span className="mr-1 text-xs font-bold">いま置くもの</span>
+    // 画面の上に貼り付ける (v1.45)。表を下までスクロールしても置くものを変えられる
+    <div className="sticky top-0 z-40 -mx-1 rounded-2xl bg-[var(--cell)] px-3 py-2.5 shadow-[0_6px_16px_-10px_rgba(0,0,0,0.25)]">
+      <div className="flex flex-wrap items-center gap-1.5">
+        {GENRES.map((genre, index) => {
+          const active = brush?.kind === "genre" && brush.genreId === genre.id;
+          const color = GENRE_COLORS[genre.code];
+          return (
+            <button
+              key={genre.id}
+              type="button"
+              disabled={disabled}
+              aria-pressed={active}
+              aria-keyshortcuts={String(index + 1)}
+              title={`${genre.code}(キー ${index + 1})`}
+              onClick={() => onChange(active ? null : { kind: "genre", genreId: genre.id })}
+              className={`flex h-9 items-center gap-1.5 rounded-xl pl-2 pr-2.5 text-[13px] font-semibold transition-[transform,box-shadow] active:scale-95 disabled:opacity-40 ${
+                active ? "shadow-[0_0_0_2px_var(--foreground)]" : ""
+              }`}
+              style={{ backgroundColor: active ? color.bg : "var(--fill)", color: active ? color.fg : undefined }}
+            >
+              <span
+                aria-hidden
+                className="h-3 w-3 rounded-full ring-1 ring-black/10"
+                style={{ backgroundColor: color.bg }}
+              />
+              {genre.code}
+              <span className={`tabular-nums ${active ? "opacity-80" : "text-[var(--muted)]"}`}>
+                {counts.get(genre.id) ?? 0}
+              </span>
+            </button>
+          );
+        })}
 
-      {GENRES.map((genre) => {
-        const active = brush?.kind === "genre" && brush.genreId === genre.id;
-        return (
-          <button
-            key={genre.id}
-            type="button"
-            disabled={disabled}
-            aria-pressed={active}
-            onClick={() =>
-              onChange(active ? null : { kind: "genre", genreId: genre.id })
-            }
-            className={`rounded-full border px-2.5 py-1 text-xs font-bold disabled:opacity-50 ${
-              active ? "border-transparent" : "border-[var(--border)]"
-            }`}
-            style={
-              active
-                ? {
-                    backgroundColor: GENRE_COLORS[genre.code].bg,
-                    color: GENRE_COLORS[genre.code].fg,
-                  }
-                : undefined
-            }
-          >
-            {genre.code}
-          </button>
-        );
-      })}
+        <span className="mx-1 h-5 w-px bg-[var(--border)]" aria-hidden />
 
-      <span className="mx-1 h-4 w-px bg-[var(--border)]" />
+        <button
+          type="button"
+          disabled={disabled}
+          aria-pressed={brush?.kind === "open"}
+          aria-keyshortcuts="0"
+          title="個人練に開放(キー 0)"
+          onClick={() => onChange(brush?.kind === "open" ? null : { kind: "open" })}
+          className={tool(brush?.kind === "open")}
+        >
+          空き ○
+        </button>
+        <button
+          type="button"
+          disabled={disabled}
+          aria-pressed={brush?.kind === "unavailable"}
+          aria-keyshortcuts="-"
+          title="使用不可(キー -)"
+          onClick={() => onChange(brush?.kind === "unavailable" ? null : { kind: "unavailable" })}
+          className={tool(brush?.kind === "unavailable")}
+        >
+          使用不可 −
+        </button>
+        <button
+          type="button"
+          disabled={disabled}
+          aria-pressed={brush?.kind === "clear"}
+          onClick={() => onChange(brush?.kind === "clear" ? null : { kind: "clear" })}
+          className={tool(brush?.kind === "clear")}
+        >
+          消す
+        </button>
 
-      <button
-        type="button"
-        disabled={disabled}
-        aria-pressed={brush?.kind === "open"}
-        onClick={() =>
-          onChange(brush?.kind === "open" ? null : { kind: "open" })
-        }
-        title="この時間だけを個人練に開放したいときに使います。未割当 (薄い○) のままでも、公開すれば通しで空きになります"
-        className={chip(brush?.kind === "open")}
-      >
-        空き ○
-      </button>
-      <button
-        type="button"
-        disabled={disabled}
-        aria-pressed={brush?.kind === "unavailable"}
-        onClick={() =>
-          onChange(
-            brush?.kind === "unavailable" ? null : { kind: "unavailable" },
-          )
-        }
-        className={chip(brush?.kind === "unavailable")}
-      >
-        使用不可 −
-      </button>
-      <button
-        type="button"
-        disabled={disabled}
-        aria-pressed={brush?.kind === "clear"}
-        onClick={() =>
-          onChange(brush?.kind === "clear" ? null : { kind: "clear" })
-        }
-        className={chip(brush?.kind === "clear")}
-      >
-        消す
-      </button>
-
-      {brush ? (
-        <span className="ml-auto text-xs text-[var(--muted)]">
-          セルを押すと <strong>{brushLabel(brush)}</strong> が入ります (Esc で解除)
-        </span>
-      ) : (
-        <span className="ml-auto text-xs text-[var(--muted)]">
-          選ばずにセルを押すと、その場で選べます
-        </span>
-      )}
+      </div>
     </div>
   );
 }
@@ -830,7 +936,7 @@ function CellMenu({
       <div
         role="dialog"
         aria-label="このコマに置くもの"
-        className="fixed z-50 w-56 rounded-xl border border-[var(--border)] bg-[var(--background)] p-2 shadow-lg"
+        className="fixed z-50 w-56 rounded-2xl bg-[var(--background)] p-2 shadow-[0_8px_30px_rgba(0,0,0,0.16)] ring-1 ring-[var(--separator)]"
         style={{
           left: Math.min(x, (globalThis.innerWidth ?? 800) - 240),
           top: Math.min(y, (globalThis.innerHeight ?? 600) - 260),
@@ -862,21 +968,21 @@ function CellMenu({
           <button
             type="button"
             onClick={() => onPick({ kind: "open" })}
-            className="flex-1 rounded border border-[var(--border)] py-1 text-[11px]"
+            className="flex-1 rounded-lg bg-[var(--fill)] py-1.5 text-[12px] font-medium"
           >
             空き ○
           </button>
           <button
             type="button"
             onClick={() => onPick({ kind: "unavailable" })}
-            className="flex-1 rounded border border-[var(--border)] py-1 text-[11px]"
+            className="flex-1 rounded-lg bg-[var(--fill)] py-1.5 text-[12px] font-medium"
           >
             使用不可 −
           </button>
           <button
             type="button"
             onClick={() => onPick({ kind: "clear" })}
-            className="flex-1 rounded border border-[var(--border)] py-1 text-[11px]"
+            className="flex-1 rounded-lg bg-[var(--fill)] py-1.5 text-[12px] font-medium"
           >
             消す
           </button>
@@ -889,7 +995,7 @@ function CellMenu({
 /** 表の下の集計。各ジャンルへ配る前に必ず要る数字 (§6.2 Step2-2) */
 function Totals({ totals }: { totals: ReturnType<typeof summarize> }) {
   return (
-    <section className="rounded-xl border border-[var(--border)] p-3">
+    <section className="rounded-2xl bg-[var(--cell)] p-4">
       <p className="text-sm">
         <span className="font-bold">この月の練習コマ</span>{" "}
         <strong className="text-base tabular-nums">{totals.practicable}</strong>{" "}
@@ -929,35 +1035,6 @@ function Totals({ totals }: { totals: ReturnType<typeof summarize> }) {
   );
 }
 
-function Legend() {
-  return (
-    <div className="space-y-1 text-xs text-[var(--muted)]">
-      <p>
-        薄い ○=練習できる(未割当) ／ 地の付いた ○=空き ／ −=使用不可 ／
-        △=予約はあるがコマの時間を覆えていない ／ ⚠=区切りの合わない古いコマが残っている ／ 空欄=予約なし。
-        色付きのセルは公式練です。
-        <strong>セルの裏の薄い帯</strong>は①で取り込んだ予約で、
-        コマの時間を変えると伸び縮みします。
-      </p>
-      <p>
-        <strong>時間割の列を押すと、その日・その建物のコマの時間を直せます。</strong>
-        青い時間は基準と違う日です。日付の行の ＋ − でその日のコマ数を増減できます。
-      </p>
-      {/*
-        「空き」を1コマずつ置くと、空きコマがコマ単位に切れる。
-        通しで置きたいのが普通なので、未割当のままにしておくよう促す
-        (公開時に unassignedRanges() が予約枠の余りを1本にまとめる)。
-      */}
-      <p>
-        <strong>未割当 (薄い ○) はそのままで構いません。</strong>
-        公開すると、その日の余った時間が<strong>通しで1本の「空き」</strong>になります。
-        「空き」を1コマずつ置くと、空きがコマ単位に切れて、
-        コマをまたぐ個人練の申請ができなくなります。
-      </p>
-    </div>
-  );
-}
-
 /**
  * 基準のコマに合わないコマの一覧。
  *
@@ -984,9 +1061,7 @@ function OffGridNotice({
       <p className="font-bold">
         コマの時間に合わないコマが {offGrid.length}件あります
       </p>
-      <p className="mt-0.5">
-        この表には出せません。「タイムライン」に切り替えると直せます。
-      </p>
+      <p className="mt-0.5">タイムラインで直せます。</p>
       <ul className="mt-1 space-y-0.5">
         {offGrid.slice(0, 8).map((entry, index) => (
           <li key={index}>

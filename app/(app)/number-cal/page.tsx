@@ -9,6 +9,7 @@ import {
   isActiveMember,
 } from "@/lib/constants";
 import { hasSupabaseEnv } from "@/lib/env";
+import { hasSchemaV2 } from "@/lib/schema";
 import { createClient } from "@/lib/supabase/server";
 import { normalizeTime, todayInTokyo } from "@/lib/time";
 
@@ -17,7 +18,7 @@ import { NumberCalendarClient } from "./NumberCalendarClient";
 /**
  * タブ② ナンバー (SPEC.md §6.3 / §6.3.1)
  *
- * 所属ナンバーの一覧・新規作成と、自分の1ジャンのスタ練の設定。
+ * 所属ナンバーの一覧・新規作成と、自分のジャンル (1/2/3ジャン) のスタ練の設定 (v1.33)。
  *
  * **カレンダーは持たない** (v1.23)。予定を見る場所はマイカレンダーに
  * 一本化した。ここは予定を作る側の画面。
@@ -41,21 +42,37 @@ export default async function NumberTabPage() {
   const isOb = !isActiveMember(profile.role);
   const supabase = await createClient();
 
+  // スタ練を立てられるジャンル。1ジャンと今の2/3ジャン (§6.3.1 / v1.33)
+  // 2/3ジャンで立てられるのは DB の 0024 から (v1.49)。済んでいない DB では1ジャンだけ (前のやり方)
+  const { data: subgenreRows } = isOb || !(await hasSchemaV2())
+    ? { data: [] }
+    : await supabase
+        .from("user_subgenres")
+        .select("slot, genre_id")
+        .eq("user_id", profile.user_id)
+        .order("slot");
+  const studioGenreIds = isOb
+    ? []
+    : [
+        profile.main_genre_id,
+        ...((subgenreRows ?? []) as { genre_id: number }[]).map((row) => row.genre_id),
+      ].filter((id, index, all) => all.indexOf(id) === index);
+
   const [numbersResult, practicesResult, generationsResult] = await Promise.all([
     supabase
       .from("numbers")
       .select("id, name, owner_id, number_members(user_id)")
       .order("created_at"),
-    // スタ練は現役の1ジャンぶんだけ。**過去は出さない** —
+    // スタ練は自分のジャンルぶんだけ。**過去は出さない** —
     // ここは設定するための画面で、済んだ予定を並べても操作の対象にならない
     isOb
       ? Promise.resolve({ data: [], error: null })
       : supabase
           .from("genre_practices")
           .select(
-            "id, date, start_time, end_time, place, note, target_generations, created_by, profiles(username)",
+            "id, genre_id, date, start_time, end_time, place, note, target_generations, created_by, profiles(username)",
           )
-          .eq("genre_id", profile.main_genre_id)
+          .in("genre_id", studioGenreIds)
           .gte("date", today)
           .order("date"),
     // 対象期の候補。現役に実在する期だけを出す (§6.3.1 / v1.25)。
@@ -90,9 +107,10 @@ export default async function NumberTabPage() {
     memberCount: (row.number_members ?? []).length,
   }));
 
-  const practices: StudioPractice[] = (
+  const practiceRows = (
     (practicesResult.data ?? []) as unknown as {
       id: string;
+      genre_id: number;
       date: string;
       start_time: string;
       end_time: string;
@@ -102,16 +120,19 @@ export default async function NumberTabPage() {
       created_by: string;
       profiles: { username: string } | null;
     }[]
-  ).map((row) => ({
-    id: row.id,
-    date: row.date,
-    startTime: normalizeTime(row.start_time),
-    endTime: normalizeTime(row.end_time),
-    place: row.place,
-    note: row.note,
-    targetGenerations: row.target_generations,
-    createdBy: row.created_by,
-    createdByName: row.profiles?.username ?? "(不明)",
+  ).map((row): { genreId: number; practice: StudioPractice } => ({
+    genreId: row.genre_id,
+    practice: {
+      id: row.id,
+      date: row.date,
+      startTime: normalizeTime(row.start_time),
+      endTime: normalizeTime(row.end_time),
+      place: row.place,
+      note: row.note,
+      targetGenerations: row.target_generations,
+      createdBy: row.created_by,
+      createdByName: row.profiles?.username ?? "(不明)",
+    },
   }));
 
   return (
@@ -121,7 +142,7 @@ export default async function NumberTabPage() {
       {practicesResult.error ? (
         <p
           role="alert"
-          className="rounded-lg bg-[var(--danger-bg)] px-3 py-2 text-sm text-[var(--danger-fg)]"
+          className="rounded-lg bg-[var(--danger-bg)] px-3 py-2 text-[15px] text-[var(--danger-fg)]"
         >
           スタ練の取得に失敗しました: {practicesResult.error.message}
         </p>
@@ -131,11 +152,13 @@ export default async function NumberTabPage() {
         currentUserId={profile.user_id}
         numbers={numbers}
         numbersError={numbersResult.error?.message ?? null}
-        mainGenreCode={
-          isOb ? null : (GENRE_BY_ID.get(profile.main_genre_id)?.code ?? null)
-        }
-        mainGenreId={isOb ? null : profile.main_genre_id}
-        practices={practices}
+        studioGenres={studioGenreIds.map((id) => ({
+          id,
+          code: GENRE_BY_ID.get(id)?.code ?? "?",
+          practices: practiceRows
+            .filter((row) => row.genreId === id)
+            .map((row) => row.practice),
+        }))}
         generations={generations}
       />
     </main>

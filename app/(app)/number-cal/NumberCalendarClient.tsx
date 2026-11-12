@@ -20,18 +20,17 @@ export function NumberCalendarClient({
   currentUserId,
   numbers,
   numbersError,
-  mainGenreCode,
-  mainGenreId,
-  practices,
+  studioGenres,
   generations,
 }: {
   currentUserId: string;
   numbers: NumberSummary[];
   numbersError: string | null;
-  /** OB は 1ジャンのスタ練を持たないので null (§3.6) */
-  mainGenreCode: string | null;
-  mainGenreId: number | null;
-  practices: StudioPractice[];
+  /**
+   * スタ練を立てられるジャンル (1ジャン → 2ジャン → 3ジャン。v1.33) と、
+   * それぞれの今日以降のスタ練。OB は空 (§3.6)
+   */
+  studioGenres: { id: number; code: string; practices: StudioPractice[] }[];
   /** 対象期の候補 (現役に実在する期。新しい順) */
   generations: number[];
 }) {
@@ -47,15 +46,18 @@ export function NumberCalendarClient({
         スタ練は現役だけ (§6.3.1)。OB は公式練を見られないので、
         ジャンル単位の練習にも関わらない
       */}
-      {mainGenreCode && mainGenreId !== null ? (
+      {studioGenres.map((genre, index) => (
         <StudioPracticeSection
-          genreCode={mainGenreCode}
-          genreId={mainGenreId}
-          practices={practices}
+          key={genre.id}
+          genreCode={genre.code}
+          genreId={genre.id}
+          practices={genre.practices}
           generations={generations}
           currentUserId={currentUserId}
+          // ツアーの吹き出しは最初の欄にだけ付ける
+          tour={index === 0}
         />
-      ) : null}
+      ))}
     </>
   );
 }

@@ -2,10 +2,19 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 
-import { ErrorMessage, buttonClass, secondaryButtonClass } from "@/components/ui";
+import {
+  ErrorMessage,
+  buttonClass,
+  destructiveButtonClass,
+  secondaryButtonClass,
+} from "@/components/ui";
+import { confirmAction } from "@/lib/confirm";
+import { dbErrorMessage } from "@/lib/error-message";
 import { useRoomById, useRooms } from "@/lib/rooms";
 import { GENRES, GENRE_BY_ID, PRACTICE_WEEKDAYS } from "@/lib/constants";
 import { findSplitReservations } from "@/lib/reservations";
+import { isMissingRelation } from "@/lib/schema-errors";
+import type { AvailabilityLookup } from "@/lib/scheduling/availability";
 import {
   cellKey,
   nextPeriod,
@@ -31,13 +40,11 @@ import {
   formatTimeRange,
   getWeekday,
   normalizeTimeInput,
-  startOfMonth,
   toMinutes,
-  todayInTokyo,
 } from "@/lib/time";
 import type { DateString, SlotStatus } from "@/lib/types";
 
-import { MonthNav } from "./MonthNav";
+import { DayBoard } from "./DayBoard";
 import { PeriodPanel } from "./PeriodPanel";
 import {
   SlotGrid,
@@ -67,11 +74,18 @@ import { useSlotPeriods } from "./useSlotPeriods";
  * 許可しているため)。検証は lib/slots.ts と DB の制約の二段構え。
  */
 
-export function SlotStep() {
+export function SlotStep({
+  month,
+  header,
+  availability = null,
+}: {
+  month: DateString;
+  /** 表の上に置くもの (自動の割り振り。v1.47) */
+  header?: React.ReactNode;
+  /** 出られる人の数 (v1.47) */
+  availability?: AvailabilityLookup | null;
+}) {
   const roomById = useRoomById();
-  const [month, setMonth] = useState<DateString>(() =>
-    startOfMonth(todayInTokyo()),
-  );
   const {
     reservations,
     generations,
@@ -88,7 +102,7 @@ export function SlotStep() {
     () => [...new Set(rooms.map((room) => room.section))],
     [rooms],
   );
-  const [view, setView] = useState<"grid" | "timeline">("grid");
+  const [view, setView] = useState<View>("board");
   /** 同じセルへの二重書き込みを止める。連打すると重なり制約に当たるため */
   const painting = useRef(new Set<string>());
   const [editing, setEditing] = useState<{
@@ -181,19 +195,17 @@ export function SlotStep() {
     setPending(false);
 
     if (writeError) {
-      setError(`対象期を保存できませんでした: ${writeError.message}`);
+      setError(dbErrorMessage("対象期を保存できませんでした", writeError));
       return;
     }
     reload();
   }
 
   /**
-   * 予約枠の取消 (SPEC §6.2 Step2-6 / v1.8.1)
+   * 予約枠の取消 (SPEC §6.2 Step2-8 / v1.8.1)
    *
-   * **コマを先に消してから status を変える。** 逆順だと、途中で失敗したときに
-   * 「取消済なのに公開コマが残っている」= カレンダーに幽霊の練習が出続ける
-   * 状態になる。コマを先に消せば、最悪でも「枠が active のまま」で済み、
-   * もう一度取り消せば回復できる。
+   * コマの削除と取消を **DB の関数1回** で行う (v1.32.5)。別々に書くと、
+   * 途中で失敗したときに「コマだけ消えて枠は残る」状態になる。
    */
   async function cancelReservation(reservation: ReservationInfo) {
     const claims = reservation.slots.flatMap((slot) => slot.claims);
@@ -209,31 +221,42 @@ export function SlotStep() {
         `\n以下の空き申請も取り消されます。本人に連絡してください:\n${formatClaimList(claims)}`,
       );
     }
-    if (!window.confirm(lines.join("\n"))) return;
+    if (!await confirmAction(lines.join("\n"))) return;
 
     setPending(true);
     setError(null);
 
-    const { error: slotsError } = await supabase
-      .from("slots")
-      .delete()
-      .eq("reservation_id", reservation.id);
-    if (slotsError) {
+    const { error: cancelError } = await supabase.rpc("cancel_reservation", {
+      p_id: reservation.id,
+    });
+
+    // 0023 を流していない DB では関数が無い (v1.49)。コマを先に消し、それから枠を取り消す (前のやり方)
+    if (isMissingRelation(cancelError)) {
+      const { error: slotsError } = await supabase
+        .from("slots")
+        .delete()
+        .eq("reservation_id", reservation.id);
+      if (slotsError) {
+        setPending(false);
+        setError(dbErrorMessage("コマを削除できませんでした", slotsError));
+        return;
+      }
+      const { error: resvError } = await supabase
+        .from("reservations")
+        .update({ status: "cancelled" })
+        .eq("id", reservation.id);
       setPending(false);
-      setError(`コマを削除できませんでした: ${slotsError.message}`);
+      if (resvError) {
+        setError(dbErrorMessage("予約枠を取り消せませんでした (コマは削除済みです)", resvError));
+        return;
+      }
+      reload();
       return;
     }
 
-    const { error: resvError } = await supabase
-      .from("reservations")
-      .update({ status: "cancelled" })
-      .eq("id", reservation.id);
-
     setPending(false);
-    if (resvError) {
-      setError(
-        `予約枠を取り消せませんでした (コマは削除済みです): ${resvError.message}`,
-      );
+    if (cancelError) {
+      setError(dbErrorMessage("予約枠を取り消せませんでした", cancelError));
       return;
     }
     reload();
@@ -255,7 +278,7 @@ export function SlotStep() {
           endTime: draft.endTime,
         })
       : [];
-    if (doomed.length > 0 && !confirmClaimLoss(doomed)) return;
+    if (doomed.length > 0 && !(await confirmClaimLoss(doomed))) return;
 
     setPending(true);
     setError(null);
@@ -291,10 +314,10 @@ export function SlotStep() {
 
   async function deleteSlot(slot: SlotInfo) {
     const doomed = invalidatedClaims(slot, null);
-    if (doomed.length > 0 && !confirmClaimLoss(doomed)) return;
+    if (doomed.length > 0 && !(await confirmClaimLoss(doomed))) return;
     if (
       doomed.length === 0 &&
-      !window.confirm(
+      !await confirmAction(
         `${formatTimeRange(slot.startTime, slot.endTime)} のコマを削除しますか?`,
       )
     ) {
@@ -310,7 +333,7 @@ export function SlotStep() {
     setPending(false);
 
     if (deleteError) {
-      setError(`コマを削除できませんでした: ${deleteError.message}`);
+      setError(dbErrorMessage("コマを削除できませんでした", deleteError));
       return;
     }
     setEditing(null);
@@ -320,10 +343,25 @@ export function SlotStep() {
   /**
    * 分かれている予約枠を1本につなげる (v1.29.1)。
    *
-   * **コマを先に移してから枠を消す。** `slots.reservation_id` は
-   * `on delete cascade` なので、先に枠を消すとぶら下がっているコマと
-   * 空き申請まで消える。
+   * 1グループごとに DB の関数 `merge_reservations` を1回呼ぶ (v1.32.5)。
+   * コマの付け替え・枠の延長・残りの枠の削除がまとめて成功するか、まとめて戻る。
    */
+  /** merge_reservations (0023) を使わずに、コマを移す → 枠を伸ばす → 残りを消す */
+  async function mergeStepByStep(survivorId: string, otherIds: string[], endTime: string) {
+    const { error: moveError } = await supabase
+      .from("slots")
+      .update({ reservation_id: survivorId })
+      .in("reservation_id", otherIds);
+    if (moveError) return moveError;
+    const { error: growError } = await supabase
+      .from("reservations")
+      .update({ end_time: endTime })
+      .eq("id", survivorId);
+    if (growError) return growError;
+    const { error: dropError } = await supabase.from("reservations").delete().in("id", otherIds);
+    return dropError;
+  }
+
   async function mergeSplitReservations() {
     const lines = splitGroups.map((group) => {
       const last = group.reduce(
@@ -334,7 +372,7 @@ export function SlotStep() {
       return `・${formatDateLabel(group[0].date)} ${roomById.get(group[0].roomId)?.name ?? ""} ${formatTimeRange(group[0].startTime, last)}`;
     });
     if (
-      !window.confirm(
+      !await confirmAction(
         `次の予約枠を1本につなげます。\n\n${lines.join("\n")}\n\n入っているコマと空き申請はそのまま残ります。`,
       )
     ) {
@@ -355,39 +393,18 @@ export function SlotStep() {
           toMinutes(r.endTime) > toMinutes(latest) ? r.endTime : latest,
         survivor.endTime,
       );
-      const otherIds = others.map((r) => r.id);
-
-      const { error: moveError } = await supabase
-        .from("slots")
-        .update({ reservation_id: survivor.id })
-        .in("reservation_id", otherIds);
-      if (moveError) {
-        setPending(false);
-        setError(`コマを移せませんでした: ${moveError.message}`);
-        reload();
-        return;
+      let { error: mergeError } = await supabase.rpc("merge_reservations", {
+        p_survivor: survivor.id,
+        p_others: others.map((r) => r.id),
+        p_end_time: endTime,
+      });
+      // 0023 を流していない DB では関数が無い (v1.49)。同じ手順を順に行う (前のやり方)
+      if (isMissingRelation(mergeError)) {
+        mergeError = await mergeStepByStep(survivor.id, others.map((r) => r.id), endTime);
       }
-
-      const { error: growError } = await supabase
-        .from("reservations")
-        .update({ end_time: endTime })
-        .eq("id", survivor.id);
-      if (growError) {
+      if (mergeError) {
         setPending(false);
-        setError(`予約枠を伸ばせませんでした: ${growError.message}`);
-        reload();
-        return;
-      }
-
-      const { error: dropError } = await supabase
-        .from("reservations")
-        .delete()
-        .in("id", otherIds);
-      if (dropError) {
-        setPending(false);
-        setError(
-          `分かれていた枠を消せませんでした (つなぎ自体は済んでいます): ${dropError.message}`,
-        );
+        setError(dbErrorMessage("予約枠をつなげませんでした", mergeError));
         reload();
         return;
       }
@@ -432,7 +449,7 @@ export function SlotStep() {
       claims.length > 0
         ? `この時間には区切りの合わない古いコマが${leftovers.length}件あります。\n\n${lines}\n\n置き換えると次の空き申請も取り消されます。本人に連絡してください:\n${formatClaimList(claims)}`
         : `この時間には区切りの合わない古いコマが${leftovers.length}件あります。\n\n${lines}\n\n消して置き換えますか?`;
-    if (!window.confirm(message)) return false;
+    if (!await confirmAction(message)) return false;
 
     painting.current.add(key);
     const { error: deleteError } = await supabase
@@ -445,7 +462,7 @@ export function SlotStep() {
     painting.current.delete(key);
 
     if (deleteError) {
-      setError(`古いコマを消せませんでした: ${deleteError.message}`);
+      setError(dbErrorMessage("古いコマを消せませんでした", deleteError));
       reload();
       return false;
     }
@@ -467,7 +484,7 @@ export function SlotStep() {
         return;
       }
       const doomed = invalidatedClaims(cell.slot, null);
-      if (doomed.length > 0 && !confirmClaimLoss(doomed)) return;
+      if (doomed.length > 0 && !(await confirmClaimLoss(doomed))) return;
 
       painting.current.add(key);
       const { error: deleteError } = await supabase
@@ -477,7 +494,7 @@ export function SlotStep() {
       painting.current.delete(key);
 
       if (deleteError) {
-        setError(`コマを削除できませんでした: ${deleteError.message}`);
+        setError(dbErrorMessage("コマを削除できませんでした", deleteError));
         reload();
         return;
       }
@@ -513,7 +530,7 @@ export function SlotStep() {
         startTime: period.startTime,
         endTime: period.endTime,
       });
-      if (doomed.length > 0 && !confirmClaimLoss(doomed)) return;
+      if (doomed.length > 0 && !(await confirmClaimLoss(doomed))) return;
 
       const slotId = cell.slot.id;
       const reservationId = reservations.find((r) =>
@@ -571,7 +588,7 @@ export function SlotStep() {
 
     if (writeError || !data) {
       setError(
-        writeError ? describeSlotError(writeError) : "コマを作れませんでした",
+        writeError ? describeSlotError(writeError) : "コマを作れませんでした。",
       );
       reload();
       return;
@@ -591,18 +608,17 @@ export function SlotStep() {
 
   return (
     <div className="space-y-4">
-      <MonthNav month={month} onChange={setMonth} disabled={pending} />
+      {header}
 
-      <ViewToggle view={view} onChange={setView} disabled={pending} />
-
-      <MonthGenerationPicker
-        candidates={generations}
-        value={monthGenerations}
-        genreSlotCount={derived.count}
-        mixed={derived.mixed}
-        disabled={pending || loading}
-        onToggle={toggleMonthGeneration}
-      />
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+        <ViewToggle view={view} onChange={setView} disabled={pending} />
+        <WeekdayFilter
+          practiceDaysOnly={practiceDaysOnly}
+          hiddenCount={hiddenCount}
+          onChange={setPracticeDaysOnly}
+          disabled={pending}
+        />
+      </div>
 
       <ErrorMessage>{error ?? periods.error}</ErrorMessage>
 
@@ -613,37 +629,67 @@ export function SlotStep() {
         onMerge={mergeSplitReservations}
       />
 
-      <WeekdayFilter
-        practiceDaysOnly={practiceDaysOnly}
-        hiddenCount={hiddenCount}
-        onChange={setPracticeDaysOnly}
-        disabled={pending}
-      />
+      {/*
+        対象期とコマの時間は月に1度決めれば済むので、畳んでおく (v1.45)。
+        表を開いてすぐ埋め始められるように
+      */}
+      <details className="group rounded-2xl bg-[var(--cell)] px-4 py-3">
+        <summary className="flex cursor-pointer list-none items-center justify-between gap-2 text-[15px] font-semibold [&::-webkit-details-marker]:hidden">
+          <span>対象期とコマの時間</span>
+          <span aria-hidden className="text-[var(--muted)] transition-transform group-open:rotate-90">›</span>
+        </summary>
+        <div className="mt-3 space-y-4">
+        <MonthGenerationPicker
+          candidates={generations}
+          value={monthGenerations}
+          genreSlotCount={derived.count}
+          mixed={derived.mixed}
+          disabled={pending || loading}
+          onToggle={toggleMonthGeneration}
+        />
+        <PeriodPanel
+          month={month}
+          base={periods.table.base}
+          snapshot={periods.snapshot}
+          onChange={(base) =>
+            periods.setTable((current) => ({ ...current, base }))
+          }
+          onSave={(base) => {
+            void periods.saveBase(base);
+          }}
+          disabled={pending}
+        />
+        </div>
+      </details>
 
-      {view === "grid" ? (
-        <>
-          <PeriodPanel
-            month={month}
-            base={periods.table.base}
-            snapshot={periods.snapshot}
-            onChange={(base) =>
-              periods.setTable((current) => ({ ...current, base }))
-            }
-            onSave={(base) => {
-              void periods.saveBase(base);
-            }}
+      {view === "board" ? (
+        reservations.length === 0 ? (
+          <p className="rounded-2xl bg-[var(--cell)] px-4 py-8 text-center text-sm text-[var(--muted)]">
+            {loading ? "読み込み中…" : "この月の予約枠はありません"}
+          </p>
+        ) : (
+          <DayBoard
+            dates={gridDates}
+            rooms={rooms}
+            table={periods.table}
+            reservations={reservations}
             disabled={pending}
+            availability={availability}
+            onPaint={paint}
           />
-
+        )
+      ) : view === "grid" ? (
+        <>
           {reservations.length === 0 ? (
-            <p className="rounded-xl border border-[var(--border)] px-4 py-3 text-center text-sm text-[var(--muted)]">
+            <p className="rounded-2xl bg-[var(--cell)] px-4 py-3 text-center text-sm text-[var(--muted)]">
               {loading
                 ? "読み込み中…"
-                : "この月の予約枠はありません。①CSV取込 から登録すると ○ が付きます"}
+                : "この月の予約枠はありません"}
             </p>
           ) : null}
 
           <SlotGrid
+            availability={availability}
             dates={gridDates}
             rooms={rooms}
             table={periods.table}
@@ -665,12 +711,12 @@ export function SlotStep() {
       ) : /* 保存のたびに一覧が消えるとスクロール位置が飛ぶので、
             「読み込み中」に差し替えるのは月を切り替えた直後だけにする */
       visibleReservations.length === 0 ? (
-        <p className="rounded-xl border border-[var(--border)] px-4 py-8 text-center text-sm text-[var(--muted)]">
+        <p className="rounded-2xl bg-[var(--cell)] px-4 py-8 text-center text-sm text-[var(--muted)]">
           {loading
             ? "読み込み中…"
             : reservations.length > 0
-              ? "月・水・木の予約枠はありません。他の曜日は「すべての曜日」で見られます"
-              : "この月の予約枠はありません。①CSV取込 から登録してください"}
+              ? "月・水・木の予約枠はありません"
+              : "この月の予約枠はありません"}
         </p>
       ) : (
         <>
@@ -761,7 +807,7 @@ function SplitReservationNotice({
       </p>
       <p>
         施設の予約ページが続きの枠を別の行で出すことがあります。
-        このままだと<strong>境目をまたぐコマ (例 18:50〜20:00) を置けません</strong>
+        このままだと<strong>境目をまたぐコマ(例 18:50〜20:00) を置けません</strong>
         (△ になります)。
       </p>
       <ul className="space-y-0.5">
@@ -794,20 +840,24 @@ function SplitReservationNotice({
  * 開いた直後からその形になっている必要がある。
  * タイムラインは、基準のコマに合わない時間のコマを直すときの逃げ道として残す。
  */
+/** 日ごと (既定。v1.48) / コマ割り表 / タイムライン */
+type View = "board" | "grid" | "timeline";
+
 function ViewToggle({
   view,
   onChange,
   disabled,
 }: {
-  view: "grid" | "timeline";
-  onChange: (view: "grid" | "timeline") => void;
+  view: View;
+  onChange: (view: View) => void;
   disabled: boolean;
 }) {
   return (
     <div className="flex gap-2">
       {(
         [
-          { value: "grid", label: "表 (コマ割り)" },
+          { value: "board", label: "日ごと" },
+          { value: "grid", label: "表(コマ割り)" },
           { value: "timeline", label: "タイムライン" },
         ] as const
       ).map((option) => (
@@ -817,10 +867,10 @@ function ViewToggle({
           disabled={disabled}
           onClick={() => onChange(option.value)}
           aria-pressed={view === option.value}
-          className={`rounded-full border px-3 py-1 text-sm disabled:opacity-50 ${
+          className={`rounded-full px-3 py-1.5 text-sm transition-colors disabled:opacity-40 ${
             view === option.value
-              ? "border-[var(--primary)] bg-[var(--primary)] font-bold text-[var(--primary-fg)]"
-              : "border-[var(--border)]"
+              ? "bg-[var(--primary)] font-semibold text-[var(--primary-fg)]"
+              : "bg-[var(--fill)]"
           }`}
         >
           {option.label}
@@ -854,7 +904,7 @@ function WeekdayFilter({
       {(
         [
           { value: true, label: "月・水・木" },
-          { value: false, label: "すべての曜日" },
+          { value: false, label: hiddenCount > 0 ? `すべての曜日 +${hiddenCount}` : "すべての曜日" },
         ] as const
       ).map((option) => (
         <button
@@ -863,30 +913,24 @@ function WeekdayFilter({
           disabled={disabled}
           onClick={() => onChange(option.value)}
           aria-pressed={practiceDaysOnly === option.value}
-          className={`rounded-full border px-3 py-1 text-sm disabled:opacity-50 ${
+          className={`rounded-full px-3 py-1.5 text-sm transition-colors disabled:opacity-40 ${
             practiceDaysOnly === option.value
-              ? "border-[var(--primary)] bg-[var(--primary)] font-bold text-[var(--primary-fg)]"
-              : "border-[var(--border)]"
+              ? "bg-[var(--primary)] font-semibold text-[var(--primary-fg)]"
+              : "bg-[var(--fill)]"
           }`}
         >
           {option.label}
         </button>
       ))}
-      {practiceDaysOnly && hiddenCount > 0 ? (
-        <span className="text-xs text-[var(--muted)]">
-          他の曜日の予約枠 {hiddenCount}件を隠しています
-        </span>
-      ) : null}
     </div>
   );
 }
 
 function Legend() {
   return (
+    // 文で説明せず、記号と意味の対応だけを並べる (§12 / v1.33)
     <p className="text-xs text-[var(--muted)]">
-      ＋ の破線が未割当です。タップするとその時刻からコマを作れます。
-      枠線が破線のブロックは下書き(未公開)です。●の数字は空き申請の件数、
-      行末の ✕ は予約枠の取消です。
+      ＋ 未割当 ・ 破線の枠 下書き ・ ● 空き申請の数 ・ ✕ 予約枠の取消
     </p>
   );
 }
@@ -915,7 +959,7 @@ function MonthGenerationPicker({
   const selected = value ?? [];
 
   return (
-    <section className="space-y-2 rounded-xl border border-[var(--border)] p-3">
+    <section className="space-y-2 rounded-2xl bg-[var(--cell)] p-4">
       <div className="flex items-baseline justify-between gap-2">
         <h3 className="text-sm font-bold">この月の対象期</h3>
         <span className="text-xs text-[var(--muted)]">
@@ -936,10 +980,10 @@ function MonthGenerationPicker({
                 disabled={disabled}
                 onClick={() => onToggle(generation)}
                 aria-pressed={on}
-                className={`rounded-full border px-3 py-1 text-sm disabled:opacity-50 ${
+                className={`rounded-full px-3 py-1.5 text-sm transition-colors disabled:opacity-40 ${
                   on
-                    ? "border-[var(--primary)] bg-[var(--primary)] font-bold text-[var(--primary-fg)]"
-                    : "border-[var(--border)]"
+                    ? "bg-[var(--primary)] font-semibold text-[var(--primary-fg)]"
+                    : "bg-[var(--fill)]"
                 }`}
               >
                 {generation}期
@@ -950,8 +994,7 @@ function MonthGenerationPicker({
       )}
 
       <p className="text-xs text-[var(--muted)]">
-        未選択=全期。変更するとこの月の公式練コマ {genreSlotCount}件に
-        すぐ反映され、新しく作るコマにも入ります。
+        変えると、この月の公式練 {genreSlotCount}件にすぐ反映されます。
       </p>
 
       {mixed ? (
@@ -977,8 +1020,8 @@ function formatClaimList(claims: SlotClaimInfo[]): string {
 }
 
 /** SPEC §6.2 Step3: 続行時は申請者名を表示して手動連絡を促す */
-function confirmClaimLoss(claims: SlotClaimInfo[]): boolean {
-  return window.confirm(
+function confirmClaimLoss(claims: SlotClaimInfo[]): Promise<boolean> {
+  return confirmAction(
     `この変更で次の空き申請が取り消されます。本人に連絡してください:\n\n${formatClaimList(claims)}`,
   );
 }
@@ -986,12 +1029,12 @@ function confirmClaimLoss(claims: SlotClaimInfo[]): boolean {
 /** DB 側の制約に当たったときに、原因の分かる日本語にする */
 function describeSlotError(error: { code?: string; message: string }): string {
   if (error.code === "23P01") {
-    return "同じ予約枠の中でコマの時間が重なっています。画面を再読み込みして確認してください";
+    return "同じ予約枠の中でコマの時間が重なっています。画面を再読み込みして確かめてください。";
   }
   if (error.code === "23514") {
-    return "コマの内容が不正です (時刻の前後、または公式練のジャンル未設定)";
+    return "コマの内容が正しくありません(時刻の前後、または公式練のジャンルが未設定)。";
   }
-  return `保存できませんでした: ${error.message}`;
+  return dbErrorMessage("保存できませんでした", error);
 }
 
 function SlotEditor({
@@ -1059,7 +1102,7 @@ function SlotEditor({
         className="sheet-in safe-bottom relative z-10 max-h-[90dvh] w-full max-w-md space-y-4 overflow-y-auto rounded-t-2xl bg-[var(--background)] p-4 sm:rounded-2xl"
       >
         <div>
-          <h3 className="text-base font-bold">
+          <h3 className="text-[17px] font-semibold">
             {draft.id ? "コマを編集" : "コマを作る"}
           </h3>
           <p className="text-xs text-[var(--muted)]">
@@ -1118,17 +1161,17 @@ function SlotEditor({
                 type="button"
                 disabled={disabled}
                 onClick={() => applyPreset(minutes)}
-                className="rounded border border-[var(--border)] px-3 py-1 text-xs"
+                className="rounded-lg bg-[var(--fill)] px-3 py-1.5 text-xs font-medium text-[var(--tint)]"
               >
                 {minutes}分
               </button>
             ))}
           </div>
-          <p className="text-xs text-[var(--muted)]">
-            {draft.id
-              ? "数字だけでも入力できます (1700 → 17:00)"
-              : `${formatTimeRange(gap.startTime, gap.endTime)} が空いています。プリセットを押すと ${gap.startTime} から入ります (1700 のように数字だけでも入力できます)`}
-          </p>
+          {draft.id ? null : (
+            <p className="text-xs text-[var(--muted)]">
+              空き {formatTimeRange(gap.startTime, gap.endTime)}
+            </p>
+          )}
         </div>
 
         <div className="space-y-1">
@@ -1141,10 +1184,10 @@ function SlotEditor({
                 disabled={disabled}
                 onClick={() => setDraft((p) => ({ ...p, status }))}
                 aria-pressed={draft.status === status}
-                className={`flex-1 rounded-lg border px-2 py-2 text-sm ${
+                className={`flex-1 rounded-lg px-2 py-2 text-sm transition-colors ${
                   draft.status === status
-                    ? "border-[var(--primary)] bg-[var(--primary)] font-bold text-[var(--primary-fg)]"
-                    : "border-[var(--border)]"
+                    ? "bg-[var(--primary)] font-semibold text-[var(--primary-fg)]"
+                    : "bg-[var(--fill)]"
                 }`}
               >
                 {SLOT_STATUS_LABELS[status]}
@@ -1183,7 +1226,7 @@ function SlotEditor({
                   ? `${monthGenerations.join("・")}期`
                   : "全期"}
               </strong>{" "}
-              になります (この月の設定。変更は画面上部から)
+              になります(この月の設定。変更は画面上部から)
             </p>
           </>
         ) : null}
@@ -1210,7 +1253,7 @@ function SlotEditor({
               type="button"
               disabled={disabled}
               onClick={onDelete}
-              className={`${secondaryButtonClass} text-[var(--danger-fg)]`}
+              className={destructiveButtonClass}
             >
               このコマを削除する
             </button>

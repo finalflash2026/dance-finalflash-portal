@@ -63,7 +63,8 @@ export function PullToRefresh({ children }: { children: React.ReactNode }) {
       }
       const touch = event.touches[0];
       const target = touch.target as Element | null;
-      if (target?.closest("[data-no-swipe]") != null) {
+      // 窓 (role="dialog") の上の操作は、印の付け忘れがあっても拾わない (v1.32.6)
+      if (target?.closest('[data-no-swipe], [role="dialog"]') != null) {
         start.current = null;
         return;
       }
@@ -125,7 +126,8 @@ export function PullToRefresh({ children }: { children: React.ReactNode }) {
     <>
       <div
         aria-hidden={!visible}
-        className="pointer-events-none fixed inset-x-0 top-0 z-50 flex justify-center"
+        // 上端はノッチ・ステータスバーを避ける (v1.32.7)
+        className="pointer-events-none fixed inset-x-0 top-[env(safe-area-inset-top,0px)] z-50 flex justify-center"
         style={{
           transform: `translateY(${offset - 44}px)`,
           opacity: visible ? Math.min(1, offset / THRESHOLD_PX) : 0,

@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { GENRE_BY_ID } from "@/lib/constants";
+import { isMissingRelation } from "@/lib/schema-errors";
 import { addDays, normalizeTime } from "@/lib/time";
 import type { DateString, MyEvent, Profile } from "@/lib/types";
 
@@ -18,6 +19,8 @@ import type { DateString, MyEvent, Profile } from "@/lib/types";
  *              (target_generations is null or 自分の期 = any)
  *   2. 自分の空き申請: claims where user_id=自分 join slots(published)  … Phase 2
  *   3. ナンバー練: number_events where 自分がメンバー                    … Phase 4
+ *   5. サークルイベント (v1.30。OB は show_to_ob のみ)
+ *   6. 締切 (v1.30。現役のみ。終日の予定として)
  *
  * 引数の supabase は2通りの使われ方をする:
  *   - 画面から: ログインユーザーの RLS クライアント
@@ -30,6 +33,7 @@ export async function getMyEvents(
   profile: Profile,
   from: DateString,
   to: DateString,
+  options: { includeDeadlines?: boolean } = {},
 ): Promise<MyEvent[]> {
   const events: MyEvent[] = [];
 
@@ -51,7 +55,124 @@ export async function getMyEvents(
   // ---- 4. ナンバー練 (OB も対象。縦イベに参加し続けられるようにするため) ----
   events.push(...(await getNumberEvents(supabase, profile, from, to)));
 
+  // ---- 5. サークルイベント (§6.7.1 / v1.30。OB は show_to_ob のものだけ) ----
+  events.push(...(await getCircleEventEvents(supabase, profile, from, to)));
+
+  // ---- 6. 締切 (§6.7.2 / v1.30。現役のみ) ----
+  // 朝のリマインドの「今日の予定」は締切を含めない (締切は別の通知で届く)
+  if (profile.role !== "ob" && options.includeDeadlines !== false) {
+    events.push(...(await getDeadlineEvents(supabase, from, to)));
+  }
+
   return sortEvents(events);
+}
+
+/**
+ * サークルイベント (SPEC §6.7.1 / v1.30)
+ *
+ * 期間が [from, to] に**少しでも掛かる**ものを引く。合宿のように月をまたぐ
+ * イベントは開始日が範囲の外にあっても、その月のマスに出す必要がある。
+ *
+ * **OB の絞り込みをクエリに明示する。** 購読 ics は service role で呼ぶので、
+ * RLS (`sel_cevents`) に頼ると OB に現役向けのイベントが混ざる。
+ */
+async function getCircleEventEvents(
+  supabase: SupabaseClient,
+  profile: Profile,
+  from: DateString,
+  to: DateString,
+): Promise<MyEvent[]> {
+  let query = supabase
+    .from("circle_events")
+    .select("id, title, date, end_date, start_time, end_time, place, note")
+    .lte("date", to)
+    .gte("end_date", from);
+  if (profile.role === "ob") {
+    query = query.eq("show_to_ob", true);
+  }
+
+  const { data, error } = await query;
+  // 0020 を流していない DB では表が無い (v1.49)。カレンダーごと止めない
+  if (isMissingRelation(error)) return [];
+  if (error) {
+    throw new Error(`イベントの取得に失敗しました: ${error.message}`);
+  }
+
+  return ((data ?? []) as unknown as {
+    id: string;
+    title: string;
+    date: DateString;
+    end_date: DateString;
+    start_time: string | null;
+    end_time: string | null;
+    place: string;
+    note: string | null;
+  }[]).map((row) => {
+    const allDay = row.start_time === null || row.end_time === null;
+    return {
+      kind: "event" as const,
+      sourceId: row.id,
+      sourceIds: [row.id],
+      date: row.date,
+      startTime: allDay ? "00:00" : normalizeTime(row.start_time!),
+      endTime: allDay ? "24:00" : normalizeTime(row.end_time!),
+      title: row.title,
+      location: row.place,
+      numberId: null,
+      genreCode: null,
+      allDay,
+      note: row.note,
+      ...(row.end_date > row.date ? { lastDate: row.end_date } : {}),
+    };
+  });
+}
+
+/**
+ * 締切 (SPEC §6.7.2 / v1.30)。カレンダーでは期限日の終日の予定として出す。
+ * 時刻があっても終日として置き、時刻は「23:59まで」のように添えるだけにする
+ * (締切は「その時間に何かをする予定」ではないため)。
+ */
+async function getDeadlineEvents(
+  supabase: SupabaseClient,
+  from: DateString,
+  to: DateString,
+): Promise<MyEvent[]> {
+  const { data, error } = await supabase
+    .from("deadlines")
+    .select("id, title, due_date, due_time, url, important, note")
+    .gte("due_date", from)
+    .lte("due_date", to);
+
+  if (isMissingRelation(error)) return [];
+  if (error) {
+    throw new Error(`締切の取得に失敗しました: ${error.message}`);
+  }
+
+  return ((data ?? []) as unknown as {
+    id: string;
+    title: string;
+    due_date: DateString;
+    due_time: string | null;
+    url: string | null;
+    important: boolean;
+    note: string | null;
+  }[]).map((row) => ({
+    kind: "deadline" as const,
+    sourceId: row.id,
+    sourceIds: [row.id],
+    date: row.due_date,
+    startTime: "00:00",
+    endTime: "24:00",
+    title: `締切: ${row.title}`,
+    location: "",
+    numberId: null,
+    genreCode: null,
+    allDay: true,
+    url: row.url,
+    important: row.important,
+    dueTime: row.due_time ? normalizeTime(row.due_time) : null,
+    note: row.note,
+  }));
 }
 
 /** SPEC §6.4-1: 自分のジャンル・期に該当する公開済みの公式練 */
@@ -61,16 +182,16 @@ async function getGenrePracticeEvents(
   from: DateString,
   to: DateString,
 ): Promise<MyEvent[]> {
-  const genreIds = await getMyGenreIds(supabase, profile);
+  const genres = await getMyGenreHistory(supabase, profile);
 
   const { data, error } = await supabase
     .from("slots")
     .select(
-      "id, date, start_time, end_time, target_generations, genres(code), rooms(name, sort_order)",
+      "id, genre_id, date, start_time, end_time, target_generations, genres(code), rooms(name, sort_order)",
     )
     .eq("published", true)
     .eq("status", "genre")
-    .in("genre_id", genreIds)
+    .in("genre_id", genres.ids)
     .gte("date", from)
     .lte("date", to);
 
@@ -78,6 +199,7 @@ async function getGenrePracticeEvents(
 
   const rows = (data ?? []) as unknown as {
     id: string;
+    genre_id: number;
     date: DateString;
     start_time: string;
     end_time: string;
@@ -87,6 +209,8 @@ async function getGenrePracticeEvents(
   }[];
 
   const events: GenreEvent[] = rows
+    // その日に自分のジャンルだったか (サブジャンルの変更は今日から先だけ。v1.31.9)
+    .filter((row) => genres.activeOn(row.genre_id, row.date))
     // 対象期の判定。配列の包含は JS 側で絞る (件数が少なく、条件が読みやすいため)
     .filter(
       (row) =>
@@ -247,7 +371,7 @@ async function getNumberEvents(
 
   const { data, error } = await supabase
     .from("number_events")
-    .select("id, number_id, date, start_time, end_time, place, numbers(name)")
+    .select("id, number_id, date, start_time, end_time, place, note, numbers(name)")
     .in("number_id", numberIds)
     // **前日ぶんも取る** (v1.21)。23:00〜翌06:00 のように前日から跨いできた
     // 予定は date が範囲の外にあり、そのままでは初日に何も出ない
@@ -265,6 +389,7 @@ async function getNumberEvents(
     start_time: string;
     end_time: string;
     place: string;
+    note: string | null;
     numbers: { name: string } | null;
   }[];
 
@@ -280,6 +405,7 @@ async function getNumberEvents(
     location: row.place,
     numberId: row.number_id,
     genreCode: null,
+    note: row.note,
   }));
 }
 
@@ -299,13 +425,12 @@ async function getStudioPracticeEvents(
   from: DateString,
   to: DateString,
 ): Promise<MyEvent[]> {
-  const genreIds = await getMyGenreIds(supabase, profile);
-  if (genreIds.length === 0) return [];
+  const genres = await getMyGenreHistory(supabase, profile);
 
   const { data, error } = await supabase
     .from("genre_practices")
-    .select("id, genre_id, date, start_time, end_time, place, target_generations")
-    .in("genre_id", genreIds)
+    .select("id, genre_id, date, start_time, end_time, place, note, target_generations")
+    .in("genre_id", genres.ids)
     // 前日から跨いできた予定を拾う (v1.21 と同じ理由)
     .gte("date", addDays(from, -1))
     .lte("date", to);
@@ -321,8 +446,11 @@ async function getStudioPracticeEvents(
     start_time: string;
     end_time: string;
     place: string;
+    note: string | null;
     target_generations: number[] | null;
   }[])
+    // その日に自分のジャンルだったか (v1.31.9。公式練と同じ)
+    .filter((row) => genres.activeOn(row.genre_id, row.date))
     // 対象期の判定 (v1.25)。公式練と同じ約束で null は期を問わない。
     // 配列の包含は JS 側で絞る (件数が少なく、条件が読みやすいため)
     .filter(
@@ -345,12 +473,63 @@ async function getStudioPracticeEvents(
       location: row.place,
       numberId: null,
       genreCode: code,
+      note: row.note,
     };
   });
 }
 
 /**
- * 自分の 1ジャン + 2ジャン + 3ジャン のジャンルIDを返す。
+ * 自分のジャンルの履歴 (SPEC §6.4.1 / v1.31.9)。
+ *
+ * **サブジャンルの変更は今日から先にだけ効く。** サブジャンルはイベントごとに
+ * 変わるので、今の値だけで引くと、変えたときに過去の公式練まで消えたり
+ * 増えたりした。`user_subgenre_periods` の期間で、予定の日付ごとに判定する。
+ * 1ジャンは期間を持たず、いつでも自分のジャンル。
+ *
+ * - `ids`: 期間のどこかで自分のジャンルだったもの全部 (DB から引く範囲)
+ * - `activeOn`: その日に自分のジャンルだったか
+ */
+export async function getMyGenreHistory(
+  supabase: SupabaseClient,
+  profile: Profile,
+): Promise<{ ids: number[]; activeOn: (genreId: number, date: DateString) => boolean }> {
+  const { data, error } = await supabase
+    .from("user_subgenre_periods")
+    .select("genre_id, from_date, to_date")
+    .eq("user_id", profile.user_id);
+
+  // 0022 を流していない DB では期間の表が無い (v1.49)。今の2/3ジャンで判定する (前のやり方)
+  if (isMissingRelation(error)) {
+    const current = await getMyGenreIds(supabase, profile);
+    return { ids: current, activeOn: (genreId) => current.includes(genreId) };
+  }
+  if (error) {
+    throw new Error(`user_subgenre_periods の取得に失敗しました: ${error.message}`);
+  }
+
+  const periods = (data ?? []) as {
+    genre_id: number;
+    from_date: DateString;
+    to_date: DateString | null;
+  }[];
+  const ids = new Set<number>([profile.main_genre_id]);
+  for (const period of periods) ids.add(period.genre_id);
+
+  return {
+    ids: [...ids],
+    activeOn: (genreId, date) =>
+      genreId === profile.main_genre_id ||
+      periods.some(
+        (period) =>
+          period.genre_id === genreId &&
+          period.from_date <= date &&
+          (period.to_date === null || date <= period.to_date),
+      ),
+  };
+}
+
+/**
+ * 自分の 1ジャン + 2ジャン + 3ジャン のジャンルIDを返す (今の値)。
  * 1ジャンは profiles、2/3ジャンは user_subgenres から取る (SPEC §1 / §6.4.1)。
  *
  * タブ③の絞り込みチップ (SPEC §6.4-3) も同じ集合を使うので公開している。
@@ -377,11 +556,11 @@ export async function getMyGenreIds(
   return [...ids];
 }
 
-/** 日付 → 開始時刻の順に並べる */
+/** 日付 → 終日の予定 → 開始時刻の順に並べる */
 function sortEvents(events: MyEvent[]): MyEvent[] {
-  return events.sort((a, b) =>
-    a.date === b.date
-      ? a.startTime.localeCompare(b.startTime)
-      : a.date.localeCompare(b.date),
-  );
+  return events.sort((a, b) => {
+    if (a.date !== b.date) return a.date.localeCompare(b.date);
+    if (Boolean(a.allDay) !== Boolean(b.allDay)) return a.allDay ? -1 : 1;
+    return a.startTime.localeCompare(b.startTime);
+  });
 }

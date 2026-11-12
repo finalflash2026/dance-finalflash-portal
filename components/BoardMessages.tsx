@@ -7,6 +7,8 @@ import {
   toBoardMessages,
   type BoardMessage,
 } from "@/lib/board-messages";
+import { confirmAction } from "@/lib/confirm";
+import { dbErrorMessage } from "@/lib/error-message";
 import { useCanWrite } from "@/lib/role";
 import { createClient } from "@/lib/supabase/client";
 import { formatAsTokyoDateTime, formatAsTokyoTime } from "@/lib/time";
@@ -110,7 +112,7 @@ export function BoardMessages({
 
     const { data, error: fetchError } = await query;
     if (fetchError) {
-      setError(`連絡を取得できませんでした: ${fetchError.message}`);
+      setError(dbErrorMessage("連絡を取得できませんでした", fetchError));
       return;
     }
     setError(null);
@@ -154,7 +156,7 @@ export function BoardMessages({
       const data = (await res.json().catch(() => null)) as {
         error?: string;
       } | null;
-      setError(data?.error ?? "書き込めませんでした");
+      setError(data?.error ?? "書き込めませんでした。");
       return;
     }
     setDraft("");
@@ -167,7 +169,7 @@ export function BoardMessages({
   }
 
   async function remove(message: BoardMessage) {
-    if (!window.confirm("この連絡を削除しますか?")) return;
+    if (!await confirmAction("この連絡を削除しますか?")) return;
     setPending(true);
     setError(null);
     const supabase = createClient();
@@ -178,7 +180,7 @@ export function BoardMessages({
       .eq("id", message.id);
     setPending(false);
     if (deleteError) {
-      setError(`削除できませんでした: ${deleteError.message}`);
+      setError(dbErrorMessage("削除できませんでした", deleteError));
       return;
     }
     await refresh();
@@ -191,7 +193,7 @@ export function BoardMessages({
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="mt-1.5 flex w-full items-center gap-1.5 rounded-lg border border-[var(--border)] px-2 py-1 text-left text-[11px]"
+        className="mt-3 flex min-h-[44px] w-full items-center gap-2 rounded-xl bg-[var(--fill)] px-3 py-2 text-left text-[15px] active:opacity-70"
       >
         {/*
           0件のときは「連絡」と本文を分けず1つの文にする。
@@ -205,9 +207,8 @@ export function BoardMessages({
             </span>
           </>
         ) : (
-          <span className="min-w-0 flex-1 truncate text-[var(--muted)]">
-            連絡はまだありません
-          </span>
+          // 押すと書ける、と分かるように動作で書く (v1.31.11)
+          <span className="min-w-0 flex-1 truncate text-[var(--tint)]">連絡を書く</span>
         )}
         <span aria-hidden className="shrink-0 text-[var(--muted)]">
           ›
@@ -239,7 +240,7 @@ export function BoardMessages({
               <h3 className="text-base font-bold">
                 {scope === "room" ? "今日の練習場所の連絡" : "部室の鍵の連絡"}
               </h3>
-              <span className="text-xs text-[var(--muted)]">
+              <span className="text-[13px] text-[var(--muted)]">
                 {messages.length}件
               </span>
             </header>
@@ -247,7 +248,7 @@ export function BoardMessages({
             {error ? (
               <p
                 role="alert"
-                className="px-4 pt-2 text-xs text-[var(--danger-fg)]"
+                className="px-4 pt-2 text-[13px] text-[var(--danger-fg)]"
               >
                 {error}
               </p>
@@ -258,7 +259,7 @@ export function BoardMessages({
               className="min-h-0 flex-1 space-y-2 overflow-y-auto px-4 py-3"
             >
               {messages.length === 0 ? (
-                <p className="flex h-full items-center justify-center text-sm text-[var(--muted)]">
+                <p className="flex h-full items-center justify-center text-[15px] text-[var(--muted)]">
                   連絡はまだありません
                 </p>
               ) : (
@@ -281,7 +282,7 @@ export function BoardMessages({
                         className={`flex max-w-[85%] items-end gap-1 ${mine ? "flex-row-reverse" : ""}`}
                       >
                         <p
-                          className={`min-w-0 whitespace-pre-wrap break-words rounded-2xl px-3 py-2 text-sm ${
+                          className={`min-w-0 whitespace-pre-wrap break-words rounded-2xl px-3 py-2 text-[15px] ${
                             mine ? "rounded-br-sm" : "rounded-bl-sm"
                           }`}
                           style={{
@@ -303,7 +304,8 @@ export function BoardMessages({
                             type="button"
                             disabled={pending}
                             onClick={() => remove(message)}
-                            className="shrink-0 pb-0.5 text-[10px] text-[var(--danger-fg)] underline"
+                            // 文字は小さいままにし、押せる範囲だけ上下左右に広げる (v1.32.7。44pt に近づける)
+                            className="relative before:absolute before:-inset-x-2 before:-inset-y-3 before:content-[''] shrink-0 pb-0.5 text-[11px] text-[var(--danger-fg)] underline"
                           >
                             削除
                           </button>

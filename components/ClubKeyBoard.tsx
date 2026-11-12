@@ -9,6 +9,8 @@ import {
 } from "@/lib/club-key";
 import { BoardMessages } from "@/components/BoardMessages";
 import type { BoardMessage } from "@/lib/board-messages";
+import { confirmAction } from "@/lib/confirm";
+import { dbErrorMessage } from "@/lib/error-message";
 import { useCanWrite } from "@/lib/role";
 import { createClient } from "@/lib/supabase/client";
 import { useLiveRefresh } from "@/lib/use-live-refresh";
@@ -55,7 +57,7 @@ export function ClubKeyBoard({
       .limit(KEY_HISTORY_LIMIT);
 
     if (fetchError) {
-      setError(`最新の状態を取得できませんでした: ${fetchError.message}`);
+      setError(dbErrorMessage("最新の状態を取得できませんでした", fetchError));
       return;
     }
     setError(null);
@@ -69,7 +71,7 @@ export function ClubKeyBoard({
 
   async function claim() {
     if (
-      !window.confirm(
+      !await confirmAction(
         "あなたが部室の鍵を持っていることにします。\n全員の画面に所持者として表示されます。",
       )
     ) {
@@ -90,7 +92,7 @@ export function ClubKeyBoard({
         error?: string;
       } | null;
       setPending(false);
-      setError(data?.error ?? "登録できませんでした");
+      setError(data?.error ?? "登録できませんでした。");
       return;
     }
 
@@ -99,38 +101,43 @@ export function ClubKeyBoard({
   }
 
   return (
-    <section className="rounded-xl border border-[var(--border)] p-3">
-      <h2 className="text-sm font-bold">部室の鍵</h2>
+    <section className="rounded-2xl bg-[var(--cell)] p-3">
+      <h2 className="text-[17px] font-bold">部室の鍵</h2>
 
       {error ? (
-        <p role="alert" className="mt-1 text-xs text-[var(--danger-fg)]">
+        <p role="alert" className="mt-1 text-[13px] text-[var(--danger-fg)]">
           {error}
         </p>
       ) : null}
 
-      <div className="mt-1 flex items-center gap-2">
-        <p className="min-w-0 flex-1 text-sm">
+      {/* 持っている人を大きく (v1.31.11)。いつからかは下に小さく */}
+      <div className="mt-2 flex items-center gap-3">
+        <div className="min-w-0 flex-1">
           {holder ? (
             <>
-              <span className="font-bold">{holder.username}</span>
-              {isMine ? (
-                <span className="ml-1 text-xs text-[var(--muted)]">(自分)</span>
-              ) : null}
-              <span className="ml-2 text-xs text-[var(--muted)]">
+              <p className="text-[13px] text-[var(--muted)]">いま持っている人</p>
+              <p className="truncate text-[18px] font-bold">
+                {holder.username}
+                {isMine ? (
+                  <span className="ml-1 text-[14px] font-normal text-[var(--muted)]">(自分)</span>
+                ) : null}
+              </p>
+              <p className="text-[13px] text-[var(--muted)]">
                 {formatAsTokyoDateTime(holder.takenAt)} から
-              </span>
+              </p>
             </>
           ) : (
-            <span className="text-[var(--muted)]">まだ登録されていません</span>
+            <p className="text-[15px] text-[var(--muted)]">まだ登録されていません</p>
           )}
-        </p>
+        </div>
 
         {/*
          * ボタンは**すりガラス**にしてある (v1.14.2)。タブバーと同じ質感で、
          * 「押せるもの」であることが枠線よりはっきり出る。角は大きめに丸めて
          * タブバーのピルと揃える。
          *
-         * 文言は「所持中に変更」。**今の状態ではなく、押すと何が起きるかを書く。**
+         * 文言は「自分が受け取った」(v1.31.11。旧「所持中に変更」)。
+         * **今の状態ではなく、押すと何が起きるかを書く。**
          * 「私が持っています」は事実の申告に読め、既に自分が持っている人が
          * 押してよいのか迷う。
          */}
@@ -140,21 +147,21 @@ export function ClubKeyBoard({
             type="button"
             onClick={claim}
             disabled={pending || isMine}
-            className="glass shrink-0 rounded-2xl px-3.5 py-2 text-xs font-bold disabled:text-[var(--muted)] disabled:opacity-60"
+            className="h-11 shrink-0 rounded-full bg-[var(--tint)] px-4 text-[15px] font-semibold text-white active:opacity-70 disabled:bg-[var(--fill)] disabled:text-[var(--muted)]"
           >
-            {isMine ? "自分が所持中" : "所持中に変更"}
+            {isMine ? "自分が持っている" : "自分が受け取った"}
           </button>
         ) : null}
       </div>
 
       {rows.length > 1 ? (
-        <details className="mt-1">
-          <summary className="cursor-pointer text-xs text-[var(--muted)]">
+        <details className="mt-2">
+          <summary className="cursor-pointer py-1 text-[14px] text-[var(--tint)]">
             受け渡しの履歴
           </summary>
           <ul className="mt-1 space-y-0.5">
             {rows.slice(1).map((row) => (
-              <li key={row.id} className="text-xs text-[var(--muted)]">
+              <li key={row.id} className="text-[14px] text-[var(--muted)]">
                 {formatAsTokyoDateTime(row.takenAt)} {row.username}
               </li>
             ))}

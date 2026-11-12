@@ -1,8 +1,10 @@
 "use client";
 
 import Link from "next/link";
+import { useRef } from "react";
 
 import { eventColor, eventShortLabel } from "@/lib/event-display";
+import { eventInk, eventTint } from "@/lib/event-style";
 import {
   addMonths,
   daysInMonth,
@@ -34,6 +36,7 @@ export function LabelCalendar({
   today,
   eventsByDate,
   onSelectDate,
+  onChangeMonth,
 }: {
   basePath: string;
   monthAnchor: DateString;
@@ -42,7 +45,14 @@ export function LabelCalendar({
   /** 絞り込み適用後の予定を日付ごとにまとめたもの */
   eventsByDate: Map<DateString, MyEvent[]>;
   onSelectDate: (date: DateString) => void;
+  /**
+   * 月を切り替える (v1.31.10)。渡すと前後の月ボタンと、枠の中の左右スワイプで
+   * ページを読み直さずに切り替える。渡さないときは従来どおりリンクで移る
+   */
+  onChangeMonth?: (diff: -1 | 1) => void;
 }) {
+  // 左右スワイプで月を切り替える。縦の動き (画面のスクロール) が大きいときは拾わない
+  const touchStart = useRef<{ x: number; y: number } | null>(null);
   const { year, month } = parseDate(monthAnchor);
   const total = daysInMonth(year, month);
   const leading = getWeekday(formatDate(year, month, 1));
@@ -56,21 +66,39 @@ export function LabelCalendar({
   const todayInThisMonth = cells.includes(today);
 
   return (
-    <section className="rounded-xl border border-[var(--border)] px-1.5 py-1.5">
+    <section
+      className="rounded-xl bg-[var(--cell)] px-1.5 py-1.5"
+      // 画面全体のタブ切り替えのスワイプと取り合わないように (SwipeTabs)
+      data-no-swipe={onChangeMonth ? true : undefined}
+      onTouchStart={(event) => {
+        const touch = event.touches[0];
+        touchStart.current = { x: touch.clientX, y: touch.clientY };
+      }}
+      onTouchEnd={(event) => {
+        const start = touchStart.current;
+        touchStart.current = null;
+        if (!start || !onChangeMonth) return;
+        const touch = event.changedTouches[0];
+        const dx = touch.clientX - start.x;
+        const dy = touch.clientY - start.y;
+        if (Math.abs(dx) < 50 || Math.abs(dx) < Math.abs(dy) * 1.5) return;
+        onChangeMonth(dx < 0 ? 1 : -1);
+      }}
+    >
       <header className="flex items-center justify-between">
-        <Link
+        <MonthButton
+          label="前の月"
           href={href(addMonths(monthAnchor, -1))}
-          prefetch
-          aria-label="前の月"
-          className="px-3 py-0.5 text-lg"
+          onClick={onChangeMonth ? () => onChangeMonth(-1) : undefined}
         >
           ‹
-        </Link>
+        </MonthButton>
         <div className="flex items-baseline gap-2">
-          <h2 className="text-sm font-bold">
+          <h2 className="text-[16px] font-bold">
             {year}年{month}月
           </h2>
-          {selectedDate !== today ? (
+          {/* 見出しの上に「今日」ボタンがある画面 (ホーム) では重ねて出さない */}
+          {selectedDate !== today && !onChangeMonth ? (
             <a
               href={href(today)}
               onClick={(event) => {
@@ -92,14 +120,13 @@ export function LabelCalendar({
             </a>
           ) : null}
         </div>
-        <Link
+        <MonthButton
+          label="次の月"
           href={href(addMonths(monthAnchor, 1))}
-          prefetch
-          aria-label="次の月"
-          className="px-3 py-0.5 text-lg"
+          onClick={onChangeMonth ? () => onChangeMonth(1) : undefined}
         >
           ›
-        </Link>
+        </MonthButton>
       </header>
 
       <div className="mt-1 grid grid-cols-7 gap-px">
@@ -145,13 +172,18 @@ export function LabelCalendar({
                 event.preventDefault();
                 onSelectDate(date);
               }}
-              className={`flex min-h-14 flex-col items-stretch rounded p-0.5 ${
-                isSelected ? "bg-[var(--surface)] ring-1 ring-[var(--foreground)]" : ""
-              }`}
+              className="flex min-h-14 flex-col items-stretch rounded-md p-0.5"
             >
+              {/* 日付の丸 (Apple のカレンダーと同じ: 今日は赤、選んだ日は黒。v1.50) */}
               <span
-                className={`mx-auto flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[11px] ${
-                  isToday ? "bg-[var(--primary)] font-bold text-[var(--primary-fg)]" : ""
+                className={`mx-auto flex h-[22px] w-[22px] shrink-0 items-center justify-center rounded-full text-[12px] tabular-nums ${
+                  isSelected
+                    ? isToday
+                      ? "bg-[var(--accent)] font-semibold text-white"
+                      : "bg-[var(--foreground)] font-semibold text-[var(--background)]"
+                    : isToday
+                      ? "font-semibold text-[var(--accent)]"
+                      : ""
                 }`}
               >
                 {parseDate(date).day}
@@ -160,22 +192,25 @@ export function LabelCalendar({
               <span className="mt-0.5 flex flex-col gap-px overflow-hidden">
                 {shown.map((event) => {
                   const color = eventColor(event);
+                  // 終日 (イベント・締切) は色の地に白い文字、時刻のある予定はうすい地に濃い文字
+                  const allDay = event.kind === "deadline" || event.allDay === true;
                   return (
                     <span
                       key={`${event.kind}-${event.sourceId}`}
-                      className="truncate rounded-sm px-0.5 text-[8px] leading-[11px]"
-                      style={{
-                        backgroundColor: color.bg,
-                        color: color.fg,
-                      }}
+                      className="truncate rounded-[3px] px-[3px] text-[9px] font-medium leading-[13px]"
+                      style={
+                        allDay
+                          ? { backgroundColor: color.bg, color: color.fg }
+                          : { backgroundColor: eventTint(color.bg), color: eventInk(color.bg) }
+                      }
                     >
                       {eventShortLabel(event)}
                     </span>
                   );
                 })}
                 {rest > 0 ? (
-                  <span className="text-center text-[8px] leading-[11px] text-[var(--muted)]">
-                    +{rest}
+                  <span className="px-[3px] text-[9px] leading-[13px] text-[var(--muted)]">
+                    ほか{rest}件
                   </span>
                 ) : null}
               </span>
@@ -184,5 +219,33 @@ export function LabelCalendar({
         })}
       </div>
     </section>
+  );
+}
+
+/** 前後の月へ。押しやすいよう 44px 四方 (v1.31.10) */
+function MonthButton({
+  label,
+  href,
+  onClick,
+  children,
+}: {
+  label: string;
+  href: string;
+  onClick?: () => void;
+  children: React.ReactNode;
+}) {
+  const className =
+    "grid h-11 w-11 place-items-center text-[24px] leading-none text-[var(--tint)] active:opacity-60";
+  if (onClick) {
+    return (
+      <button type="button" aria-label={label} onClick={onClick} className={className}>
+        {children}
+      </button>
+    );
+  }
+  return (
+    <Link href={href} prefetch aria-label={label} className={className}>
+      {children}
+    </Link>
   );
 }

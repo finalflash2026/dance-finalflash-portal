@@ -287,3 +287,12 @@ export function addDays(date: DateString, diff: number): DateString {
   const d = new Date(Date.UTC(year, month - 1, day + diff));
   return formatDate(d.getUTCFullYear(), d.getUTCMonth() + 1, d.getUTCDate());
 }
+
+/** 日付の差 (日)。to が後ろなら正 */
+export function daysBetween(from: string, to: string): number {
+  const a = parseDate(from);
+  const b = parseDate(to);
+  return Math.round(
+    (Date.UTC(b.year, b.month - 1, b.day) - Date.UTC(a.year, a.month - 1, a.day)) / 86_400_000,
+  );
+}

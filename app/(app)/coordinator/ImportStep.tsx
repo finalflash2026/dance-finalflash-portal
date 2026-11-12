@@ -11,6 +11,7 @@ import {
   normalizeDateInput,
   normalizeTimeInput,
 } from "@/lib/time";
+import type { DateString } from "@/lib/types";
 
 import { ImportTimeline } from "./ImportTimeline";
 import { effectiveRoomRaw, findConflicts, rowError, type Row } from "./rows";
@@ -41,7 +42,17 @@ interface ParseResponse {
   skipped: number;
 }
 
-export function ImportStep() {
+export function ImportStep({
+  onImported,
+  onNext,
+  nextLabel = "日程調整へ",
+}: {
+  /** 確定した予約枠の月 (一番多い月)。②③の対象の月をこれに合わせる (v1.32.6) */
+  onImported: (month: DateString) => void;
+  onNext: () => void;
+  /** 次の手順のボタンの文字 (日程調整の無い DB では「割り振りへ」。v1.49) */
+  nextLabel?: string;
+}) {
   const roomById = useRoomById();
   const nextKey = useRef(0);
   const fileInput = useRef<HTMLInputElement>(null);
@@ -78,7 +89,7 @@ export function ImportStep() {
       });
       const body = await res.json().catch(() => ({}));
       if (!res.ok) {
-        setError(body.error ?? "解析に失敗しました");
+        setError(body.error ?? "解析に失敗しました。");
         return;
       }
 
@@ -125,7 +136,7 @@ export function ImportStep() {
       });
       const body = await res.json().catch(() => ({}));
       if (!res.ok) {
-        setError(body.error ?? "登録に失敗しました");
+        setError(body.error ?? "登録に失敗しました。");
         return;
       }
 
@@ -140,6 +151,8 @@ export function ImportStep() {
       setResult(
         `登録 ${body.inserted}件 / 重複スキップ ${body.skipped}件${merged}${learned}`,
       );
+      const month = mostCommonMonth(rows.map((row) => row.date.trim()));
+      if (month) onImported(month);
       setRows([]);
       setFileNotes([]);
       setSkipped(0);
@@ -183,14 +196,12 @@ export function ImportStep() {
 
   return (
     <div className="space-y-6">
+      <div className="grid gap-3 sm:grid-cols-2">
       <PromptCard />
 
-      <section className="space-y-3">
-        <h2 className="text-base font-bold">1. CSVをアップロード</h2>
-        <p className="text-sm text-[var(--muted)]">
-          1行目が「{CSV_HEADER_LINE}」のCSVを選んでください(複数可)。
-          ファイル自体はサーバーに保存されません。
-        </p>
+      <section className="space-y-3 rounded-2xl bg-[var(--cell)] p-4">
+        <h2 className="text-[17px] font-semibold">CSV を読み込む</h2>
+        <p className="font-mono text-[12px] text-[var(--muted)]">{CSV_HEADER_LINE}</p>
         <input
           ref={fileInput}
           type="file"
@@ -219,29 +230,33 @@ export function ImportStep() {
           </p>
         ) : null}
       </section>
+      </div>
 
       <ErrorMessage>{error}</ErrorMessage>
       {result ? (
-        <p className="rounded-lg bg-[var(--surface)] px-3 py-2 text-sm">
-          {result}
-        </p>
+        <div className="space-y-2 rounded-lg bg-[var(--surface)] px-3 py-2 text-sm">
+          <p>{result}</p>
+          <button type="button" onClick={onNext} className={buttonClass}>
+            {nextLabel}
+          </button>
+        </div>
       ) : null}
 
       {rows.length > 0 ? (
         <section className="space-y-3">
-          <h2 className="text-base font-bold">2. 内容を確認する</h2>
+          <h2 className="text-[17px] font-semibold">読み取った予約枠</h2>
           <p className="text-sm text-[var(--muted)]">
             {rows.length}件
-            {invalidRows.length > 0 ? ` / 要修正 ${invalidRows.length}件` : ""}
-            {overlapCount > 0 ? ` / 時間の重なり ${overlapCount}件` : ""}
-            {duplicateCount > 0 ? ` / 重複 ${duplicateCount}件` : ""}
+            {invalidRows.length > 0 ? `・要修正 ${invalidRows.length}件` : ""}
+            {overlapCount > 0 ? `・時間の重なり ${overlapCount}件` : ""}
+            {duplicateCount > 0 ? `・重複 ${duplicateCount}件` : ""}
           </p>
 
           {/* 時刻や部屋が確定しない行はタイムラインに置けないので先に直させる */}
           {invalidRows.length > 0 ? (
             <div className="space-y-2">
               <h3 className="text-sm font-bold text-[var(--danger-fg)]">
-                要修正 ({invalidRows.length}件)
+                要修正({invalidRows.length}件)
               </h3>
               <ul className="space-y-2">
                 {invalidRows.map((row) => (
@@ -265,15 +280,13 @@ export function ImportStep() {
             conflicts={conflicts}
             onSelect={setEditingKey}
           />
-          {validRows.length > 0 ? (
+          {/* 説明は ⚠ があるときだけ (ブロックが押せることは見た目で分かる。§12 / v1.33) */}
+          {overlapCount > 0 || duplicateCount > 0 ? (
             <p className="text-xs text-[var(--muted)]">
-              ブロックをタップすると日付・時刻・部屋を編集できます。
               {overlapCount > 0
-                ? " ⚠ の枠は同じ部屋で時間が重なっています。読み取りミスの可能性があるので確認してください。"
+                ? "⚠ の枠は同じ部屋で時間が重なっています。読み取りミスがないか確かめてください。"
                 : ""}
-              {duplicateCount > 0
-                ? " ⚠ の枠のうち完全に同じものは、確定時に自動でスキップされます。"
-                : ""}
+              {duplicateCount > 0 ? " 同じ枠は確定のときに飛ばします。" : ""}
             </p>
           ) : null}
 
@@ -287,9 +300,6 @@ export function ImportStep() {
           </button>
 
           <div className="space-y-2 border-t border-[var(--border)] pt-4">
-            <p className="text-sm text-[var(--muted)]">
-              確定すると予約枠として登録されます。同じ日・部屋・時間の予約枠が既にあれば自動でスキップされます。
-            </p>
             <button
               type="button"
               disabled={pending || invalidRows.length > 0}
@@ -333,22 +343,21 @@ function PromptCard() {
   }
 
   return (
-    <section className="space-y-3 rounded-xl border border-[var(--border)] p-3">
-      <h2 className="text-base font-bold">0. スクショからCSVを作る</h2>
-      <p className="text-sm text-[var(--muted)]">
-        予約完了ページのスクリーンショットと下のプロンプトを、自分のAI
-        (ChatGPT / Claude など) に渡してCSVを作らせてください。
-        このサイトからAIを呼ぶことはありません。
-      </p>
-      <pre className="max-h-56 overflow-auto rounded-lg bg-[var(--surface)] p-3 text-xs whitespace-pre-wrap">
-        {COORDINATOR_PROMPT}
-      </pre>
+    // 予約完了ページのスクショと一緒に自分の AI へ渡すプロンプト (§9.3)。
+    // 中身は畳んでおく。コピーして渡すだけなので、毎回読むものではない
+    <section className="space-y-3 rounded-2xl bg-[var(--cell)] p-4">
+      <h2 className="text-[17px] font-semibold">スクショから CSV を作る</h2>
       <button type="button" onClick={copy} className={secondaryButtonClass}>
-        {copied ? "コピーしました" : "プロンプトをコピー"}
+        {copied ? "コピーしました" : "AI に渡すプロンプトをコピー"}
       </button>
-      <p className="rounded-lg bg-[var(--danger-bg)] px-3 py-2 text-sm text-[var(--danger-fg)]">
-        AIの出力は必ずこの画面で目視チェックしてから確定してください。
-      </p>
+      <details className="group">
+        <summary className="cursor-pointer list-none text-[13px] text-[var(--muted)] [&::-webkit-details-marker]:hidden">
+          プロンプトを見る <span aria-hidden className="inline-block transition-transform group-open:rotate-90">›</span>
+        </summary>
+        <pre className="mt-2 max-h-56 overflow-auto rounded-lg bg-[var(--surface)] p-3 text-xs whitespace-pre-wrap">
+          {COORDINATOR_PROMPT}
+        </pre>
+      </details>
     </section>
   );
 }
@@ -465,7 +474,7 @@ function RowCard({
         <input
           aria-label="日付"
           value={row.date}
-          placeholder="2026-08-06"
+          placeholder="20260806"
           inputMode="numeric"
           disabled={disabled}
           onChange={(e) => onChange({ date: normalizeDateInput(e.target.value) })}
@@ -475,7 +484,7 @@ function RowCard({
         <input
           aria-label="開始時刻"
           value={row.start}
-          placeholder="13:00"
+          placeholder="1300"
           inputMode="numeric"
           disabled={disabled}
           onChange={(e) => onChange({ start: normalizeTimeInput(e.target.value) })}
@@ -485,7 +494,7 @@ function RowCard({
         <input
           aria-label="終了時刻"
           value={row.end}
-          placeholder="21:30"
+          placeholder="2130"
           inputMode="numeric"
           disabled={disabled}
           onChange={(e) => onChange({ end: normalizeTimeInput(e.target.value) })}
@@ -494,10 +503,8 @@ function RowCard({
         />
       </div>
 
-      {/* iOS の数字キーボードには : も - も無いので、数字だけでも通ることを明示する */}
-      <p className="text-[11px] text-[var(--muted)]">
-        数字だけでも入力できます (1700 → 17:00 / 20260806 → 2026-08-06)
-      </p>
+      {/* iOS の数字キーボードには : も - も無い。数字だけで通ることは
+          プレースホルダーの例 (1300 / 20260806) で示す (§12 / v1.33) */}
 
       <div className="flex gap-2">
         <input
@@ -614,13 +621,13 @@ function NewRoomForm({
       });
       const body = await res.json().catch(() => ({}));
       if (!res.ok) {
-        setError(body.error ?? "登録に失敗しました");
+        setError(body.error ?? "登録に失敗しました。");
         return;
       }
       onCreated(body.room.id as number);
       router.refresh();
     } catch {
-      setError("通信に失敗しました");
+      setError("通信に失敗しました。");
     } finally {
       setPending(false);
     }
@@ -630,7 +637,7 @@ function NewRoomForm({
     "w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-2 py-1.5 text-sm outline-none";
 
   return (
-    <div className="space-y-2 rounded-lg border border-[var(--border)] bg-[var(--surface)] p-2">
+    <div className="space-y-2 rounded-xl bg-[var(--fill)] p-3">
       <p className="text-xs font-bold">新しい練習場所を登録</p>
       <input
         aria-label="練習場所の名前"
@@ -654,9 +661,6 @@ function NewRoomForm({
           <option key={s} value={s} />
         ))}
       </datalist>
-      <p className="text-[11px] text-[var(--muted)]">
-        所在はカレンダーの列の見出しになります。新しい所在も入力できます
-      </p>
       {error ? (
         <p role="alert" className="text-xs text-[var(--danger-fg)]">
           {error}
@@ -675,11 +679,26 @@ function NewRoomForm({
           type="button"
           onClick={onCancel}
           disabled={pending}
-          className="rounded-lg border border-[var(--border)] px-3 py-1.5 text-xs"
+          className="rounded-lg bg-[var(--fill)] px-3 py-1.5 text-xs font-medium text-[var(--tint)]"
         >
           やめる
         </button>
       </div>
     </div>
   );
+}
+
+/** 'YYYY-MM-DD' の並びから、一番多い月の月初を返す。月をまたぐ CSV でも主な月に合わせる */
+function mostCommonMonth(dates: string[]): DateString | null {
+  const counts = new Map<string, number>();
+  for (const date of dates) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) continue;
+    const month = `${date.slice(0, 7)}-01`;
+    counts.set(month, (counts.get(month) ?? 0) + 1);
+  }
+  let best: string | null = null;
+  for (const [month, count] of counts) {
+    if (best === null || count > counts.get(best)!) best = month;
+  }
+  return best as DateString | null;
 }

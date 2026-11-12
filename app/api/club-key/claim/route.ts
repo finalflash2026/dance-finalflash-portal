@@ -24,14 +24,14 @@ export const runtime = "nodejs";
 export async function POST() {
   if (!hasSupabaseEnv()) {
     return Response.json(
-      { error: "サーバーの設定が未完了です (Supabase 未接続)" },
+      { error: "サーバーの設定が未完了です(Supabase 未接続)。" },
       { status: 503 },
     );
   }
 
   const profile = await getCurrentProfile();
   if (!profile) {
-    return Response.json({ error: "ログインしてください" }, { status: 401 });
+    return Response.json({ error: "ログインしてください。" }, { status: 401 });
   }
   // 閲覧のみ (v1.30) は書けない。RLS でも止まるが、ここで弾けば
   // 「permission denied」ではなく理由の分かる日本語を返せる (§13.2)
@@ -63,7 +63,7 @@ export async function POST() {
         // 施錠の通知と同じ形に揃える (v1.26)。1行目に誰が、2行目に何を
         title: profile.username,
         body: "部室の鍵を持っています",
-        url: "/overview",
+        url: "/",
         // 所持者は1人なので、常に最新の1件だけ残ればよい
         tag: "club-key",
       },

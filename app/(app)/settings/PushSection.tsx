@@ -2,7 +2,18 @@
 
 import { useCallback, useEffect, useState } from "react";
 
-import { settingsSectionClass } from "@/components/ui";
+import { SettingsGroup } from "@/components/SettingsGroup";
+import { Switch, primaryButtonClass } from "@/components/ui";
+import {
+  isIos,
+  isStandalone,
+  savePushSubscription,
+  subscribePush,
+} from "@/lib/push-client";
+import { isNativeApp } from "@/lib/native";
+import { useSchemaV2 } from "@/lib/schema-context";
+
+import { NativeNotifySection } from "./NativeNotifySection";
 import { createClient } from "@/lib/supabase/client";
 
 /**
@@ -23,6 +34,12 @@ export interface PushPrefs {
   key: boolean;
   /** 掲示板の連絡 (§6.1.3 / v1.27) */
   message: boolean;
+  /** 朝の「今日の予定」(§6.7.3 / v1.30) */
+  reminder: boolean;
+  /** 締切のリマインド (§6.7.3) */
+  deadline: boolean;
+  /** 3役からの告知 (§6.7.4) */
+  announcement: boolean;
 }
 
 const CATEGORIES: {
@@ -30,6 +47,21 @@ const CATEGORIES: {
   label: string;
   hint: string;
 }[] = [
+  {
+    key: "announcement",
+    label: "3役からの告知",
+    hint: "サークル全体への大事な連絡",
+  },
+  {
+    key: "reminder",
+    label: "今日の予定",
+    hint: "練習やイベントがある日の朝7時",
+  },
+  {
+    key: "deadline",
+    label: "締切",
+    hint: "締切の日の朝。大事な締切は1週間前にも",
+  },
   {
     key: "schedule",
     label: "練習日程の公開",
@@ -57,34 +89,10 @@ const DEFAULT_PREFS: PushPrefs = {
   room: true,
   key: true,
   message: true,
+  reminder: true,
+  deadline: true,
+  announcement: true,
 };
-
-/**
- * VAPID の公開鍵は base64url の文字列で渡されるが、
- * `pushManager.subscribe` はバイト列しか受け取らない。
- */
-function toApplicationServerKey(base64Url: string): Uint8Array<ArrayBuffer> {
-  const padding = "=".repeat((4 - (base64Url.length % 4)) % 4);
-  const base64 = (base64Url + padding).replace(/-/g, "+").replace(/_/g, "/");
-  const raw = window.atob(base64);
-  // ArrayBuffer から作る。長さだけ渡すと SharedArrayBuffer も含む型になり、
-  // subscribe() が受け取る BufferSource に合わない
-  const output = new Uint8Array(new ArrayBuffer(raw.length));
-  for (let i = 0; i < raw.length; i++) output[i] = raw.charCodeAt(i);
-  return output;
-}
-
-/** ホーム画面に追加したアプリとして開いているか */
-function isStandalone(): boolean {
-  return (
-    window.matchMedia("(display-mode: standalone)").matches ||
-    (navigator as Navigator & { standalone?: boolean }).standalone === true
-  );
-}
-
-function isIos(): boolean {
-  return /iP(hone|ad|od)/.test(navigator.userAgent);
-}
 
 type Status = "checking" | "unsupported" | "ready";
 
@@ -92,9 +100,16 @@ export function PushSection({ vapidPublicKey }: { vapidPublicKey: string }) {
   const [status, setStatus] = useState<Status>("checking");
   const [subscribed, setSubscribed] = useState(false);
   const [prefs, setPrefs] = useState<PushPrefs>(DEFAULT_PREFS);
+  const schemaV2 = useSchemaV2();
+  // 予定・締切・告知の通知は DB の 0020 から (v1.49。済んでいない DB では出さない)
+  const categories = schemaV2
+    ? CATEGORIES
+    : CATEGORIES.filter((c) => c.key !== "reminder" && c.key !== "deadline" && c.key !== "announcement");
   const [denied, setDenied] = useState(false);
   const [standalone, setStandalone] = useState(true);
   const [ios, setIos] = useState(false);
+  // iOS アプリ (Capacitor) の WebView には Web Push が無い (SPEC §2.3 / v1.37)
+  const [native, setNative] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -113,16 +128,24 @@ export function PushSection({ vapidPublicKey }: { vapidPublicKey: string }) {
     const supabase = createClient();
     const { data } = await supabase
       .from("push_subscriptions")
-      .select("notify_schedule, notify_room, notify_key, notify_message")
+      // 予定・締切・告知の列は 0020 から (v1.49)
+      .select(
+        schemaV2
+          ? "notify_schedule, notify_room, notify_key, notify_message, notify_reminder, notify_deadline, notify_announcement"
+          : "notify_schedule, notify_room, notify_key, notify_message",
+      )
       .eq("endpoint", subscription.endpoint)
       .maybeSingle();
 
     if (data) {
-      const row = data as {
+      const row = data as unknown as {
         notify_schedule: boolean;
         notify_room: boolean;
         notify_key: boolean;
         notify_message: boolean | null;
+        notify_reminder?: boolean | null;
+        notify_deadline?: boolean | null;
+        notify_announcement?: boolean | null;
       };
       setPrefs({
         schedule: row.notify_schedule,
@@ -130,13 +153,17 @@ export function PushSection({ vapidPublicKey }: { vapidPublicKey: string }) {
         key: row.notify_key,
         // 列を足す前に登録した端末は null で返る。既定はオン
         message: row.notify_message ?? true,
+        reminder: row.notify_reminder ?? true,
+        deadline: row.notify_deadline ?? true,
+        announcement: row.notify_announcement ?? true,
       });
     }
-  }, []);
+  }, [schemaV2]);
 
   useEffect(() => {
     setStandalone(isStandalone());
     setIos(isIos());
+    setNative(isNativeApp());
     setDenied(
       typeof Notification !== "undefined" && Notification.permission === "denied",
     );
@@ -163,24 +190,14 @@ export function PushSection({ vapidPublicKey }: { vapidPublicKey: string }) {
     setError(null);
     setNotice(null);
     try {
-      const permission = await Notification.requestPermission();
+      const permission = await subscribePush(vapidPublicKey, { ...DEFAULT_PREFS });
       if (permission !== "granted") {
         setDenied(permission === "denied");
         setError(
-          "通知が許可されませんでした。端末の設定から許可し直してください",
+          "通知が許可されませんでした。端末の設定から許可し直してください。",
         );
         return;
       }
-
-      const registration = await navigator.serviceWorker.register("/sw.js");
-      await navigator.serviceWorker.ready;
-      const subscription = await registration.pushManager.subscribe({
-        // false は許されない (バックグラウンドで黙って動く用途を塞ぐため)
-        userVisibleOnly: true,
-        applicationServerKey: toApplicationServerKey(vapidPublicKey),
-      });
-
-      await save(subscription, DEFAULT_PREFS);
       setPrefs(DEFAULT_PREFS);
       setSubscribed(true);
       setNotice("この端末で通知を受け取ります");
@@ -214,7 +231,7 @@ export function PushSection({ vapidPublicKey }: { vapidPublicKey: string }) {
           const body = (await res.json().catch(() => null)) as {
             error?: string;
           } | null;
-          setError(body?.error ?? "通知を解除できませんでした");
+          setError(body?.error ?? "通知を解除できませんでした。");
           return;
         }
         await subscription.unsubscribe();
@@ -233,24 +250,7 @@ export function PushSection({ vapidPublicKey }: { vapidPublicKey: string }) {
   }
 
   async function save(subscription: PushSubscription, next: PushPrefs) {
-    const json = subscription.toJSON() as {
-      keys?: { p256dh?: string; auth?: string };
-    };
-    const res = await fetch("/api/push/subscribe", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        endpoint: subscription.endpoint,
-        keys: { p256dh: json.keys?.p256dh, auth: json.keys?.auth },
-        prefs: next,
-      }),
-    });
-    if (!res.ok) {
-      const body = (await res.json().catch(() => null)) as {
-        error?: string;
-      } | null;
-      throw new Error(body?.error ?? "保存できませんでした");
-    }
+    await savePushSubscription(subscription, { ...next });
   }
 
   async function toggle(category: keyof PushPrefs) {
@@ -265,7 +265,7 @@ export function PushSection({ vapidPublicKey }: { vapidPublicKey: string }) {
       if (!subscription) {
         setPrefs(prefs);
         setSubscribed(false);
-        setError("この端末の登録が切れています。もう一度オンにしてください");
+        setError("この端末の登録が切れています。もう一度オンにしてください。");
         return;
       }
       await save(subscription, next);
@@ -275,30 +275,34 @@ export function PushSection({ vapidPublicKey }: { vapidPublicKey: string }) {
     }
   }
 
+  // iOS アプリは端末で予約する通知 (SPEC §2.3.1 / v1.38)
+  if (native) return <NativeNotifySection />;
+
   return (
-    <section className={settingsSectionClass}>
-      <h2 className="text-base font-bold">通知</h2>
-      <p className="text-sm text-[var(--muted)]">
-        この端末だけの設定です。別の端末では別に登録が要ります。
-      </p>
+    <SettingsGroup
+      title="通知"
+      icon="bell"
+      summary={status === "ready" && subscribed ? "オン" : "オフ"}
+      hint="この端末だけの設定です。別の端末では別に登録が要ります。iPhone は、ホーム画面に追加したアイコンから開いたときだけ届きます。"
+    >
 
       {error ? (
-        <p role="alert" className="text-sm text-[var(--danger-fg)]">
+        <p role="alert" className="text-[15px] text-[var(--danger-fg)]">
           {error}
         </p>
       ) : null}
       {notice ? (
-        <p className="rounded-lg bg-[var(--surface)] px-3 py-2 text-sm">
+        <p className="rounded-lg bg-[var(--surface)] px-3 py-2 text-[15px]">
           {notice}
         </p>
       ) : null}
 
       {status === "checking" ? (
-        <p className="text-sm text-[var(--muted)]">確認しています…</p>
+        <p className="text-[15px] text-[var(--muted)]">確認しています…</p>
       ) : null}
 
       {status === "unsupported" ? (
-        <div className="rounded-lg border border-[var(--border)] px-3 py-3 text-sm">
+        <div className="rounded-xl bg-[var(--cell)] px-4 py-3 text-[15px] text-[var(--muted)]">
           {ios && !standalone ? (
             <>
               <p className="font-bold">ホーム画面に追加すると使えます</p>
@@ -319,7 +323,7 @@ export function PushSection({ vapidPublicKey }: { vapidPublicKey: string }) {
       {status === "ready" && !subscribed ? (
         <div className="space-y-2">
           {denied ? (
-            <p className="text-sm text-[var(--danger-fg)]">
+            <p className="text-[15px] text-[var(--danger-fg)]">
               通知がブロックされています。端末の設定でこのサイトの通知を許可してから、もう一度押してください。
             </p>
           ) : null}
@@ -327,52 +331,46 @@ export function PushSection({ vapidPublicKey }: { vapidPublicKey: string }) {
             type="button"
             onClick={enable}
             disabled={busy}
-            className="rounded-lg border border-[var(--foreground)] px-4 py-2 text-sm font-bold disabled:opacity-50"
+            className={primaryButtonClass}
           >
             この端末で通知を受け取る
           </button>
-          {ios && !standalone ? (
-            <p className="text-xs text-[var(--muted)]">
-              iPhone では、ホーム画面に追加したアイコンから開いた場合のみ届きます。
-            </p>
-          ) : null}
         </div>
       ) : null}
 
-      {status === "ready" && subscribed ? (
-        <div className="space-y-2">
-          <ul className="space-y-1">
-            {CATEGORIES.map((category) => (
-              <li key={category.key}>
-                <label className="flex cursor-pointer items-start gap-3 rounded-lg border border-[var(--border)] px-3 py-2">
-                  <input
-                    type="checkbox"
-                    checked={prefs[category.key]}
-                    onChange={() => toggle(category.key)}
-                    className="mt-0.5 h-4 w-4 shrink-0"
-                  />
-                  <span className="min-w-0">
-                    <span className="block text-sm font-bold">
-                      {category.label}
-                    </span>
-                    <span className="block text-xs text-[var(--muted)]">
-                      {category.hint}
-                    </span>
-                  </span>
-                </label>
-              </li>
-            ))}
-          </ul>
+      {/*
+        通知の種類 (v1.31.12)。**オンにする前から一覧を見せる** — 何が届くのかが
+        分からないとオンにする理由も分からない。オンにするまでは選べない状態で出す
+      */}
+      <div className="space-y-2">
+        <p className="text-[15px] font-semibold">届く通知</p>
+        <ul className="divide-y divide-[var(--separator)] rounded-xl bg-[var(--fill)]">
+          {categories.map((category) => (
+            <li key={category.key} className="flex items-center gap-3 px-3 py-2.5">
+              <span className="min-w-0 flex-1">
+                <span className="block text-[16px]">{category.label}</span>
+                <span className="block text-[13px] text-[var(--muted)]">{category.hint}</span>
+              </span>
+              <Switch
+                checked={subscribed ? prefs[category.key] : false}
+                disabled={!subscribed || busy}
+                label={category.label}
+                onChange={() => toggle(category.key)}
+              />
+            </li>
+          ))}
+        </ul>
+        {!subscribed ? null : (
           <button
             type="button"
             onClick={disable}
             disabled={busy}
-            className="text-sm text-[var(--muted)] underline disabled:opacity-50"
+            className="h-11 text-[15px] text-[var(--danger-fg)] disabled:opacity-50"
           >
             この端末への通知を止める
           </button>
-        </div>
-      ) : null}
-    </section>
+        )}
+      </div>
+    </SettingsGroup>
   );
 }

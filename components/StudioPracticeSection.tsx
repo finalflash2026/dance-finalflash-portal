@@ -4,9 +4,20 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 
 import { AttendanceSheet } from "@/components/AttendanceSheet";
-import { ErrorMessage, buttonClass, inputClass } from "@/components/ui";
+import {
+  ErrorMessage,
+  buttonClass,
+  inputClass,
+  mediumButtonClass,
+  secondaryButtonClass,
+  smallButtonClass,
+  smallDestructiveButtonClass,
+} from "@/components/ui";
+import { confirmAction } from "@/lib/confirm";
 import { formatSpanRange, spansMidnight } from "@/lib/day-span";
+import { dbErrorMessage } from "@/lib/error-message";
 import { createClient } from "@/lib/supabase/client";
+import { showToast } from "@/lib/toast";
 import {
   finalizeTimeInput,
   formatDateLabel,
@@ -24,9 +35,10 @@ import {
  * 決める性質のものではなく、名簿を作らせると「入れ忘れた人に伝わらない」
  * が起きる。
  *
- * **設定できるのは自分の1ジャンだけ。** 他ジャンルの予定を勝手に立てられると、
- * そのジャンルの人には出所の分からない予定が届く。RLS (`ins_gpractice`) が
- * 同じ条件を持っているので、画面の制限は補助でしかない。
+ * **設定できるのは自分のジャンル (1/2/3ジャン) だけ** (v1.33。以前は1ジャンだけ)。
+ * 他ジャンルの予定を勝手に立てられると、そのジャンルの人には出所の分からない
+ * 予定が届く。RLS (`ins_gpractice`) が同じ条件を持っているので、画面の制限は
+ * 補助でしかない。ジャンルごとにこの欄を1つずつ並べる。
  *
  * 直せるのは登録した本人だけ。同じジャンルの他の人にも触らせない
  * (空き申請の取消と同じ考え方。§6.1)。
@@ -51,14 +63,17 @@ export function StudioPracticeSection({
   practices,
   generations,
   currentUserId,
+  tour = false,
 }: {
   genreCode: string;
   genreId: number;
-  /** 自分の1ジャンのスタ練 (今日以降) */
+  /** このジャンルのスタ練 (今日以降) */
   practices: StudioPractice[];
   /** 対象期の候補 (現役に実在する期。新しい順) */
   generations: number[];
   currentUserId: string;
+  /** 初回ツアーの吹き出しを付ける欄か (並んだ欄の最初だけ) */
+  tour?: boolean;
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -136,7 +151,7 @@ export function StudioPracticeSection({
       note: note.trim() || null,
       target_generations: targets,
     };
-    // RLS が genre_id = 自分の1ジャン と created_by = auth.uid() を要求する。
+    // RLS が genre_id = 自分のジャンル と created_by = auth.uid() を要求する。
     // ここで genreId を渡しても、他ジャンルには書けない
     const { error: writeError } = editing
       ? await supabase
@@ -151,17 +166,18 @@ export function StudioPracticeSection({
     setPending(false);
     if (writeError) {
       setError(
-        `${editing ? "変更" : "登録"}できませんでした: ${writeError.message}`,
+        dbErrorMessage(`${editing ? "変更" : "登録"}できませんでした`, writeError),
       );
       return;
     }
+    showToast(editing ? "スタ練を変更しました" : `${genreCode}スタ練を登録しました`);
     reset();
     router.refresh();
   }
 
   async function remove(practice: StudioPractice) {
     if (
-      !window.confirm(
+      !await confirmAction(
         `${formatDateLabel(practice.date)} ${formatSpanRange(
           practice.startTime,
           practice.endTime,
@@ -179,24 +195,21 @@ export function StudioPracticeSection({
       .eq("id", practice.id);
     setPending(false);
     if (deleteError) {
-      setError(`削除できませんでした: ${deleteError.message}`);
+      setError(dbErrorMessage("削除できませんでした", deleteError));
       return;
     }
+    showToast("スタ練を削除しました");
     router.refresh();
   }
 
   return (
-    <section className="space-y-2">
-      <h2 className="text-sm font-bold">{genreCode}スタ練を設定する</h2>
-      <p className="text-xs text-[var(--muted)]">
-        登録すると、{genreCode}を取っている人全員のカレンダーに出ます。
-        メンバーを選ぶ必要はありません
-      </p>
+    <section className="space-y-2" data-tour={tour ? "studio" : undefined}>
+      <h2 className="text-[15px] font-bold">{genreCode}スタ練</h2>
 
       <ErrorMessage>{error}</ErrorMessage>
 
       {practices.length > 0 ? (
-        <ul className="divide-y divide-[var(--border)] rounded-xl border border-[var(--border)]">
+        <ul className="divide-y divide-[var(--separator)] rounded-xl bg-[var(--cell)]">
           {practices.map((practice) => (
             <li key={practice.id} className="flex items-center gap-2 px-3 py-2">
               {/*
@@ -212,21 +225,20 @@ export function StudioPracticeSection({
                 }}
                 className="min-w-0 flex-1 text-left"
               >
-                <p className="text-sm">
-                  <span className="font-medium">
+                <p className="text-[16px] leading-[22px]">
+                  <span className="font-semibold">
                     {formatDateLabel(practice.date)}
                   </span>{" "}
-                  <span className="tabular-nums text-[var(--muted)]">
+                  <span className="tabular-nums">
                     {formatSpanRange(practice.startTime, practice.endTime)}
                   </span>
                 </p>
-                <p className="truncate text-xs text-[var(--muted)]">
-                  @{practice.place}
-                  {practice.note ? ` / ${practice.note}` : ""}
-                  <span className="ml-1">({practice.createdByName})</span>
+                <p className="truncate text-[14px] leading-[20px] text-[var(--muted)]">
+                  {[practice.place, practice.note].filter(Boolean).join("・")}
+                  {`(${practice.createdByName})`}
                 </p>
                 {practice.targetGenerations ? (
-                  <p className="text-xs text-[var(--muted)]">
+                  <p className="text-[14px] leading-[20px] text-[var(--muted)]">
                     対象: {practice.targetGenerations.join("・")}期
                   </p>
                 ) : null}
@@ -238,7 +250,7 @@ export function StudioPracticeSection({
                     type="button"
                     disabled={pending}
                     onClick={() => startEdit(practice)}
-                    className="rounded border border-[var(--border)] px-2 py-1 text-xs"
+                    className={smallButtonClass}
                   >
                     編集
                   </button>
@@ -246,7 +258,7 @@ export function StudioPracticeSection({
                     type="button"
                     disabled={pending}
                     onClick={() => remove(practice)}
-                    className="rounded border border-[var(--border)] px-2 py-1 text-xs text-[var(--danger-fg)]"
+                    className={smallDestructiveButtonClass}
                   >
                     削除
                   </button>
@@ -258,9 +270,9 @@ export function StudioPracticeSection({
       ) : null}
 
       {open ? (
-        <div className="space-y-2 rounded-xl border border-[var(--border)] p-3">
+        <div className="space-y-2 rounded-xl bg-[var(--cell)] p-3">
           <label className="block">
-            <span className="text-sm font-medium">日付</span>
+            <span className="text-[15px] font-medium">日付</span>
             <input
               value={date}
               placeholder="20260910"
@@ -274,10 +286,10 @@ export function StudioPracticeSection({
 
           <div className="flex items-end gap-2">
             <label className="block flex-1">
-              <span className="text-sm font-medium">開始</span>
+              <span className="text-[15px] font-medium">開始</span>
               <input
                 value={startTime}
-                placeholder="19:00"
+                placeholder="1900"
                 inputMode="numeric"
                 disabled={pending}
                 onChange={(e) => setStartTime(normalizeTimeInput(e.target.value))}
@@ -285,12 +297,12 @@ export function StudioPracticeSection({
                 className={inputClass}
               />
             </label>
-            <span className="pb-2 text-sm">〜</span>
+            <span className="pb-2 text-[15px]">〜</span>
             <label className="block flex-1">
-              <span className="text-sm font-medium">終了</span>
+              <span className="text-[15px] font-medium">終了</span>
               <input
                 value={endTime}
-                placeholder="21:00"
+                placeholder="2100"
                 inputMode="numeric"
                 disabled={pending}
                 onChange={(e) => setEndTime(normalizeTimeInput(e.target.value))}
@@ -299,20 +311,17 @@ export function StudioPracticeSection({
               />
             </label>
           </div>
-          <p className="text-xs text-[var(--muted)]">
-            数字だけでも入力できます (20260910 → 2026-09-10 / 1900 → 19:00)
-          </p>
           {spansMidnight(startTime, endTime) &&
           /^\d{2}:\d{2}$/.test(startTime) &&
           /^\d{2}:\d{2}$/.test(endTime) ? (
-            <p className="rounded-lg bg-[var(--surface)] px-3 py-2 text-xs">
+            <p className="rounded-lg bg-[var(--surface)] px-3 py-2 text-[13px]">
               日をまたぐ予定として登録します (
               {formatSpanRange(startTime, endTime)})
             </p>
           ) : null}
 
           <label className="block">
-            <span className="text-sm font-medium">場所</span>
+            <span className="text-[15px] font-medium">場所</span>
             <input
               value={place}
               placeholder="例: スタジオ○○"
@@ -328,7 +337,7 @@ export function StudioPracticeSection({
             普段は触らない想定なので既定のまま進めても登録できる
           */}
           <div>
-            <span className="text-sm font-medium">対象の期</span>
+            <span className="text-[15px] font-medium">対象の期</span>
             <div className="mt-1 flex flex-wrap gap-1">
               {generations.map((generation) => {
                 const on = targets === null || targets.includes(generation);
@@ -339,7 +348,7 @@ export function StudioPracticeSection({
                     disabled={pending}
                     onClick={() => toggleGeneration(generation)}
                     aria-pressed={on}
-                    className={`rounded-full border px-3 py-1 text-xs ${
+                    className={`rounded-full border px-3 py-1 text-[13px] ${
                       on
                         ? "border-[var(--primary)] bg-[var(--primary)] font-bold text-[var(--primary-fg)]"
                         : "border-[var(--border)] text-[var(--muted)]"
@@ -350,15 +359,10 @@ export function StudioPracticeSection({
                 );
               })}
             </div>
-            <p className="mt-1 text-xs text-[var(--muted)]">
-              {targets === null
-                ? "全ての期が対象です"
-                : `${targets.join("・")}期のカレンダーにだけ出ます`}
-            </p>
           </div>
 
           <label className="block">
-            <span className="text-sm font-medium">メモ (任意)</span>
+            <span className="text-[15px] font-medium">メモ(任意)</span>
             <input
               value={note}
               placeholder="例: 振り入れ"
@@ -378,13 +382,14 @@ export function StudioPracticeSection({
               ? "保存中…"
               : editing
                 ? "この内容に変更する"
-                : `${genreCode}のスタ練として登録する`}
+                : // 押すと誰に届くかをボタンの文字で伝える (説明文は置かない。§12 / v1.33)
+                  `${genreCode}の${targets === null ? "全員" : `${targets.join("・")}期`}のカレンダーに出す`}
           </button>
           <button
             type="button"
             disabled={pending}
             onClick={reset}
-            className="w-full rounded-lg border border-[var(--border)] px-4 py-2 text-sm"
+            className={`${mediumButtonClass} w-full`}
           >
             やめる
           </button>
@@ -393,7 +398,7 @@ export function StudioPracticeSection({
         <button
           type="button"
           onClick={() => setOpen(true)}
-          className="w-full rounded-lg border border-[var(--border)] px-4 py-3 text-sm font-medium"
+          className={secondaryButtonClass}
         >
           スタ練の日程を追加する
         </button>
@@ -411,14 +416,15 @@ export function StudioPracticeSection({
           startTime={attending.startTime}
           endTime={attending.endTime}
           location={attending.place}
+          note={attending.note}
           currentUserId={currentUserId}
           onClose={() => setAttending(null)}
         />
       ) : null}
 
       {practices.length === 0 && !open ? (
-        <p className="text-xs text-[var(--muted)]">
-          予定されているスタ練はありません
+        <p className="text-[13px] text-[var(--muted)]">
+          今後のスタ練はありません
         </p>
       ) : null}
     </section>

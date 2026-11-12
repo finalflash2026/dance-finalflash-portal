@@ -37,7 +37,7 @@ export async function POST(request: Request) {
     form = await request.formData();
   } catch {
     return Response.json(
-      { error: "ファイルを受け取れませんでした (multipart/form-data で送ってください)" },
+      { error: "ファイルを受け取れませんでした(multipart/form-data で送ってください)。" },
       { status: 400 },
     );
   }
@@ -45,13 +45,13 @@ export async function POST(request: Request) {
   const files = form.getAll("files").filter((f): f is File => f instanceof File);
   if (files.length === 0) {
     return Response.json(
-      { error: "CSVファイルを選択してください" },
+      { error: "CSVファイルを選択してください。" },
       { status: 400 },
     );
   }
   if (files.length > MAX_FILES_PER_REQUEST) {
     return Response.json(
-      { error: `一度に選べるファイルは${MAX_FILES_PER_REQUEST}件までです` },
+      { error: `一度に選べるファイルは${MAX_FILES_PER_REQUEST}件までです。` },
       { status: 400 },
     );
   }
@@ -66,7 +66,7 @@ export async function POST(request: Request) {
         filename,
         rows: [],
         skipped: 0,
-        error: `ファイルが大きすぎます (上限 ${MAX_FILE_BYTES / 1024 / 1024}MB)`,
+        error: `ファイルが大きすぎます(上限 ${MAX_FILE_BYTES / 1024 / 1024}MB)。`,
       });
       continue;
     }
@@ -77,7 +77,7 @@ export async function POST(request: Request) {
         filename,
         rows: [],
         skipped: 0,
-        error: `CSVファイル (.csv) を選んでください。1行目は「${CSV_HEADER_LINE}」です`,
+        error: `CSVファイル(.csv)を選んでください。1行目は「${CSV_HEADER_LINE}」です。`,
       });
       continue;
     }
@@ -89,7 +89,7 @@ export async function POST(request: Request) {
   if (totalRows > MAX_ROWS_PER_REQUEST) {
     return Response.json(
       {
-        error: `行数が多すぎます (${totalRows}行 / 上限 ${MAX_ROWS_PER_REQUEST}行)。ファイルを分けてください`,
+        error: `行数が多すぎます(${totalRows}行 / 上限 ${MAX_ROWS_PER_REQUEST}行)。ファイルを分けてください。`,
       },
       { status: 400 },
     );

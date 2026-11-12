@@ -1,3 +1,5 @@
+import { generationChoices } from "@/lib/auth/generations";
+
 import { SignupForm } from "./SignupForm";
 
 /**
@@ -6,16 +8,20 @@ import { SignupForm } from "./SignupForm";
  * Supabase の一般サインアップは無効化してあるため、登録は必ず
  * POST /api/auth/signup を経由する (合言葉の検証を強制するため)。
  */
-export default function SignupPage() {
+// 期の候補は部員が増えると変わるので、開くたびに作る (v1.36)
+export const dynamic = "force-dynamic";
+
+export default async function SignupPage() {
+  const choices = await generationChoices();
   return (
     <div className="space-y-6">
       <header>
-        <h1 className="text-2xl font-bold">新規登録</h1>
-        <p className="mt-1 text-sm text-[var(--muted)]">
+        <h1 className="text-[28px] font-bold leading-tight">新規登録</h1>
+        <p className="mt-1 text-[15px] text-[var(--muted)]">
           サークル生合言葉が必要です
         </p>
       </header>
-      <SignupForm />
+      <SignupForm generationChoices={choices} />
     </div>
   );
 }

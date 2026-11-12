@@ -134,13 +134,13 @@ export function validateSlot(
   draft: SlotDraft,
 ): SlotValidation {
   if (!TIME_RE.test(draft.startTime) || !TIME_RE.test(draft.endTime)) {
-    return { ok: false, message: "時刻は HH:MM 形式で入力してください" };
+    return { ok: false, message: "時刻は HH:MM 形式で入力してください。" };
   }
 
   const start = toMinutes(draft.startTime);
   const end = toMinutes(draft.endTime);
   if (end <= start) {
-    return { ok: false, message: "終了時刻は開始時刻より後にしてください" };
+    return { ok: false, message: "終了時刻は開始時刻より後にしてください。" };
   }
 
   if (
@@ -149,7 +149,7 @@ export function validateSlot(
   ) {
     return {
       ok: false,
-      message: `予約枠 (${normalizeTime(reservation.startTime)}〜${normalizeTime(reservation.endTime)}) の範囲内にしてください`,
+      message: `予約枠(${normalizeTime(reservation.startTime)}〜${normalizeTime(reservation.endTime)})の範囲内にしてください。`,
     };
   }
 
@@ -162,12 +162,12 @@ export function validateSlot(
   if (conflict) {
     return {
       ok: false,
-      message: `${normalizeTime(conflict.startTime)}〜${normalizeTime(conflict.endTime)} のコマと重なっています`,
+      message: `${normalizeTime(conflict.startTime)}〜${normalizeTime(conflict.endTime)} のコマと重なっています。`,
     };
   }
 
   if (draft.status === "genre" && draft.genreId === null) {
-    return { ok: false, message: "公式練にはジャンルを選んでください" };
+    return { ok: false, message: "公式練にはジャンルを選んでください。" };
   }
 
   return { ok: true };

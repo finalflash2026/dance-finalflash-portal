@@ -8,14 +8,27 @@
     "start": "next start",
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
-    "set-passphrase": "tsx --env-file-if-exists=.env.local scripts/set-passphrase.ts"
+    "test": "tsx --test \"lib/**/*.test.ts\"",
+    "tune:schedule": "tsx scripts/tune-schedule.ts",
+    "seed:demo": "tsx scripts/seed-demo.ts",
+    "set-passphrase": "tsx --env-file-if-exists=.env.local scripts/set-passphrase.ts",
+    "ios:sync": "tsx --env-file-if-exists=.env.local scripts/cap.ts sync",
+    "ios:dev": "tsx --env-file-if-exists=.env.local scripts/cap.ts dev",
+    "ios:open": "cap open ios",
+    "ios:project": "cd ios/App && xcodegen generate"
   },
   "dependencies": {
+    "@capacitor/app": "^8.1.2",
+    "@capacitor/browser": "^8.0.5",
+    "@capacitor/core": "^8.6.0",
+    "@capacitor/ios": "^8.6.0",
+    "@capacitor/local-notifications": "^8.3.1",
     "@supabase/ssr": "^0.12.4",
     "@supabase/supabase-js": "^2.112.2",
     "bcryptjs": "^3.0.3",
     "date-fns": "^4.4.0",
-    "next": "15.5.23",
+    "highs": "1.15.3",
+    "next": "15.5.27",
     "papaparse": "^5.5.4",
     "react": "19.1.0",
     "react-dom": "19.1.0",
@@ -24,6 +37,7 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@capacitor/cli": "^8.6.0",
     "@eslint/eslintrc": "^3",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
@@ -32,9 +46,15 @@
     "@types/react-dom": "^19",
     "@types/web-push": "^3.6.4",
     "eslint": "^9",
-    "eslint-config-next": "15.5.23",
+    "eslint-config-next": "15.5.27",
+    "postgres": "^3.4.9",
     "tailwindcss": "^4",
     "tsx": "^4.23.12",
     "typescript": "^5"
+  },
+  "overrides": {
+    "next": {
+      "postcss": "^8.5.23"
+    }
   }
 }

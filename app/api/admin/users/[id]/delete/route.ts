@@ -41,7 +41,7 @@ export async function POST(
   // 自己削除は禁止 (最後のadminが消えるのを防ぐ。SPEC §6.5)
   if (id === actor.user_id) {
     return Response.json(
-      { error: "自分自身のアカウントは削除できません" },
+      { error: "自分自身のアカウントは削除できません。" },
       { status: 403 },
     );
   }
@@ -62,7 +62,7 @@ export async function POST(
   }
   if (!target) {
     return Response.json(
-      { error: "そのユーザーは見つかりません" },
+      { error: "そのユーザーは見つかりません。" },
       { status: 404 },
     );
   }

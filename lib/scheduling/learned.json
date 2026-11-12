@@ -1,0 +1,8 @@
+{
+  "note": "npm run tune:schedule で確かめた条件 (SPEC §6.8.6)。2026-10-21: 30通りを試し、検証用の月ではこの条件 (0.9647) が「何もしない」(0.9565) と探索の一番 (0.9551) より良かったので据え置き。記録は docs/schedule-tuning-2026-10-21.log",
+  "sameRoomBonus": 2,
+  "fairnessWeight": 1,
+  "fairnessTarget": 0.6,
+  "minBigPerGenre": 1,
+  "roomStrength": 0.2
+}

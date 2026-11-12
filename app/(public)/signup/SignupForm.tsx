@@ -22,7 +22,18 @@ import { buildUsername } from "@/lib/auth/username";
  * 出したいのに、設定画面まで行かないと選べなかった。後から変えられる点は
  * これまでどおり (§6.4.1)。
  */
-export function SignupForm() {
+export function SignupForm({
+  google = false,
+  generationChoices = [],
+}: {
+  /** 期の候補 (現役の期と、その次の期。新しい順。v1.36) */
+  generationChoices?: number[];
+  /**
+   * Google でログインしたあとの登録 (§3.7 / v1.34)。パスワードの欄を出さず、
+   * /api/auth/complete-profile に送ってそのままホームへ入る
+   */
+  google?: boolean;
+}) {
   const router = useRouter();
   const [generation, setGeneration] = useState("");
   const [mainGenreId, setMainGenreId] = useState("");
@@ -43,6 +54,7 @@ export function SignupForm() {
 
   /** 両方入力されていて食い違うときだけ知らせる (打っている途中で赤くしない) */
   const mismatch =
+    !google &&
     password.length > 0 &&
     passwordConfirm.length > 0 &&
     password !== passwordConfirm;
@@ -67,15 +79,15 @@ export function SignupForm() {
 
   async function onSubmit(event: React.FormEvent) {
     event.preventDefault();
-    if (password !== passwordConfirm) {
-      setError("パスワードが一致しません");
+    if (!google && password !== passwordConfirm) {
+      setError("パスワードが一致しません。");
       return;
     }
     setPending(true);
     setError(null);
 
     try {
-      const res = await fetch("/api/auth/signup", {
+      const res = await fetch(google ? "/api/auth/complete-profile" : "/api/auth/signup", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -92,14 +104,20 @@ export function SignupForm() {
       const body = await res.json().catch(() => ({}));
 
       if (!res.ok) {
-        setError(body.error ?? "登録に失敗しました");
+        setError(body.error ?? "登録に失敗しました。");
         return;
       }
 
+      if (google) {
+        // Google のログインでセッションはもうある。そのままホームへ
+        router.refresh();
+        router.replace("/");
+        return;
+      }
       // 登録できたら ID を引き継いでログイン画面へ
       router.push(`/login?username=${encodeURIComponent(body.username)}`);
     } catch {
-      setError("通信に失敗しました。電波状況を確認してください");
+      setError("通信に失敗しました。電波状況を確認してください。");
     } finally {
       setPending(false);
     }
@@ -107,7 +125,30 @@ export function SignupForm() {
 
   return (
     <form onSubmit={onSubmit} className="space-y-4">
-      <Field label="期" hint="入会年度の代。例: 22">
+      <Field label="期" hint="入会した年度の代。ユーザーIDの先頭の数字になります。">
+        {/*
+          今いる期を押せるように並べる (v1.36)。自分が何期か分からない1年生が
+          迷うため。どれでもなければ下に数字で入れる
+        */}
+        {generationChoices.length > 0 ? (
+          <div className="mb-2 mt-1 flex flex-wrap gap-1.5" role="group" aria-label="期の候補">
+            {generationChoices.map((g) => (
+              <button
+                key={g}
+                type="button"
+                aria-pressed={generation === String(g)}
+                onClick={() => setGeneration(String(g))}
+                className={`h-10 rounded-full px-4 text-[15px] font-semibold ${
+                  generation === String(g)
+                    ? "bg-[var(--tint)] text-white"
+                    : "bg-[var(--fill)]"
+                }`}
+              >
+                {g}期
+              </button>
+            ))}
+          </div>
+        ) : null}
         <input
           className={inputClass}
           type="number"
@@ -120,7 +161,7 @@ export function SignupForm() {
         />
       </Field>
 
-      <Field label="1ジャン (メインジャンル)" hint="登録後は本人では変更できません">
+      <Field label="1ジャン(メインジャンル)" hint="登録した後は、自分では変えられません。">
         <select
           className={inputClass}
           value={mainGenreId}
@@ -136,7 +177,7 @@ export function SignupForm() {
         </select>
       </Field>
 
-      <Field label="名前" hint="ひらがな / カタカナ / 漢字が使えます">
+      <Field label="名前" hint="ひらがな・カタカナ・漢字が使えます。">
         <input
           className={inputClass}
           value={displayName}
@@ -147,9 +188,9 @@ export function SignupForm() {
       </Field>
 
       {preview ? (
-        <p className="rounded-lg bg-[var(--surface)] px-3 py-2 text-sm">
+        <p className="rounded-lg bg-[var(--surface)] px-3 py-2 text-[15px]">
           あなたのユーザーID: <strong>{preview}</strong>
-          <span className="mt-1 block text-xs text-[var(--muted)]">
+          <span className="mt-1 block text-[13px] text-[var(--muted)]">
             ログインに使います。同じIDの人がいる場合は名前の表記を変えてください
           </span>
         </p>
@@ -159,10 +200,7 @@ export function SignupForm() {
         2ジャン・3ジャンは任意 (v1.19)。ここで選ぶと登録した時点から
         マイカレンダーと購読URLに含まれる。あとから設定画面で変えられる
       */}
-      <Field
-        label="2ジャン (任意)"
-        hint="選んだジャンルの公式練が、マイカレンダーに出るようになります"
-      >
+      <Field label="2ジャン(任意)">
         <select
           className={inputClass}
           value={subgenre2Id}
@@ -177,7 +215,7 @@ export function SignupForm() {
         </select>
       </Field>
 
-      <Field label="3ジャン (任意)" hint="あとから設定画面で変えられます">
+      <Field label="3ジャン(任意)">
         <select
           className={inputClass}
           value={subgenre3Id}
@@ -192,42 +230,44 @@ export function SignupForm() {
         </select>
       </Field>
 
-      <Field
-        label="マイパスワード"
-        hint={`${MIN_PASSWORD_LENGTH}文字以上。メールが無いため、忘れた場合は管理者に再設定を依頼します`}
-      >
-        <input
-          className={inputClass}
-          type="password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          minLength={MIN_PASSWORD_LENGTH}
-          autoComplete="new-password"
-          required
-        />
-      </Field>
+      {/* Google で登録するときはパスワードを持たない (§3.7) */}
+      {google ? null : (
+        <>
+          <Field
+            label="マイパスワード"
+            hint={`${MIN_PASSWORD_LENGTH}文字以上。メールを使わないので、忘れたときは管理者に再設定を頼みます。`}
+          >
+            <input
+              className={inputClass}
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              minLength={MIN_PASSWORD_LENGTH}
+              autoComplete="new-password"
+              required
+            />
+          </Field>
 
-      <Field
-        label="マイパスワード (確認)"
-        hint="打ち間違いを防ぐため、もう一度入力してください"
-      >
-        <input
-          className={inputClass}
-          type="password"
-          value={passwordConfirm}
-          onChange={(e) => setPasswordConfirm(e.target.value)}
-          autoComplete="new-password"
-          aria-invalid={mismatch}
-          required
-        />
-        {mismatch ? (
-          <p role="alert" className="mt-1 text-xs text-[var(--danger-fg)]">
-            パスワードが一致しません
-          </p>
-        ) : null}
-      </Field>
+          <Field label="マイパスワード(確認)">
+            <input
+              className={inputClass}
+              type="password"
+              value={passwordConfirm}
+              onChange={(e) => setPasswordConfirm(e.target.value)}
+              autoComplete="new-password"
+              aria-invalid={mismatch}
+              required
+            />
+            {mismatch ? (
+              <p role="alert" className="mt-1 text-[13px] text-[var(--danger-fg)]">
+                パスワードが一致しません
+              </p>
+            ) : null}
+          </Field>
+        </>
+      )}
 
-      <Field label="サークル生合言葉" hint="サークル内で共有されている合言葉">
+      <Field label="サークル生合言葉">
         <input
           className={inputClass}
           type="password"
@@ -249,11 +289,13 @@ export function SignupForm() {
         {pending ? "登録中…" : "登録する"}
       </button>
 
-      <p className="text-center text-sm">
-        <Link href="/login" className="underline">
-          登録済みの人はこちら (ログイン)
-        </Link>
-      </p>
+      {google ? null : (
+        <p className="text-center text-[15px]">
+          <Link href="/login" className="underline">
+            登録済みの人はこちら(ログイン)
+          </Link>
+        </p>
+      )}
     </form>
   );
 }

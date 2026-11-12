@@ -52,10 +52,10 @@ export function PeriodPanel({
   }
 
   return (
-    <section className="space-y-3 rounded-xl border border-[var(--border)] p-3">
+    <section className="space-y-3 rounded-2xl bg-[var(--cell)] p-4">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <h3 className="text-sm font-bold">
-          基準のコマ ({year}年{monthNumber}月)
+          基準のコマ({year}年{monthNumber}月)
         </h3>
         {dirty ? (
           <span className="text-xs text-[var(--danger-fg)]">
@@ -115,7 +115,7 @@ export function PeriodPanel({
           type="button"
           disabled={disabled || base.length >= 12}
           onClick={() => onChange([...base, nextPeriod(base)])}
-          className="rounded-lg border border-[var(--border)] px-3 py-1 text-xs disabled:opacity-50"
+          className="rounded-lg bg-[var(--fill)] px-3 py-1.5 text-xs font-medium text-[var(--tint)] disabled:opacity-40"
         >
           ＋ コマを足す
         </button>

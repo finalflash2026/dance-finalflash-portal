@@ -57,9 +57,12 @@
    * 浮いている面 (タブバー・設定ボタン)。v1.14
    * **不透明にしないこと。** 背景がうっすら透けることで浮いて見える。
    */
-  --glass-bg: rgba(255, 255, 255, 0.72);
-  --glass-border: rgba(15, 23, 42, 0.1);
-  --glass-shadow: 0 6px 20px rgba(15, 23, 42, 0.14);
+  --glass-bg: rgba(255, 255, 255, 0.6);
+  --glass-border: rgba(15, 23, 42, 0.08);
+  --glass-shadow: 0 4px 16px rgba(15, 23, 42, 0.1);
+  /* Liquid Glass の縁の光 (v1.39)。上辺は強く、下辺は弱く光る */
+  --glass-rim-top: rgba(255, 255, 255, 0.95);
+  --glass-rim-bottom: rgba(255, 255, 255, 0.4);
 
   /*
    * コマのブロック色 (lib/constants.ts から var() で参照する)。
@@ -75,6 +78,18 @@
   --reservation-fg: #ffffff;
 
   --scrollbar: #94a3b8;
+
+  /*
+   * iOS 標準に寄せた部品の色 (§6.7.8 / v1.30)。
+   *   --cell      … まとまり (グループ化されたリスト) の面
+   *   --separator … まとまりの中の区切り線。枠線ではなく細い線で区切る
+   *   --fill      … 押せる丸い部品 (× ボタン・切り替えボタンの地)
+   *   --tint      … 押せる文字 (リンク・「追加」など)。iOS のシステムブルー
+   */
+  --cell: #f2f2f7;
+  --separator: rgba(60, 60, 67, 0.16);
+  --fill: rgba(118, 118, 128, 0.12);
+  --tint: #007aff;
 }
 
 /*
@@ -115,9 +130,11 @@
   --ob: #f07fb5;
 
   /* 暗い側は「白を薄く重ねる」のではなく、地より少し明るいグレーを透かす */
-  --glass-bg: rgba(45, 51, 59, 0.76);
-  --glass-border: rgba(255, 255, 255, 0.12);
-  --glass-shadow: 0 6px 20px rgba(0, 0, 0, 0.45);
+  --glass-bg: rgba(58, 64, 72, 0.58);
+  --glass-border: rgba(255, 255, 255, 0.1);
+  --glass-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+  --glass-rim-top: rgba(255, 255, 255, 0.24);
+  --glass-rim-bottom: rgba(255, 255, 255, 0.06);
 
   /* 背景より少しだけ明るい面にする。白いままだと光る板が並ぶ */
   --slot-open-bg: #39414b;
@@ -130,6 +147,11 @@
   --reservation-fg: #ffffff;
 
   --scrollbar: #6b7684;
+
+  --cell: #2d333b;
+  --separator: rgba(255, 255, 255, 0.1);
+  --fill: rgba(255, 255, 255, 0.08);
+  --tint: #4ea1ff;
 
   /* フォーム部品・既定のスクロールバーもダーク側の見た目にする */
   color-scheme: dark;
@@ -179,10 +201,41 @@
  */
 .glass {
   background: var(--glass-bg);
-  border: 1px solid var(--glass-border);
-  box-shadow: var(--glass-shadow);
-  -webkit-backdrop-filter: blur(20px) saturate(180%);
-  backdrop-filter: blur(20px) saturate(180%);
+  /*
+   * Liquid Glass (v1.39)。枠線の代わりに、縁の光 (上が強く下が弱い) と
+   * ごく薄い縁取りで「厚みのあるガラス」に見せる。下の色を少し濃く透かす
+   */
+  box-shadow:
+    inset 0 1px 0.5px var(--glass-rim-top),
+    inset 0 -0.5px 0.5px var(--glass-rim-bottom),
+    0 0 0 0.5px var(--glass-border),
+    var(--glass-shadow);
+  -webkit-backdrop-filter: blur(14px) saturate(190%) brightness(1.04);
+  backdrop-filter: blur(14px) saturate(190%) brightness(1.04);
+}
+/* 切り替えの選択の印。地は不透明のまま、縁の光だけ足す (内容の上ではないので透かさない) */
+.glass-thumb {
+  background: var(--background);
+  box-shadow:
+    inset 0 1px 0.5px var(--glass-rim-top),
+    0 0 0 0.5px var(--glass-border),
+    0 2px 6px rgba(0, 0, 0, 0.12);
+}
+/* 押したときにガラスが少し縮んで明るくなる (iOS 26 のボタンと同じ手触り) */
+.glass-press {
+  transition:
+    transform 0.24s var(--ease-spring),
+    filter 0.2s ease-out;
+}
+.glass-press:active {
+  transform: scale(0.92);
+  filter: brightness(1.08);
+}
+/* ぼかしが効かない環境では、地を濃くして読めるようにする */
+@supports not ((-webkit-backdrop-filter: blur(1px)) or (backdrop-filter: blur(1px))) {
+  .glass {
+    background: var(--cell);
+  }
 }
 
 /*
@@ -209,16 +262,36 @@
  * **入場だけ**を動かす。退場を入れるには閉じる状態を全モーダルに持たせる
  * 必要があり、得られる印象に見合わない。
  */
+/*
+ * 長さ (v1.40): 入れ替えは 0.3秒前後、開く窓は 0.4秒。動きの質 (バネ・ふくらみ) は残し、
+ * 待たせる時間だけ削る (0.4〜0.5秒ではもっさりして見えた)
+ *
+ * 動きの曲線 (v1.39 / SPEC §12「動き」)。iPhone のカレンダーに寄せて、
+ * **行き過ぎて戻る跳ねを付けない**。CSS の linear() でバネを描いたもの:
+ *   --ease-smooth … 減衰しきるバネ (iOS の既定)。入れ替え・滑らせる動き
+ *   --ease-spring … ほぼ跳ねない (減衰 0.82、行き過ぎ 1%)。開く窓・知らせ
+ */
+:root {
+  --ease-smooth: linear(0, 0.028, 0.094, 0.179, 0.272, 0.365, 0.453, 0.534, 0.606, 0.669, 0.724, 0.771, 0.811, 0.844, 0.872, 0.895, 0.915, 0.931, 0.944, 0.954, 0.963, 0.97, 0.976, 0.981, 0.985, 0.988, 0.99, 0.992, 0.994, 0.995, 0.996, 0.997, 0.997, 0.998, 0.998, 0.999, 1);
+  /* 速く出て静かに止まる (設定の開閉など、軽く見せたい動き。v1.50) */
+  --ease-out-quick: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --ease-spring: linear(0, 0.025, 0.087, 0.171, 0.267, 0.366, 0.463, 0.553, 0.635, 0.708, 0.77, 0.823, 0.868, 0.904, 0.933, 0.955, 0.973, 0.986, 0.996, 1.002, 1.007, 1.009, 1.011, 1.011, 1.011, 1.01, 1.009, 1.008, 1.007, 1.006, 1.005, 1.004, 1.003, 1.003, 1.002, 1.002, 1.001, 1.001, 1.001, 1, 1);
+}
+
+/*
+ * 画面・選んだ日の入れ替え。**ぼかさない** (v1.39。重い端末でカクつく)。
+ * 動かすのは transform と opacity だけ
+ */
 @keyframes page-in-from-right {
   from {
     opacity: 0;
-    transform: translate3d(16px, 0, 0);
+    transform: translate3d(28px, 0, 0);
   }
 }
 @keyframes page-in-from-left {
   from {
     opacity: 0;
-    transform: translate3d(-16px, 0, 0);
+    transform: translate3d(-28px, 0, 0);
   }
 }
 @keyframes fade-in {
@@ -228,30 +301,182 @@
 }
 @keyframes sheet-in {
   from {
-    opacity: 0;
-    transform: translate3d(0, 12px, 0);
+    transform: translate3d(0, 100%, 0);
   }
 }
 
 .page-in-right {
-  animation: page-in-from-right 0.22s ease-out;
+  animation: page-in-from-right 0.3s var(--ease-smooth);
 }
 .page-in-left {
-  animation: page-in-from-left 0.22s ease-out;
+  animation: page-in-from-left 0.3s var(--ease-smooth);
+}
+/* 一覧・時間・部屋の切り替え (v1.31.13)。日を変えるときより大きく流す */
+@keyframes view-in-from-right {
+  from {
+    opacity: 0;
+    transform: translate3d(56px, 0, 0);
+  }
+}
+@keyframes view-in-from-left {
+  from {
+    opacity: 0;
+    transform: translate3d(-56px, 0, 0);
+  }
+}
+.view-in-right {
+  animation: view-in-from-right 0.32s var(--ease-smooth);
+}
+.view-in-left {
+  animation: view-in-from-left 0.32s var(--ease-smooth);
+}
+/*
+ * 予定を滑らせて日を変えたとき (v1.39)。指で送り出した続きとして、
+ * 反対側から入ってくる (components/motion/DaySwipe.tsx)
+ */
+@keyframes day-in-from-right {
+  from {
+    opacity: 0.2;
+    transform: translate3d(42%, 0, 0);
+  }
+}
+@keyframes day-in-from-left {
+  from {
+    opacity: 0.2;
+    transform: translate3d(-42%, 0, 0);
+  }
+}
+.day-in-right {
+  animation: day-in-from-right 0.32s var(--ease-smooth);
+}
+.day-in-left {
+  animation: day-in-from-left 0.32s var(--ease-smooth);
+}
+/* 選んだ日の丸。小さい所からふくらむ (v1.39) */
+@keyframes select-pop {
+  from {
+    transform: scale(0.55);
+    opacity: 0.4;
+  }
+}
+.select-pop {
+  animation: select-pop 0.3s var(--ease-spring);
 }
 .backdrop-in {
   animation: fade-in 0.18s ease-out;
 }
+/* 下から出る窓。iOS のシートと同じく下端から上がってくる */
 .sheet-in {
-  animation: sheet-in 0.22s cubic-bezier(0.32, 0.72, 0, 1);
+  animation: sheet-in 0.4s var(--ease-smooth);
+}
+
+/* ---------- v1.36 の動き (SPEC §12「動き」) ---------- */
+
+/* 数字が縦に転がって変わる (RollingNumber)。増えたら下から、減ったら上から */
+@keyframes roll-from-below {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 0.6em, 0);
+    filter: blur(2px);
+  }
+}
+@keyframes roll-from-above {
+  from {
+    opacity: 0;
+    transform: translate3d(0, -0.6em, 0);
+    filter: blur(2px);
+  }
+}
+.roll-up {
+  animation: roll-from-below 0.32s var(--ease-spring);
+}
+.roll-down {
+  animation: roll-from-above 0.32s var(--ease-spring);
+}
+
+/* 完了のチェックが描かれる (CheckMark)。線の長さを pathLength=1 にそろえる */
+@keyframes check-draw {
+  from {
+    stroke-dashoffset: 1;
+  }
+}
+@keyframes check-pop {
+  from {
+    transform: scale(0.6);
+    opacity: 0;
+  }
+}
+.check-pop {
+  animation: check-pop 0.36s var(--ease-spring);
+}
+.check-draw {
+  stroke-dasharray: 1;
+  animation: check-draw 0.35s 0.12s ease-out both;
+}
+
+/* 短い知らせ (Toast)。下から出て、消えるときは縮む */
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 24px, 0) scale(0.96);
+  }
+}
+@keyframes toast-out {
+  to {
+    opacity: 0;
+    transform: scale(0.85);
+  }
+}
+.toast-in {
+  animation: toast-in 0.36s var(--ease-spring);
+}
+.toast-out {
+  animation: toast-out 0.2s ease-in forwards;
+}
+
+/* 結果のカードを少しずつずらして順に出す (--i に並び順を入れる) */
+@keyframes rise-in {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 12px, 0) scale(0.97);
+  }
+}
+.rise-in {
+  animation: rise-in 0.4s var(--ease-spring) both;
+  animation-delay: calc(var(--i, 0) * 50ms);
 }
 
 /* 動きに酔う人・OSで動きを減らす設定の人には出さない */
+/* 計算中の帯 (日程調整 §6.8.4)。左から右へ流れ続ける */
+@keyframes progress-slide {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(300%);
+  }
+}
+.progress-indeterminate {
+  animation: progress-slide 1.2s ease-in-out infinite;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .page-in-right,
   .page-in-left,
+  .view-in-right,
+  .view-in-left,
   .backdrop-in,
-  .sheet-in {
+  .sheet-in,
+  .roll-up,
+  .roll-down,
+  .check-pop,
+  .check-draw,
+  .toast-in,
+  .toast-out,
+  .rise-in,
+  .day-in-right,
+  .day-in-left,
+  .select-pop {
     animation: none;
   }
 }
@@ -283,4 +508,88 @@ body {
     sans-serif;
   /* 下部固定タブバー分の余白 (iOS のホームインジケータも考慮) */
   -webkit-text-size-adjust: 100%;
+}
+
+/*
+ * 起動アニメーション (§6.7.10 / v1.30)
+ *
+ * この起動で既に出していたら、最初のペイント前に `<html data-splash="off">` が
+ * 立つ (components/Splash.tsx の SPLASH_INIT_SCRIPT)。幕は HTML に最初から
+ * 入っているので、ここで消さないと一瞬黒い画面が出てしまう。
+ */
+html[data-splash="off"] #app-splash {
+  display: none;
+}
+
+/* ロゴのきらめき (十字の光) */
+.splash-spark::before,
+.splash-spark::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  background: #fff;
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  box-shadow:
+    0 0 8px #fff,
+    0 0 16px rgba(255, 255, 255, 0.7);
+}
+.splash-spark::before {
+  width: 2px;
+  height: 100%;
+}
+.splash-spark::after {
+  width: 100%;
+  height: 2px;
+}
+
+/*
+ * 横に滑らせる帯 (週の帯 §6.7.13) のスクロールバーを隠す。
+ * スナップで1週ずつ止まるので、位置はバーではなく中身で分かる
+ */
+.no-scrollbar {
+  scrollbar-width: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+/*
+ * 入力欄の文字は指で操作する端末では 16px 以上にする (SPEC §12 / v1.32.7)。
+ *
+ * ピンチでの拡大を許した (viewport の maximumScale をやめた) ので、iOS は
+ * 16px 未満の入力欄に触れると画面を勝手に拡大する。小さい文字の指定が
+ * 付いた入力欄だけを 16px に戻す (17px など大きいものはそのまま)。
+ */
+@media (pointer: coarse) {
+  :is(input, select, textarea):is(
+      .text-xs,
+      .text-sm,
+      [class*="text-[10px]"],
+      [class*="text-[11px]"],
+      [class*="text-[12px]"],
+      [class*="text-[13px]"],
+      [class*="text-[14px]"],
+      [class*="text-[15px]"]
+    ) {
+    font-size: 16px !important;
+  }
+}
+
+/*
+ * iOS アプリでは Web のタブバーを描かない (SPEC.md §2.3.1 / v1.38)。
+ * ネイティブの Liquid Glass のタブバーが同じ位置に重なる。
+ * class は app/layout.tsx の NATIVE_INIT_SCRIPT が最初のペイント前に立てる。
+ */
+html.native-app [data-web-tabbar] {
+  display: none;
+}
+/*
+ * 右上の丸ボタンと戻るも、アプリでは iOS 26 の本物の Liquid Glass のボタンが
+ * 同じ位置に重なる (v1.41 / components/NativeHeader.tsx)。場所は空けたまま隠し、
+ * ネイティブのボタンが押されたらこの要素を押す
+ */
+html.native-app [data-header-action] {
+  visibility: hidden;
 }

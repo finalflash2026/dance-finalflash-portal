@@ -76,6 +76,15 @@ export function cronSecret(): string | undefined {
 export const VAPID_PUBLIC_KEY = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY ?? "";
 
 /**
+ * Google でのログインを ID トークンで渡す形にするときのクライアント ID (SPEC §3.7 / v1.41)。
+ * どちらも**ブラウザに渡す前提の値**で、秘密ではない。無ければ Supabase 経由のまま。
+ *   GOOGLE_CLIENT_ID     … ウェブ用 (Google Identity Services のボタン)
+ *   GOOGLE_IOS_CLIENT_ID … iOS アプリ用 (秘密の鍵の無いクライアント)
+ */
+export const GOOGLE_CLIENT_ID = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID ?? "";
+export const GOOGLE_IOS_CLIENT_ID = process.env.NEXT_PUBLIC_GOOGLE_IOS_CLIENT_ID ?? "";
+
+/**
  * Web Push の送信に必要な3点 (SPEC §6.6)。**サーバー専用**。
  *
  * 揃っていなければ null を返し、呼び出し側は通知を「送らない」で済ませる。
