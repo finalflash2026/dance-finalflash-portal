@@ -38,7 +38,7 @@ export default function Loading() {
         <span className="sr-only">新しい内容を読み込んでいます</span>
         {/* 取り直し中の細い帯 */}
         <div aria-hidden className="fixed inset-x-0 top-0 z-50 h-0.5 overflow-hidden">
-          <div className="progress-indeterminate h-full w-1/3 bg-[var(--tint)]" />
+          <div className="progress-indeterminate h-full w-1/3 bg-[var(--tint-solid)]" />
         </div>
         <CalendarHome {...snapshot} stale />
       </main>

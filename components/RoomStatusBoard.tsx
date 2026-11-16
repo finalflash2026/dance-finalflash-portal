@@ -213,7 +213,7 @@ export function RoomStatusBoard({
                 className={`flex min-h-[64px] w-full flex-col items-start justify-between gap-1 rounded-xl border-2 px-3 py-2 text-left active:opacity-70 disabled:cursor-default ${
                   unlocked
                     ? "border-[var(--success-fg)] bg-[var(--success-bg)]"
-                    : "border-transparent bg-[var(--fill)]"
+                    : "border-transparent bg-[var(--background)]"
                 } ${stale ? "opacity-60" : ""} ${pendingRoomId === room.id ? "opacity-40" : ""}`}
               >
                 {/* 建物の括弧は落とす (「練習室2(フレスコ)」→「練習室2」)。細いカードで2行に折れないように */}

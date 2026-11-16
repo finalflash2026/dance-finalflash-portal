@@ -208,7 +208,7 @@ export function RoundStep({
             aria-valuemax={round.memberCount}
           >
             <div
-              className="h-full rounded-full bg-[var(--tint)] transition-[width] duration-300"
+              className="h-full rounded-full bg-[var(--tint-solid)] transition-[width] duration-300"
               style={{ width: `${round.memberCount ? (round.answeredCount / round.memberCount) * 100 : 0}%` }}
             />
           </div>
@@ -259,7 +259,7 @@ export function RoundStep({
             type="button"
             onClick={() => void start()}
             disabled={busy || !deadline}
-            className="h-12 rounded-xl bg-[var(--tint)] px-6 text-[16px] font-semibold text-white disabled:opacity-40"
+            className="h-12 rounded-xl bg-[var(--tint-solid)] px-6 text-[16px] font-semibold text-white disabled:opacity-40"
           >
             {busy ? "始めています…" : "始める"}
           </button>
@@ -311,7 +311,7 @@ export function AutoAllocate({
         type="button"
         aria-expanded={open}
         onClick={() => setOpen((v) => !v)}
-        className="flex h-11 items-center gap-2 rounded-xl bg-[var(--tint)] px-5 text-[15px] font-semibold text-white transition-opacity active:opacity-80"
+        className="flex h-11 items-center gap-2 rounded-xl bg-[var(--tint-solid)] px-5 text-[15px] font-semibold text-white transition-opacity active:opacity-80"
       >
         <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
           <path d="M12 3l1.9 4.6L18.5 9l-4.6 1.9L12 15.5l-1.9-4.6L5.5 9l4.6-1.4z" />

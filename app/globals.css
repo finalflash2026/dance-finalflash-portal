@@ -14,7 +14,8 @@
 :root {
   --background: #ffffff;
   --foreground: #1f2933;
-  --muted: #64748b;
+  /* v1.50.2: var(--cell)・var(--fill) の上でも AA になるよう少し濃く (前は #64748b で 4.26) */
+  --muted: #566376;
   --border: #e2e8f0;
   --surface: #f8fafc;
 
@@ -48,6 +49,20 @@
   /* 開錠済み(○)の行 */
   --success-fg: #226c46;
   --success-bg: #e8f5ee;
+
+  /*
+   * 出欠の状態 (v1.50.2)。solid は白い文字を載せる地、fg は bg (うすい地) と var(--cell) の上の文字。
+   * どの組み合わせも WCAG AA (4.5:1) 以上
+   */
+  --status-present-solid: #1e7b3c;
+  --status-present-fg: #1e7b3c;
+  --status-present-bg: #e3f3e8;
+  --status-partial-solid: #a24f00;
+  --status-partial-fg: #a24f00;
+  --status-partial-bg: #fdf0e0;
+  --status-absent-solid: #c0392b;
+  --status-absent-fg: #c0392b;
+  --status-absent-bg: #fdecea;
 
   /* 土曜日の日付・折衝バッジの青 / OBバッジの赤紫 */
   --info: #2f6fb5;
@@ -84,12 +99,17 @@
    *   --cell      … まとまり (グループ化されたリスト) の面
    *   --separator … まとまりの中の区切り線。枠線ではなく細い線で区切る
    *   --fill      … 押せる丸い部品 (× ボタン・切り替えボタンの地)
-   *   --tint      … 押せる文字 (リンク・「追加」など)。iOS のシステムブルー
+   *   --tint      … 押せる文字 (リンク・「追加」など)。iOS のシステムブルーより少し濃い青
+   *   --tint-solid … 白い文字を載せる青い地 (主ボタン)
+   *
+   * v1.50.2: iOS の #007aff は白の上で 4.0:1 しかなく、SPEC §12 の AA (4.5:1) に届かない。
+   * 文字の青は var(--cell)・var(--fill) の上でも 4.5 以上になる値にした
    */
   --cell: #f2f2f7;
   --separator: rgba(60, 60, 67, 0.16);
   --fill: rgba(118, 118, 128, 0.12);
-  --tint: #007aff;
+  --tint: #0060c8;
+  --tint-solid: #0060c8;
 }
 
 /*
@@ -100,7 +120,8 @@
 :root[data-theme="dark"] {
   --background: #22272e;
   --foreground: #e6edf3;
-  --muted: #9aa5b1;
+  /* v1.50.2: var(--fill) の上でも AA になるよう少し明るく (前は #9aa5b1 で 3.97) */
+  --muted: #adb7c2;
   --border: #444c56;
   --surface: #2d333b;
 
@@ -124,6 +145,16 @@
 
   --success-fg: #6fcf97;
   --success-bg: #1e3a2c;
+
+  --status-present-solid: #1e7b3c;
+  --status-present-fg: #6fcf97;
+  --status-present-bg: #1e3a2c;
+  --status-partial-solid: #a24f00;
+  --status-partial-fg: #ffb35c;
+  --status-partial-bg: #3d2e14;
+  --status-absent-solid: #b3352a;
+  --status-absent-fg: #ff9a8f;
+  --status-absent-bg: #3f2422;
 
   /* 暗い地の上では沈むので、どちらも明度を上げる */
   --info: #6cb0f5;
@@ -151,7 +182,9 @@
   --cell: #2d333b;
   --separator: rgba(255, 255, 255, 0.1);
   --fill: rgba(255, 255, 255, 0.08);
-  --tint: #4ea1ff;
+  /* 暗い地の上の文字は明るい青、白い文字を載せる地は濃い青 (どちらも AA) */
+  --tint: #7ab9ff;
+  --tint-solid: #2a66c9;
 
   /* フォーム部品・既定のスクロールバーもダーク側の見た目にする */
   color-scheme: dark;

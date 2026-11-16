@@ -223,7 +223,7 @@ export function HelpButton() {
                               <li key={i} className="flex gap-2.5 text-[16px] leading-snug">
                                 <span
                                   aria-hidden
-                                  className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-[var(--tint)] text-[13px] font-bold text-white"
+                                  className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-[var(--tint-solid)] text-[13px] font-bold text-white"
                                 >
                                   {i + 1}
                                 </span>

@@ -9,6 +9,7 @@ import { hasSupabaseEnv } from "@/lib/env";
 import { getMyEvents, getMyGenreIds } from "@/lib/events";
 import { isMissingRelation } from "@/lib/schema-errors";
 import { getOpenRound } from "@/lib/scheduling/live";
+import { selectAll } from "@/lib/supabase/select-all";
 import { createClient } from "@/lib/supabase/server";
 import {
   addDays,
@@ -63,6 +64,39 @@ const SLOT_COLUMNS =
   "id, date, start_time, end_time, room_id, status, genre_id, target_generations, note," +
   " claims(id, user_id, start_time, end_time, purpose, profiles(username))";
 
+/** 公開済みのコマを [from, to] で全部読む。月ごとに並行で、各月は1000行ごとに読み足す */
+async function readPublishedSlots(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  from: DateString,
+  to: DateString,
+) {
+  const months: { start: DateString; end: DateString }[] = [];
+  for (let month = startOfMonth(from); month <= to; month = addMonths(month, 1)) {
+    const end = endOfMonth(month);
+    months.push({ start: month < from ? from : month, end: end > to ? to : end });
+  }
+  const results = await Promise.all(
+    months.map(({ start, end }) =>
+      selectAll((rowFrom, rowTo) =>
+        supabase
+          .from("slots")
+          .select(SLOT_COLUMNS)
+          .eq("published", true)
+          .gte("date", start)
+          .lte("date", end)
+          .order("date")
+          .order("start_time")
+          .order("id")
+          .range(rowFrom, rowTo),
+      ),
+    ),
+  );
+  return {
+    data: results.flatMap((r) => r.data) as unknown[],
+    error: results.find((r) => r.error)?.error ?? null,
+  };
+}
+
 export default async function HomePage({
   searchParams,
 }: {
@@ -108,14 +142,9 @@ export default async function HomePage({
       .select("numbers(id, name)")
       .eq("user_id", profile.user_id),
     isOb ? Promise.resolve([]) : getMyGenreIds(supabase, profile),
-    isOb
-      ? none
-      : supabase
-          .from("slots")
-          .select(SLOT_COLUMNS)
-          .eq("published", true)
-          .gte("date", rangeStart)
-          .lte("date", rangeEnd),
+    // **月ごとに分けて並行で読み、それぞれ1000行ごとに読み足す** (v1.50.2)。
+    // 5か月ぶんを1回で読むと、Supabase の1000行の上限で黙って欠けていた
+    isOb ? none : readPublishedSlots(supabase, rangeStart, rangeEnd),
     // 「今日自主練できる部屋」は常に今日。範囲に今日が入っていれば取らない
     isOb || todayInRange
       ? none

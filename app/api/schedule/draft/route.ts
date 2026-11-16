@@ -75,7 +75,7 @@ export async function POST(request: Request) {
 
 /**
  * replace_draft_slots (0027) と同じことを、DB の関数を使わずに順に行う (v1.49)。
- * 1回の取引にはならないので、途中で失敗すると下書きが欠けることがある (作り直せば戻る)。
+ * 1回の取引にはならないので、新しい下書きを先に作り、成功してから前の下書きを消す (v1.50.2)。
  */
 async function replaceDraftSlotsStepByStep(
   supabase: Awaited<ReturnType<typeof createClient>>,
@@ -142,19 +142,41 @@ async function replaceDraftSlotsStepByStep(
       : [];
   });
 
-  const { error: deleteError } = await supabase
+  // **作ってから消す** (v1.50.2)。消してから作ると、作る側が失敗したときに下書きが消えたままになる。
+  // slots には重なりの制約が無いので、一時的に新旧が並んでも書き込める
+  const { data: oldDrafts, error: oldError } = await supabase
     .from("slots")
-    .delete()
+    .select("id")
     .gte("date", month)
     .lt("date", end)
     .eq("published", false);
-  if (deleteError) {
-    return Response.json({ error: `下書きを作れませんでした: ${deleteError.message}` }, { status: 500 });
+  if (oldError) {
+    return Response.json({ error: `下書きを作れませんでした: ${oldError.message}` }, { status: 500 });
   }
-  if (rows.length === 0) return Response.json({ created: 0 });
-  const { error: insertError } = await supabase.from("slots").insert(rows);
-  if (insertError) {
-    return Response.json({ error: `下書きを作れませんでした: ${insertError.message}` }, { status: 500 });
+  const oldIds = ((oldDrafts ?? []) as { id: string }[]).map((row) => row.id);
+
+  let newIds: string[] = [];
+  if (rows.length > 0) {
+    const { data: inserted, error: insertError } = await supabase.from("slots").insert(rows).select("id");
+    if (insertError) {
+      // 何も消していないので、前の下書きはそのまま残る
+      return Response.json({ error: `下書きを作れませんでした: ${insertError.message}` }, { status: 500 });
+    }
+    newIds = ((inserted ?? []) as { id: string }[]).map((row) => row.id);
+  }
+
+  for (let i = 0; i < oldIds.length; i += 200) {
+    const { error: deleteError } = await supabase.from("slots").delete().in("id", oldIds.slice(i, i + 200));
+    if (deleteError) {
+      // 前の下書きを消し切れなかった。新しく作ったぶんを消して、前の状態に寄せる
+      for (let j = 0; j < newIds.length; j += 200) {
+        await supabase.from("slots").delete().in("id", newIds.slice(j, j + 200));
+      }
+      return Response.json(
+        { error: `下書きを作れませんでした (前の下書きの一部が消えています。もう一度押してください): ${deleteError.message}` },
+        { status: 500 },
+      );
+    }
   }
   return Response.json({ created: rows.length });
 }

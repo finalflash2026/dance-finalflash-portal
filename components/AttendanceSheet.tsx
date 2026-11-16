@@ -400,7 +400,7 @@ export function AttendanceSheet({
                           aria-pressed={on}
                           className="flex h-[72px] flex-col items-center justify-center gap-1 rounded-2xl text-[13px] font-semibold transition-[background-color,color,transform] active:scale-[0.96] disabled:opacity-50"
                           style={{
-                            backgroundColor: on ? look.color : "var(--cell)",
+                            backgroundColor: on ? look.solid : "var(--cell)",
                             color: on ? "#fff" : "var(--foreground)",
                           }}
                         >
@@ -408,8 +408,9 @@ export function AttendanceSheet({
                             aria-hidden
                             className="grid h-7 w-7 place-items-center rounded-full text-[15px] font-bold"
                             style={{
-                              backgroundColor: on ? "rgba(255,255,255,0.25)" : look.soft,
-                              color: on ? "#fff" : look.color,
+                              // 押したときは地より少し暗い丸にする (白い印が地に溶けないように。v1.50.2)
+                              backgroundColor: on ? "rgba(0,0,0,0.2)" : look.soft,
+                              color: on ? "#fff" : look.fg,
                             }}
                           >
                             {look.mark}
@@ -497,7 +498,7 @@ export function AttendanceSheet({
                             save(draftStatus, draftStatus === "absent" ? null : draftTime.trim(), draftReason)
                           }
                           className="h-12 flex-[2] rounded-xl text-[16px] font-semibold text-white disabled:opacity-40"
-                          style={{ backgroundColor: STATUS_LOOK[draftStatus].color }}
+                          style={{ backgroundColor: STATUS_LOOK[draftStatus].solid }}
                         >
                           {ATTENDANCE_LABELS[draftStatus]}で登録する
                         </button>
@@ -542,7 +543,7 @@ export function AttendanceSheet({
                           <span
                             aria-hidden
                             className="grid h-8 w-8 shrink-0 place-items-center rounded-full text-[13px] font-bold"
-                            style={{ backgroundColor: bucket.soft, color: bucket.color }}
+                            style={{ backgroundColor: bucket.soft, color: bucket.fg }}
                           >
                             {initialOf(participant.username)}
                           </span>
@@ -559,7 +560,7 @@ export function AttendanceSheet({
                           </span>
                           <span
                             className="shrink-0 rounded-full px-2.5 py-1 text-[12px] font-semibold tabular-nums"
-                            style={{ backgroundColor: bucket.soft, color: bucket.color }}
+                            style={{ backgroundColor: bucket.soft, color: bucket.fg }}
                           >
                             {formatAttendance(participant.attendance, schemaV2 ? "未回答" : "出席")}
                           </span>
@@ -590,20 +591,25 @@ function Icon({ d }: { d: string }) {
 
 type Bucket = "present" | "partial" | "absent" | "none";
 
-/** 人数の帯と参加者の色。遅刻と早退は「一部だけ出る」としてまとめる */
-const BUCKETS: { id: Bucket; label: string; color: string; soft: string }[] = [
-  { id: "present", label: "出席", color: "#34c759", soft: "rgba(52,199,89,0.16)" },
-  { id: "partial", label: "遅刻早退", color: "#ff9f0a", soft: "rgba(255,159,10,0.18)" },
-  { id: "absent", label: "欠席", color: "#ff3b30", soft: "rgba(255,59,48,0.14)" },
-  { id: "none", label: "未回答", color: "#8e8e93", soft: "rgba(142,142,147,0.18)" },
+/**
+ * 人数の帯と参加者の色。遅刻と早退は「一部だけ出る」としてまとめる。
+ * 色は globals.css のトークン (v1.50.2。両テーマで AA)。
+ * color は帯・丸 (文字を載せない)、fg は soft や面の上の文字
+ */
+const BUCKETS: { id: Bucket; label: string; color: string; fg: string; soft: string }[] = [
+  { id: "present", label: "出席", color: "var(--status-present-solid)", fg: "var(--status-present-fg)", soft: "var(--status-present-bg)" },
+  { id: "partial", label: "遅刻早退", color: "var(--status-partial-solid)", fg: "var(--status-partial-fg)", soft: "var(--status-partial-bg)" },
+  { id: "absent", label: "欠席", color: "var(--status-absent-solid)", fg: "var(--status-absent-fg)", soft: "var(--status-absent-bg)" },
+  { id: "none", label: "未回答", color: "var(--muted)", fg: "var(--muted)", soft: "var(--fill)" },
 ];
 const BUCKET_BY_ID = Object.fromEntries(BUCKETS.map((b) => [b.id, b])) as Record<Bucket, (typeof BUCKETS)[number]>;
 
-const STATUS_LOOK: Record<AttendanceStatus, { color: string; soft: string; mark: string }> = {
-  present: { color: "#34c759", soft: "rgba(52,199,89,0.16)", mark: "✓" },
-  late: { color: "#ff9f0a", soft: "rgba(255,159,10,0.18)", mark: "↘" },
-  leave_early: { color: "#ff9f0a", soft: "rgba(255,159,10,0.18)", mark: "↗" },
-  absent: { color: "#ff3b30", soft: "rgba(255,59,48,0.14)", mark: "×" },
+/** 自分の出欠のボタン。solid は白い文字を載せる地 */
+const STATUS_LOOK: Record<AttendanceStatus, { solid: string; fg: string; soft: string; mark: string }> = {
+  present: { solid: "var(--status-present-solid)", fg: "var(--status-present-fg)", soft: "var(--status-present-bg)", mark: "✓" },
+  late: { solid: "var(--status-partial-solid)", fg: "var(--status-partial-fg)", soft: "var(--status-partial-bg)", mark: "↘" },
+  leave_early: { solid: "var(--status-partial-solid)", fg: "var(--status-partial-fg)", soft: "var(--status-partial-bg)", mark: "↗" },
+  absent: { solid: "var(--status-absent-solid)", fg: "var(--status-absent-fg)", soft: "var(--status-absent-bg)", mark: "×" },
 };
 
 function bucketOf(participant: Participant, unanswered: Bucket): Bucket {

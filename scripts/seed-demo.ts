@@ -115,6 +115,15 @@ function clock(total: number): string {
 
 // ---------- 本体 ----------
 
+/** 接続文字列から Supabase のプロジェクトの ref を取り出す (db.<ref>.supabase.co か、プーラーの postgres.<ref>) */
+function projectRefOf(connection: string): string | null {
+  const parsed = new URL(connection);
+  const direct = parsed.hostname.match(/^db\.([a-z0-9]+)\.supabase\.co$/)?.[1];
+  if (direct) return direct;
+  const pooled = decodeURIComponent(parsed.username).match(/^postgres\.([a-z0-9]+)$/)?.[1];
+  return pooled ?? null;
+}
+
 async function main() {
   loadEnvLocal();
   const url = process.env.DEMO_DATABASE_URL;
@@ -123,6 +132,21 @@ async function main() {
     process.exit(1);
   }
   const host = new URL(url).host;
+  // **本番へ向けない** (v1.50.2)。接続先がアプリの Supabase (NEXT_PUBLIC_SUPABASE_URL) と同じプロジェクトなら止める。
+  // デモのアプリとデモの DB が同じプロジェクトの環境だけ、DEMO_PROJECT_REF にその ref を書いて通す
+  const target = projectRefOf(url);
+  const appRef = (process.env.NEXT_PUBLIC_SUPABASE_URL ?? "").match(/^https:\/\/([a-z0-9]+)\.supabase\.co/)?.[1] ?? null;
+  if (!target) {
+    console.error(`${host} が Supabase のどのプロジェクトか分かりません。止めます。`);
+    process.exit(1);
+  }
+  if (appRef && target === appRef && process.env.DEMO_PROJECT_REF !== target) {
+    console.error(
+      `接続先 (${target}) がアプリの Supabase と同じプロジェクトです。本番を消してしまうので止めます。\n` +
+        "デモのアプリでデモの DB に入れ直すときだけ、.env.local に DEMO_PROJECT_REF=" + target + " を書いてください。",
+    );
+    process.exit(1);
+  }
   if (!process.argv.includes("--yes")) {
     const rl = createInterface({ input: stdin, output: stdout });
     const answer = await rl.question(

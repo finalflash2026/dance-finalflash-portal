@@ -140,7 +140,7 @@ export function SignupForm({
                 onClick={() => setGeneration(String(g))}
                 className={`h-10 rounded-full px-4 text-[15px] font-semibold ${
                   generation === String(g)
-                    ? "bg-[var(--tint)] text-white"
+                    ? "bg-[var(--tint-solid)] text-white"
                     : "bg-[var(--fill)]"
                 }`}
               >

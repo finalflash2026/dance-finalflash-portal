@@ -193,21 +193,19 @@ export function DayTimeline({
                 // ボタンは中身を縦の中央に寄せるので、上詰めを明示する。
                 // 長いブロックだと見出しが開始時刻から離れた位置に出てしまう
                 // 予定のブロック (v1.50.1): 色を混ぜた地・濃い文字。左端の線は付けない
-                className={`absolute flex flex-col justify-start overflow-hidden rounded-[6px] px-1.5 py-1 text-left text-[12px] leading-[15px] ${
-                  item.pale ? "opacity-55" : ""
-                }`}
+                className="absolute flex flex-col justify-start overflow-hidden rounded-[6px] px-1.5 py-1 text-left text-[12px] leading-[15px]"
                 style={{
                   top,
                   height: blockHeight,
                   // 重なった予定は横に分ける。1件のときは全幅
                   left: `calc(${from + lane * laneWidth}% + 2px)`,
                   width: `calc(${laneWidth}% - 4px)`,
-                  ...eventBlockStyle(item.color.bg),
+                  ...eventBlockStyle(item.color.bg, item.pale),
                 }}
               >
                 <span className="block truncate font-semibold">{item.title}</span>
                 {compact ? null : (
-                  <span className="block truncate opacity-80 tabular-nums">
+                  <span className="block truncate tabular-nums">
                     {range}
                     {item.subtitle ? `・${item.subtitle}` : ""}
                   </span>

@@ -147,7 +147,7 @@ export function ClubKeyBoard({
             type="button"
             onClick={claim}
             disabled={pending || isMine}
-            className="h-11 shrink-0 rounded-full bg-[var(--tint)] px-4 text-[15px] font-semibold text-white active:opacity-70 disabled:bg-[var(--fill)] disabled:text-[var(--muted)]"
+            className="h-11 shrink-0 rounded-full bg-[var(--tint-solid)] px-4 text-[15px] font-semibold text-white active:opacity-70 disabled:bg-[var(--fill)] disabled:text-[var(--muted)]"
           >
             {isMine ? "自分が持っている" : "自分が受け取った"}
           </button>

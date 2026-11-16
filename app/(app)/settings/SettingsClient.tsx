@@ -330,7 +330,7 @@ function ThemeSection() {
                 aria-hidden
                 className={`grid h-[22px] w-[22px] place-items-center rounded-full border-2 ${
                   selected
-                    ? "border-[var(--tint)] bg-[var(--tint)]"
+                    ? "border-[var(--tint)] bg-[var(--tint-solid)]"
                     : "border-[var(--border)]"
                 }`}
               >

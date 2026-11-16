@@ -2,6 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { GENRE_BY_ID } from "@/lib/constants";
 import { isMissingRelation } from "@/lib/schema-errors";
+import { selectAll } from "@/lib/supabase/select-all";
 import { addDays, normalizeTime } from "@/lib/time";
 import type { DateString, MyEvent, Profile } from "@/lib/types";
 
@@ -184,16 +185,23 @@ async function getGenrePracticeEvents(
 ): Promise<MyEvent[]> {
   const genres = await getMyGenreHistory(supabase, profile);
 
-  const { data, error } = await supabase
-    .from("slots")
-    .select(
-      "id, genre_id, date, start_time, end_time, target_generations, genres(code), rooms(name, sort_order)",
-    )
-    .eq("published", true)
-    .eq("status", "genre")
-    .in("genre_id", genres.ids)
-    .gte("date", from)
-    .lte("date", to);
+  // 3ジャンぶん・5か月だと1000行に近づくので、ページに分けて全部読む (v1.50.2)
+  const { data, error } = await selectAll((rowFrom, rowTo) =>
+    supabase
+      .from("slots")
+      .select(
+        "id, genre_id, date, start_time, end_time, target_generations, genres(code), rooms(name, sort_order)",
+      )
+      .eq("published", true)
+      .eq("status", "genre")
+      .in("genre_id", genres.ids)
+      .gte("date", from)
+      .lte("date", to)
+      .order("date")
+      .order("start_time")
+      .order("id")
+      .range(rowFrom, rowTo),
+  );
 
   if (error) throw new Error(`slots の取得に失敗しました: ${error.message}`);
 

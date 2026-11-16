@@ -194,7 +194,7 @@ export function SettingsGroup({
                       <span
                         aria-hidden
                         className={`grid h-6 w-6 place-items-center rounded-full text-[13px] font-bold ${
-                          showHint ? "bg-[var(--tint)] text-white" : "bg-[var(--fill)]"
+                          showHint ? "bg-[var(--tint-solid)] text-white" : "bg-[var(--fill)]"
                         }`}
                       >
                         ?

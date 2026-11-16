@@ -217,7 +217,7 @@ export function LaunchPrompts({
 function Step({ n, children }: { n: number; children: React.ReactNode }) {
   return (
     <li className="flex items-center gap-3">
-      <span className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-[var(--tint)] text-[14px] font-bold text-white">
+      <span className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-[var(--tint-solid)] text-[14px] font-bold text-white">
         {n}
       </span>
       <span>{children}</span>

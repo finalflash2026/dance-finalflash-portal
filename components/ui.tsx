@@ -40,7 +40,7 @@ export const compactInputClass =
 
 /** 大の主ボタン (primaryButtonClass と同じ。前からの名前) */
 export const buttonClass =
-  "flex h-[50px] w-full items-center justify-center rounded-[14px] bg-[var(--tint)] px-4 text-[17px] font-semibold text-white transition-opacity active:opacity-80 disabled:opacity-40";
+  "flex h-[50px] w-full items-center justify-center rounded-[14px] bg-[var(--tint-solid)] px-4 text-[17px] font-semibold text-white transition-opacity active:opacity-80 disabled:opacity-40";
 
 /** 大の副ボタン (fillButtonClass と同じ。前からの名前) */
 export const secondaryButtonClass =

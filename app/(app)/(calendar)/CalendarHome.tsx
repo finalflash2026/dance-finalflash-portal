@@ -510,7 +510,7 @@ function ScheduleRoundCard({ round, today }: { round: ScheduleRound; today: Date
       href="/schedule"
       prefetch
       data-tour="schedule-round"
-      className="flex items-center gap-3 rounded-2xl bg-[var(--tint)] px-4 py-3.5 text-white active:opacity-80"
+      className="flex items-center gap-3 rounded-2xl bg-[var(--tint-solid)] px-4 py-3.5 text-white active:opacity-80"
     >
       <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-white/20">
         <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
@@ -1102,7 +1102,7 @@ function FilterButton({
         onClick={() => setOpen(true)}
         aria-label={added > 0 ? `表示するもの(${added}つ追加中)` : "表示するもの(自分の予定だけ)"}
         className={`flex h-10 shrink-0 items-center gap-1 rounded-full ${compact ? "px-2.5" : "px-3"} text-[14px] font-semibold ${
-          added > 0 ? "bg-[var(--tint)] text-white" : "bg-[var(--fill)] text-[var(--tint)]"
+          added > 0 ? "bg-[var(--tint-solid)] text-white" : "bg-[var(--fill)] text-[var(--tint)]"
         }`}
       >
         <svg

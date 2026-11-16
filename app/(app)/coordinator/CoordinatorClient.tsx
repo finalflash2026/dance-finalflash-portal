@@ -150,7 +150,7 @@ export function CoordinatorClient({
                   <span
                     aria-hidden
                     className={`grid h-5 w-5 place-items-center rounded-full text-[11px] font-bold ${
-                      on ? "bg-[var(--tint)] text-white" : "bg-[var(--fill)] text-[var(--muted)]"
+                      on ? "bg-[var(--tint-solid)] text-white" : "bg-[var(--fill)] text-[var(--muted)]"
                     }`}
                   >
                     {index + 1}

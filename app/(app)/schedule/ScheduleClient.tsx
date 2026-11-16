@@ -374,7 +374,7 @@ function BulkCard({ onApply }: { onApply: (weekdays: number[], mark: Answer | un
               onClick={() => setWeekdays((prev) => (on ? prev.filter((x) => x !== d) : [...prev, d]))}
               className={`grid h-10 w-10 place-items-center rounded-full text-[15px] font-semibold transition-colors active:scale-95 ${
                 on
-                  ? "bg-[var(--tint)] text-white"
+                  ? "bg-[var(--tint-solid)] text-white"
                   : `bg-[var(--fill)] ${d === 0 ? "text-[var(--accent)]" : d === 6 ? "text-[var(--info)]" : ""}`
               }`}
             >
@@ -552,7 +552,7 @@ export function PlanPanel({
         <div>
           <div className="h-2.5 overflow-hidden rounded-full bg-[var(--fill)]">
             <div
-              className="h-full rounded-full bg-[var(--tint)] transition-[width] duration-300"
+              className="h-full rounded-full bg-[var(--tint-solid)] transition-[width] duration-300"
               style={{ width: `${(used / total) * 100}%` }}
             />
           </div>
@@ -721,7 +721,7 @@ function RoomSizes({
                     onClick={() => onChange({ ...value, [roomId]: o.value })}
                     className={`h-9 rounded-full px-3 text-[14px] transition-colors ${
                       current === o.value
-                        ? "bg-[var(--tint)] font-semibold text-white"
+                        ? "bg-[var(--tint-solid)] font-semibold text-white"
                         : "text-[var(--foreground)]"
                     }`}
                   >
@@ -782,7 +782,7 @@ function Progress({ elapsed, limit }: { elapsed: number; limit: number }) {
   return (
     <div ref={ref} className="space-y-2 rounded-xl bg-[var(--fill)] p-3" role="status" aria-live="polite">
       <div className="h-1.5 overflow-hidden rounded-full bg-[var(--cell)]">
-        <div className="progress-indeterminate h-full w-1/3 rounded-full bg-[var(--tint)]" />
+        <div className="progress-indeterminate h-full w-1/3 rounded-full bg-[var(--tint-solid)]" />
       </div>
       <ol className="space-y-1 text-[14px]">
         {steps.map((text, i) => (

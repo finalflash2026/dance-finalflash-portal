@@ -2,6 +2,7 @@ import "server-only";
 
 import { GENRES, OFF_ROSTER_ROLES } from "@/lib/constants";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { selectAll } from "@/lib/supabase/select-all";
 import { addMonths } from "@/lib/time";
 import type { DateString } from "@/lib/types";
 
@@ -30,7 +31,17 @@ interface RoundRow {
 async function withCounts(row: RoundRow, viewerId: string | null): Promise<ScheduleRound> {
   const admin = createAdminClient();
   const [answers, members] = await Promise.all([
-    admin.from("schedule_answers").select("user_id").eq("round_id", row.id),
+    // 回答は1人あたりコマの数だけ行があり、1000行を超える。全部読む (v1.50.2)
+    selectAll<{ user_id: string }>((from, to) =>
+      admin
+        .from("schedule_answers")
+        .select("user_id")
+        .eq("round_id", row.id)
+        .order("user_id")
+        .order("date")
+        .order("start_time")
+        .range(from, to),
+    ),
     admin.from("profiles").select("user_id", { count: "exact", head: true }).not("role", "in", OFF_ROSTER_ROLES),
   ]);
   const answered = new Set(((answers.data ?? []) as { user_id: string }[]).map((r) => r.user_id));
@@ -81,11 +92,18 @@ export async function loadMonthInput(
   options: { onlyUser?: string } = {},
 ): Promise<PlanInput> {
   const admin = createAdminClient();
-  let answersQuery = admin
-    .from("schedule_answers")
-    .select("user_id, date, start_time, end_time, answer")
-    .eq("round_id", roundId ?? "00000000-0000-0000-0000-000000000000");
-  if (options.onlyUser) answersQuery = answersQuery.eq("user_id", options.onlyUser);
+  // 回答は「人数 × コマの数」行あり、1000行を超えるので全部読む (v1.50.2)
+  const readAnswers = () =>
+    selectAll<{ user_id: string; date: string; start_time: string; end_time: string; answer: Answer }>(
+      (from, to) => {
+        let query = admin
+          .from("schedule_answers")
+          .select("user_id, date, start_time, end_time, answer")
+          .eq("round_id", roundId ?? "00000000-0000-0000-0000-000000000000");
+        if (options.onlyUser) query = query.eq("user_id", options.onlyUser);
+        return query.order("user_id").order("date").order("start_time").order("end_time").range(from, to);
+      },
+    );
 
   const [reservations, profiles, subgenres, answerRows] = await Promise.all([
     admin
@@ -98,7 +116,7 @@ export async function loadMonthInput(
       ? Promise.resolve({ data: [] })
       : admin.from("profiles").select("user_id, username, main_genre_id").not("role", "in", OFF_ROSTER_ROLES),
     options.onlyUser ? Promise.resolve({ data: [] }) : admin.from("user_subgenres").select("user_id, slot, genre_id"),
-    roundId ? answersQuery : Promise.resolve({ data: [] }),
+    roundId ? readAnswers() : Promise.resolve({ data: [] }),
   ]);
 
   const candidates = candidatesFromReservations(

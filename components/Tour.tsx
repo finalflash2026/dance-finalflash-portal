@@ -338,7 +338,7 @@ export function Tour() {
             <button
               type="button"
               onClick={() => (last ? finish() : setIndex(index + 1))}
-              className="rounded-full bg-[var(--tint)] px-5 py-2 text-[15px] font-semibold text-white"
+              className="rounded-full bg-[var(--tint-solid)] px-5 py-2 text-[15px] font-semibold text-white"
             >
               {last ? "はじめる" : "次へ"}
             </button>
