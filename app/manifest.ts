@@ -19,7 +19,7 @@ export default function manifest(): MetadataRoute.Manifest {
     start_url: "/",
     display: "standalone",
     /*
-     * **既定のテーマの地の色と揃える** (v1.17 でダークが既定になった)。
+     * **既定のテーマの地の色と揃える** (v1.39 でライトが既定に戻った)。
      *
      * iOS はこの色を起動時のスプラッシュだけでなく**画面上端
      * (ステータスバーの下)の塗り**にも使う。かつてアイコンの黒地に
@@ -31,8 +31,8 @@ export default function manifest(): MetadataRoute.Manifest {
      * THEME_INIT_SCRIPT が白へ書き換える (lib/theme.ts)。
      * ここが効くのは起動直後のスプラッシュだけで、既定のダークと揃う。
      */
-    background_color: "#22272e",
-    theme_color: "#22272e",
+    background_color: "#ffffff",
+    theme_color: "#ffffff",
     icons: [
       { src: "/icon-192.png", sizes: "192x192", type: "image/png" },
       { src: "/icon-512.png", sizes: "512x512", type: "image/png" },

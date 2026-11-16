@@ -34,14 +34,14 @@ const schema = z.object({
 export async function POST(request: Request) {
   if (!hasSupabaseEnv()) {
     return Response.json(
-      { error: "サーバーの設定が未完了です (Supabase 未接続)" },
+      { error: "サーバーの設定が未完了です(Supabase 未接続)。" },
       { status: 503 },
     );
   }
 
   const profile = await getCurrentProfile();
   if (!profile) {
-    return Response.json({ error: "ログインしてください" }, { status: 401 });
+    return Response.json({ error: "ログインしてください。" }, { status: 401 });
   }
   // 閲覧のみ (v1.30) は書けない。RLS でも止まるが、ここで弾けば
   // 「permission denied」ではなく理由の分かる日本語を返せる (§13.2)
@@ -54,13 +54,13 @@ export async function POST(request: Request) {
 
   const parsed = schema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) {
-    return Response.json({ error: "指定が不正です" }, { status: 400 });
+    return Response.json({ error: "指定が不正です。" }, { status: 400 });
   }
 
   const supabase = await createClient();
   const room = (await fetchRoomMap(supabase)).get(parsed.data.roomId);
   if (!room) {
-    return Response.json({ error: "その練習場所はありません" }, { status: 400 });
+    return Response.json({ error: "その練習場所はありません。" }, { status: 400 });
   }
 
   const today = todayInTokyo();
@@ -101,7 +101,7 @@ export async function POST(request: Request) {
         body: `${room.name}を${
           parsed.data.isUnlocked ? "開けました" : "閉めました"
         }`,
-        url: "/overview",
+        url: "/",
         // 同じ部屋の開け閉めは置き換える。往復しても通知が積み上がらない
         tag: `room-${room.id}`,
       },

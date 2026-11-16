@@ -36,14 +36,14 @@ const schema = z.object({
 export async function POST(request: Request) {
   if (!hasSupabaseEnv()) {
     return Response.json(
-      { error: "サーバーの設定が未完了です (Supabase 未接続)" },
+      { error: "サーバーの設定が未完了です(Supabase 未接続)。" },
       { status: 503 },
     );
   }
 
   const profile = await getCurrentProfile();
   if (!profile) {
-    return Response.json({ error: "ログインしてください" }, { status: 401 });
+    return Response.json({ error: "ログインしてください。" }, { status: 401 });
   }
   // 閲覧のみ (v1.30) は書けない。RLS でも止まるが、ここで弾けば
   // 「permission denied」ではなく理由の分かる日本語を返せる (§13.2)
@@ -90,7 +90,7 @@ export async function POST(request: Request) {
         // 1行目に誰が、2行目に中身 (v1.26 と同じ形)
         title: profile.username,
         body,
-        url: "/overview",
+        url: "/",
         // 同じボードの連絡はまとめる。連投で通知が積み上がらないように
         tag: `board-${scope}`,
       },

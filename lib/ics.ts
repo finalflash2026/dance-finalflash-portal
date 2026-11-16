@@ -1,5 +1,6 @@
 import { appHost } from "@/lib/env";
 import { eventEndDate } from "@/lib/day-span";
+import { addDays } from "@/lib/time";
 import type { MyEvent } from "@/lib/types";
 
 /**
@@ -29,6 +30,9 @@ const UID_PREFIX: Record<MyEvent["kind"], string> = {
   // スタ練 (v1.23)。**他と重ならない接頭辞にすること** —
   // UID がぶつかると購読側で別の予定に上書きされる
   studio: "gprac",
+  // v1.30 (§6.7)
+  event: "cevent",
+  deadline: "deadline",
 };
 
 export function buildCalendar(events: MyEvent[], username: string): string {
@@ -67,22 +71,39 @@ const VTIMEZONE_JST = [
 
 function buildEvent(event: MyEvent, host: string, dtstamp: string): string[] {
   const uid = `${UID_PREFIX[event.kind]}-${event.sourceId}@${host}`;
-  const lines = [
-    "BEGIN:VEVENT",
-    `UID:${uid}`,
-    `DTSTAMP:${dtstamp}`,
-    `DTSTART;TZID=Asia/Tokyo:${localStamp(event.date, event.startTime)}`,
-    // **終了は「終わる日」で書く** (v1.21)。23:00〜翌06:00 のような予定を
-    // 同じ日付で書くと、終了が開始より前になり、カレンダーアプリ側で
-    // 予定が消えるか長さ0として扱われる
-    `DTEND;TZID=Asia/Tokyo:${localStamp(
-      eventEndDate(event.date, event.startTime, event.endTime),
-      event.endTime,
-    )}`,
-    `SUMMARY:${escapeText(event.title)}`,
-  ];
+  const lines = ["BEGIN:VEVENT", `UID:${uid}`, `DTSTAMP:${dtstamp}`];
+
+  if (event.allDay) {
+    // **終日の予定は日付だけで書く** (v1.30)。時刻を 00:00〜24:00 で書くと、
+    // カレンダーアプリによっては終日の欄ではなく丸1日の予定として縦に伸びる。
+    // DTEND は「最終日の翌日」(RFC 5545 では終了日を含まない)
+    lines.push(
+      `DTSTART;VALUE=DATE:${event.date.replace(/-/g, "")}`,
+      `DTEND;VALUE=DATE:${addDays(event.lastDate ?? event.date, 1).replace(/-/g, "")}`,
+    );
+  } else {
+    lines.push(
+      `DTSTART;TZID=Asia/Tokyo:${localStamp(event.date, event.startTime)}`,
+      // **終了は「終わる日」で書く** (v1.21)。23:00〜翌06:00 のような予定を
+      // 同じ日付で書くと、終了が開始より前になり、カレンダーアプリ側で
+      // 予定が消えるか長さ0として扱われる。複数日のイベント (v1.30) は最終日
+      `DTEND;TZID=Asia/Tokyo:${localStamp(
+        event.lastDate ??
+          eventEndDate(event.date, event.startTime, event.endTime),
+        event.endTime,
+      )}`,
+    );
+  }
+  lines.push(`SUMMARY:${escapeText(event.title)}`);
   if (event.location) {
     lines.push(`LOCATION:${escapeText(event.location)}`);
+  }
+  if (event.url) {
+    lines.push(`URL:${event.url}`);
+  }
+  // メモ (v1.32.5)。改行は escapeText が \n にする
+  if (event.note?.trim()) {
+    lines.push(`DESCRIPTION:${escapeText(event.note.trim())}`);
   }
   lines.push("END:VEVENT");
   return lines;

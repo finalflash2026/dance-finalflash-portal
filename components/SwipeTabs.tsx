@@ -50,7 +50,8 @@ export function SwipeTabs({
       start.current = {
         x: touch.clientX,
         y: touch.clientY,
-        ignore: target?.closest(".h-scroll, [data-no-swipe]") != null,
+        // 窓 (role="dialog") の上の操作は、印の付け忘れがあっても拾わない (v1.32.6)
+        ignore: target?.closest('.h-scroll, [data-no-swipe], [role="dialog"]') != null,
       };
     }
 

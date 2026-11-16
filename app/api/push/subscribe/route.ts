@@ -3,6 +3,7 @@ import { z } from "zod";
 import { getCurrentProfile } from "@/lib/auth/session";
 import { hasSupabaseEnv } from "@/lib/env";
 import { isPushConfigured } from "@/lib/push";
+import { hasSchemaV2 } from "@/lib/schema";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 /**
@@ -30,6 +31,10 @@ const schema = z.object({
       room: z.boolean(),
       key: z.boolean(),
       message: z.boolean(),
+      // v1.30。古い画面から来たときに欠けていても通す (既定はオン)
+      reminder: z.boolean().optional(),
+      deadline: z.boolean().optional(),
+      announcement: z.boolean().optional(),
     })
     .optional(),
 });
@@ -37,25 +42,25 @@ const schema = z.object({
 export async function POST(request: Request) {
   if (!hasSupabaseEnv()) {
     return Response.json(
-      { error: "サーバーの設定が未完了です (Supabase 未接続)" },
+      { error: "サーバーの設定が未完了です(Supabase 未接続)。" },
       { status: 503 },
     );
   }
   if (!isPushConfigured()) {
     return Response.json(
-      { error: "この環境では通知が設定されていません" },
+      { error: "この環境では通知が設定されていません。" },
       { status: 503 },
     );
   }
 
   const profile = await getCurrentProfile();
   if (!profile) {
-    return Response.json({ error: "ログインしてください" }, { status: 401 });
+    return Response.json({ error: "ログインしてください。" }, { status: 401 });
   }
 
   const parsed = schema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) {
-    return Response.json({ error: "購読の内容が不正です" }, { status: 400 });
+    return Response.json({ error: "購読の内容が不正です。" }, { status: 400 });
   }
 
   const { endpoint, keys, prefs } = parsed.data;
@@ -70,6 +75,14 @@ export async function POST(request: Request) {
       notify_room: prefs?.room ?? true,
       notify_key: prefs?.key ?? true,
       notify_message: prefs?.message ?? true,
+      // 予定・締切・告知の列は 0020 から (v1.49)
+      ...((await hasSchemaV2())
+        ? {
+            notify_reminder: prefs?.reminder ?? true,
+            notify_deadline: prefs?.deadline ?? true,
+            notify_announcement: prefs?.announcement ?? true,
+          }
+        : {}),
     },
     { onConflict: "endpoint" },
   );

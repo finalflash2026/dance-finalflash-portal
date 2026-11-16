@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { SetupNotice } from "@/components/SetupNotice";
 import { getCurrentProfile } from "@/lib/auth/session";
 import { hasSupabaseEnv } from "@/lib/env";
+import { dbErrorMessage } from "@/lib/error-message";
 import { createClient } from "@/lib/supabase/server";
 import type { Profile } from "@/lib/types";
 
@@ -54,7 +55,7 @@ export default async function AdminPage() {
     <AdminClient
       currentUserId={profile.user_id}
       initialUsers={users}
-      loadError={error ? `名簿を取得できませんでした: ${error.message}` : null}
+      loadError={error ? dbErrorMessage("名簿を取得できませんでした", error) : null}
     />
   );
 }

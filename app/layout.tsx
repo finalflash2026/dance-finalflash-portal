@@ -1,5 +1,11 @@
 import type { Metadata, Viewport } from "next";
 
+import { ConfirmHost } from "@/components/ConfirmHost";
+import { NativeBridge } from "@/components/NativeBridge";
+import { ResumeRefresh } from "@/components/ResumeRefresh";
+import { SPLASH_INIT_SCRIPT, Splash } from "@/components/Splash";
+import { ToastHost } from "@/components/ToastHost";
+import { NATIVE_INIT_SCRIPT } from "@/lib/native";
 import { THEME_INIT_SCRIPT } from "@/lib/theme";
 
 import "./globals.css";
@@ -21,19 +27,20 @@ export const metadata: Metadata = {
   },
 };
 
-// スマホ最優先 (SPEC §12)。下部固定タブバーのため viewport-fit も指定する
+// スマホ最優先 (SPEC §12)。下部固定タブバーのため viewport-fit も指定する。
+// **ピンチでの拡大は止めない** (v1.32.7)。小さい文字を拡大して読みたい人がいる。
+// 入力欄に触れたときの自動拡大は、入力欄の文字を 16px 以上にして防ぐ (globals.css)
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
-  maximumScale: 1,
   viewportFit: "cover",
   /*
    * 画面上端(ステータスバー周り)の色。**必ず静的に出しておくこと。**
    * 無いと iOS がマニフェストの background_color で塗ってしまう。
-   * 既定のダークの地の色を入れ、ライトを選んでいる端末では
-   * THEME_INIT_SCRIPT が最初のペイント前に書き換える (lib/theme.ts / v1.17)。
+   * 既定のライトの地の色を入れ、ダークを選んでいる端末では
+   * THEME_INIT_SCRIPT が最初のペイント前に書き換える (lib/theme.ts / v1.39)。
    */
-  themeColor: "#22272e",
+  themeColor: "#ffffff",
 };
 
 export default function RootLayout({
@@ -51,8 +58,23 @@ export default function RootLayout({
     <html lang="ja" suppressHydrationWarning>
       <head>
         <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
+        {/* 起動アニメーションを、この起動で既に出したかどうか (§6.7.10) */}
+        <script dangerouslySetInnerHTML={{ __html: SPLASH_INIT_SCRIPT }} />
+        {/* iOS アプリなら Web のタブバーを最初から隠す (SPEC §2.3.1 / v1.38) */}
+        <script dangerouslySetInnerHTML={{ __html: NATIVE_INIT_SCRIPT }} />
       </head>
-      <body className="antialiased">{children}</body>
+      <body className="antialiased">
+        <Splash />
+        {children}
+        {/* 確認の窓 (window.confirm の代わり。v1.32.7) */}
+        <ConfirmHost />
+        {/* 短い知らせ (成功したとき。v1.36) */}
+        <ToastHost />
+        {/* iOS アプリの中でだけ動く (SPEC §2.3 / v1.37) */}
+        <NativeBridge />
+        {/* 戻ってきたら取り直す・ログアウトで前回の内容を消す (v1.42) */}
+        <ResumeRefresh />
+      </body>
     </html>
   );
 }

@@ -40,7 +40,7 @@ export async function POST(
   }
   if (!target) {
     return Response.json(
-      { error: "そのユーザーは見つかりません" },
+      { error: "そのユーザーは見つかりません。" },
       { status: 404 },
     );
   }

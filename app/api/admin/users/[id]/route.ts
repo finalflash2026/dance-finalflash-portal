@@ -87,7 +87,7 @@ export async function PATCH(
   }
   if (!target) {
     return Response.json(
-      { error: "そのユーザーは見つかりません" },
+      { error: "そのユーザーは見つかりません。" },
       { status: 404 },
     );
   }
@@ -100,7 +100,7 @@ export async function PATCH(
     patch.role !== "admin"
   ) {
     return Response.json(
-      { error: "自分自身の管理者権限は外せません。別の管理者に依頼してください" },
+      { error: "自分自身の管理者権限は外せません。別の管理者に依頼してください。" },
       { status: 403 },
     );
   }
@@ -131,7 +131,7 @@ export async function PATCH(
     if (existing) {
       return Response.json(
         {
-          error: `ユーザーID「${nextUsername}」は既に使われています。名前の表記を変えてください`,
+          error: `ユーザーID「${nextUsername}」は既に使われています。名前の表記を変えてください。`,
         },
         { status: 409 },
       );
@@ -147,7 +147,7 @@ export async function PATCH(
     }
   }
 
-  // ---- 閲覧のみへの切り替えも先に。OB化と同じ片付けを伴う (SPEC §3.7 / v1.30) ----
+  // ---- 閲覧のみへの切り替えも先に。OB化と同じ片付けを伴う (SPEC §3.8 / v1.30) ----
   const toViewer = patch.role === "viewer" && target.role !== "viewer";
   if (toViewer) {
     const result = await makeViewer(admin, [id]);
@@ -211,7 +211,7 @@ export async function PATCH(
         .eq("user_id", id);
       return Response.json(
         {
-          error: `ログインIDの変更に失敗しました (変更前の状態に戻しました): ${authError.message}`,
+          error: `ログインIDの変更に失敗しました(変更前の状態に戻しました): ${authError.message}`,
         },
         { status: 500 },
       );
