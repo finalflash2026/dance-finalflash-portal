@@ -140,6 +140,14 @@ async function main() {
     console.error(`${host} が Supabase のどのプロジェクトか分かりません。止めます。`);
     process.exit(1);
   }
+  // アプリの URL が無いと比べられない。本番に向いていても通ってしまうので、明示されたときだけ通す (v1.50.3)
+  if (!appRef && process.env.DEMO_PROJECT_REF !== target) {
+    console.error(
+      `NEXT_PUBLIC_SUPABASE_URL が無いので、接続先 (${target}) が本番か分かりません。止めます。\n` +
+        "デモの DB だと確かめたうえで、.env.local に DEMO_PROJECT_REF=" + target + " を書いてください。",
+    );
+    process.exit(1);
+  }
   if (appRef && target === appRef && process.env.DEMO_PROJECT_REF !== target) {
     console.error(
       `接続先 (${target}) がアプリの Supabase と同じプロジェクトです。本番を消してしまうので止めます。\n` +

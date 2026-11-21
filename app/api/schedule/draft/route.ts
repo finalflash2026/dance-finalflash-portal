@@ -75,7 +75,11 @@ export async function POST(request: Request) {
 
 /**
  * replace_draft_slots (0027) と同じことを、DB の関数を使わずに順に行う (v1.49)。
- * 1回の取引にはならないので、新しい下書きを先に作り、成功してから前の下書きを消す (v1.50.2)。
+ *
+ * 1回の取引にはならないので、**前の下書きを全部の列ごと取っておいてから消し、新しい下書きを入れる。
+ * 入れられなかったら、取っておいた行を同じ id で戻す** (v1.50.3)。
+ * 新しい下書きを先に入れる順 (v1.50.2) はとれない。slots の `slots_no_overlap` (0004) は公開・未公開を
+ * 区別しないので、同じ予約枠の前の下書きと時間が重なって必ず弾かれる。
  */
 async function replaceDraftSlotsStepByStep(
   supabase: Awaited<ReturnType<typeof createClient>>,
@@ -142,41 +146,61 @@ async function replaceDraftSlotsStepByStep(
       : [];
   });
 
-  // **作ってから消す** (v1.50.2)。消してから作ると、作る側が失敗したときに下書きが消えたままになる。
-  // slots には重なりの制約が無いので、一時的に新旧が並んでも書き込める
+  // 前の下書きを全部の列ごと取っておく。戻すときに同じ id・同じ中身で入れ直すため。
+  // 未公開のコマには空き申請も出欠も付かない (0001・0013 の RLS で、どちらも公開済みのコマだけ) ので、
+  // 行そのものを戻せば元どおりになる
   const { data: oldDrafts, error: oldError } = await supabase
     .from("slots")
-    .select("id")
+    .select("*")
     .gte("date", month)
     .lt("date", end)
     .eq("published", false);
   if (oldError) {
     return Response.json({ error: `下書きを作れませんでした: ${oldError.message}` }, { status: 500 });
   }
-  const oldIds = ((oldDrafts ?? []) as { id: string }[]).map((row) => row.id);
+  const previous = (oldDrafts ?? []) as { id: string }[];
 
-  let newIds: string[] = [];
-  if (rows.length > 0) {
-    const { data: inserted, error: insertError } = await supabase.from("slots").insert(rows).select("id");
-    if (insertError) {
-      // 何も消していないので、前の下書きはそのまま残る
-      return Response.json({ error: `下書きを作れませんでした: ${insertError.message}` }, { status: 500 });
+  for (let i = 0; i < previous.length; i += 200) {
+    const ids = previous.slice(i, i + 200).map((row) => row.id);
+    const { error: deleteError } = await supabase.from("slots").delete().in("id", ids);
+    if (deleteError) {
+      const restored = await restoreDrafts(supabase, previous);
+      return Response.json(
+        { error: draftFailure(deleteError.message, restored) },
+        { status: 500 },
+      );
     }
-    newIds = ((inserted ?? []) as { id: string }[]).map((row) => row.id);
   }
 
-  for (let i = 0; i < oldIds.length; i += 200) {
-    const { error: deleteError } = await supabase.from("slots").delete().in("id", oldIds.slice(i, i + 200));
-    if (deleteError) {
-      // 前の下書きを消し切れなかった。新しく作ったぶんを消して、前の状態に寄せる
-      for (let j = 0; j < newIds.length; j += 200) {
-        await supabase.from("slots").delete().in("id", newIds.slice(j, j + 200));
-      }
+  if (rows.length > 0) {
+    // 1回の insert は1つの取引なので、失敗したら新しい行は1件も残らない
+    const { error: insertError } = await supabase.from("slots").insert(rows);
+    if (insertError) {
+      const restored = await restoreDrafts(supabase, previous);
       return Response.json(
-        { error: `下書きを作れませんでした (前の下書きの一部が消えています。もう一度押してください): ${deleteError.message}` },
+        { error: draftFailure(insertError.message, restored) },
         { status: 500 },
       );
     }
   }
   return Response.json({ created: rows.length });
+}
+
+/** 取っておいた前の下書きを、同じ id のまま入れ直す。全部戻せたら true */
+async function restoreDrafts(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  previous: { id: string }[],
+): Promise<boolean> {
+  for (let i = 0; i < previous.length; i += 500) {
+    // upsert にする。消し切れずに残っている行があっても、同じ id なら上書きで済む
+    const { error } = await supabase.from("slots").upsert(previous.slice(i, i + 500), { onConflict: "id" });
+    if (error) return false;
+  }
+  return true;
+}
+
+function draftFailure(message: string, restored: boolean): string {
+  return restored
+    ? `下書きを作れませんでした: ${message}`
+    : `下書きを作れませんでした (前の下書きを戻せませんでした。コマ割りの表で確かめてください): ${message}`;
 }
