@@ -7,11 +7,11 @@
 export function SetupNotice() {
   return (
     <main className="mx-auto max-w-2xl space-y-4 px-4 py-8">
-      <h1 className="text-xl font-bold">セットアップが必要です</h1>
-      <p className="text-sm text-[var(--muted)]">
+      <h1 className="text-[22px] font-bold">セットアップが必要です</h1>
+      <p className="text-[15px] text-[var(--muted)]">
         Supabase の環境変数が未設定です。SPEC.md §14 の手順で接続してください。
       </p>
-      <ol className="list-decimal space-y-2 pl-5 text-sm">
+      <ol className="list-decimal space-y-2 pl-5 text-[15px]">
         <li>Supabase プロジェクトを作成する</li>
         <li>
           SQL Editor で{" "}

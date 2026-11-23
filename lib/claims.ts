@@ -115,18 +115,18 @@ export function validateClaim(
   const end = toMinutes(endTime);
 
   if (end <= start) {
-    return { ok: false, message: "終了時刻は開始時刻より後にしてください" };
+    return { ok: false, message: "終了時刻は開始時刻より後にしてください。" };
   }
   if (!isOnStep(startTime) || !isOnStep(endTime)) {
     return {
       ok: false,
-      message: `時刻は${CLAIM_STEP_MINUTES}分刻みで選んでください`,
+      message: `時刻は${CLAIM_STEP_MINUTES}分刻みで選んでください。`,
     };
   }
   if (start < toMinutes(slot.startTime) || end > toMinutes(slot.endTime)) {
     return {
       ok: false,
-      message: `この空きコマ (${normalizeTime(slot.startTime)}〜${normalizeTime(slot.endTime)}) の範囲内で選んでください`,
+      message: `この空きコマ(${normalizeTime(slot.startTime)}〜${normalizeTime(slot.endTime)})の範囲内で選んでください。`,
     };
   }
   const conflict = claims.find(
@@ -135,7 +135,7 @@ export function validateClaim(
   if (conflict) {
     return {
       ok: false,
-      message: `${normalizeTime(conflict.startTime)}〜${normalizeTime(conflict.endTime)} は ${conflict.username} が申請済みです`,
+      message: `${normalizeTime(conflict.startTime)}〜${normalizeTime(conflict.endTime)} は ${conflict.username} が申請済みです。`,
     };
   }
   return { ok: true };

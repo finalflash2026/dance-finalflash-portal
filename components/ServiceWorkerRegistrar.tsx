@@ -20,6 +20,20 @@ export function ServiceWorkerRegistrar() {
   useEffect(() => {
     if (!("serviceWorker" in navigator)) return;
 
+    /*
+     * **開発中 (npm run dev) は登録せず、登録済みなら外す** (v1.31)。
+     * 開発サーバーは中身が変わっても同じ名前で /_next/static/ を出すことがあり、
+     * Service Worker が古いものを持ち続けて、直した画面が端末に届かなかった
+     * (iOS シミュレータで確認中に起きた)。本番はファイル名にハッシュが入るので関係ない。
+     */
+    if (process.env.NODE_ENV !== "production") {
+      navigator.serviceWorker
+        .getRegistrations()
+        .then((registrations) => registrations.forEach((r) => r.unregister()))
+        .catch(() => {});
+      return;
+    }
+
     // 起動直後は取りにいくものが多い。登録は後回しにして邪魔をしない
     const timer = setTimeout(() => {
       navigator.serviceWorker.register("/sw.js").catch((cause) => {

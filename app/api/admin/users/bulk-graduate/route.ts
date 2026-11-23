@@ -43,7 +43,7 @@ export async function POST(request: Request) {
   // 一括のときは黙って除くのではなく弾く — 選択の取り違えが疑われるため
   if (userIds.includes(actor.user_id)) {
     return Response.json(
-      { error: "自分自身をOBへ移行することはできません" },
+      { error: "自分自身をOBへ移行することはできません。" },
       { status: 403 },
     );
   }

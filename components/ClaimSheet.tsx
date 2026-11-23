@@ -4,7 +4,12 @@ import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 
 import type { DayBlock } from "@/components/DayGrid";
-import { ErrorMessage, buttonClass, inputClass } from "@/components/ui";
+import {
+  ErrorMessage,
+  buttonClass,
+  inputClass,
+  secondaryButtonClass,
+} from "@/components/ui";
 import { freeRanges, stepOptions, validateClaim } from "@/lib/claims";
 import {
   SLOT_CLAIMED_COLOR,
@@ -13,6 +18,7 @@ import {
   GENRE_COLORS,
   type GenreCode,
 } from "@/lib/constants";
+import { dbErrorMessage } from "@/lib/error-message";
 import { useRoomById } from "@/lib/rooms";
 import { createClient } from "@/lib/supabase/client";
 import {
@@ -126,16 +132,16 @@ export function ClaimSheet({
       if (insertError.code === EXCLUSION_VIOLATION) {
         // SPEC §6.1-4: 同時申請の重複は DB で必ず片方が失敗する
         setError(
-          "その時間帯は先に申請が入りました。最新の状態を読み込みます",
+          "その時間帯は先に申請が入りました。最新の状態を読み込みます。",
         );
         router.refresh();
         return;
       }
       if (insertError.code === CHECK_VIOLATION) {
-        setError(`時刻は${CLAIM_STEP_MINUTES}分刻みで選んでください`);
+        setError(`時刻は${CLAIM_STEP_MINUTES}分刻みで選んでください。`);
         return;
       }
-      setError(`申請に失敗しました: ${insertError.message}`);
+      setError(dbErrorMessage("申請に失敗しました", insertError));
       return;
     }
 
@@ -163,7 +169,7 @@ export function ClaimSheet({
         {confirming ? (
           <>
             <h3 className="text-lg font-bold">この内容で申請しますか?</h3>
-            <dl className="mt-4 space-y-2 text-sm">
+            <dl className="mt-4 space-y-2 text-[15px]">
               <Row label="申請場所" value={room?.name ?? "-"} />
               <Row
                 label="申請日時"
@@ -187,16 +193,16 @@ export function ClaimSheet({
                 type="button"
                 onClick={() => setConfirming(false)}
                 disabled={pending}
-                className="w-full rounded-lg border border-[var(--border)] py-3 text-sm font-medium"
+                className={secondaryButtonClass}
               >
-                いいえ (戻る)
+                いいえ(戻る)
               </button>
             </div>
           </>
         ) : (
           <>
             <h3 className="text-lg font-bold">空き時間の申請</h3>
-            <p className="mt-1 text-sm text-[var(--muted)]">
+            <p className="mt-1 text-[15px] text-[var(--muted)]">
               {room?.name} / {formatDateLabel(date)}
             </p>
 
@@ -204,12 +210,12 @@ export function ClaimSheet({
               <TimeBar blocks={roomBlocks} />
 
               <div className="flex-1 space-y-3">
-                <p className="text-xs text-[var(--muted)]">
+                <p className="text-[13px] text-[var(--muted)]">
                   選べる範囲: {formatTimeRange(range.startTime, range.endTime)}
                 </p>
 
                 <label className="block">
-                  <span className="text-sm font-medium">開始</span>
+                  <span className="text-[15px] font-medium">開始</span>
                   <select
                     className={inputClass}
                     value={startTime}
@@ -224,7 +230,7 @@ export function ClaimSheet({
                 </label>
 
                 <label className="block">
-                  <span className="text-sm font-medium">終了</span>
+                  <span className="text-[15px] font-medium">終了</span>
                   <select
                     className={inputClass}
                     value={endTime}
@@ -241,7 +247,7 @@ export function ClaimSheet({
                 </label>
 
                 <label className="block">
-                  <span className="text-sm font-medium">
+                  <span className="text-[15px] font-medium">
                     用途メモ{" "}
                     <span className="font-normal text-[var(--muted)]">
                       (任意)
@@ -259,7 +265,7 @@ export function ClaimSheet({
             </div>
 
             {!validation.ok ? (
-              <p className="mt-3 text-sm text-[var(--danger-fg)]">
+              <p className="mt-3 text-[15px] text-[var(--danger-fg)]">
                 {validation.message}
               </p>
             ) : null}
@@ -280,7 +286,7 @@ export function ClaimSheet({
               <button
                 type="button"
                 onClick={onClose}
-                className="w-full rounded-lg border border-[var(--border)] py-3 text-sm font-medium"
+                className={secondaryButtonClass}
               >
                 キャンセル
               </button>

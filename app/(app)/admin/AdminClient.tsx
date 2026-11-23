@@ -1,16 +1,11 @@
 "use client";
 
-import Link from "next/link";
 import { useState } from "react";
 
 import { ErrorMessage, Field, inputClass, secondaryButtonClass } from "@/components/ui";
 import { buildUsernameFromGenreId } from "@/lib/auth/username";
-import {
-  GENRES,
-  GENRE_BY_ID,
-  ROLE_LABELS,
-  isActiveMember,
-} from "@/lib/constants";
+import { confirmAction } from "@/lib/confirm";
+import { GENRES, GENRE_BY_ID, ROLE_LABELS, isActiveMember } from "@/lib/constants";
 import type { Role } from "@/lib/types";
 
 /**
@@ -92,17 +87,48 @@ export function AdminClient({
   }
 
   return (
-    <main className="mx-auto max-w-2xl space-y-6 px-4 py-6">
-      <div className="flex items-center justify-between gap-3">
-        <h1 className="text-xl font-bold">管理者</h1>
-        <Link href="/settings" className="text-sm text-[var(--muted)] underline">
-          設定へ戻る
-        </Link>
+    <main className="mx-auto max-w-2xl space-y-5 px-4 py-4">
+      {/* 戻るは左上の戻るボタン、ほかの運営の画面へは上の切り替えから (v1.39) */}
+      <h1 className="text-[28px] font-bold leading-tight">管理者</h1>
+
+      {/* 人数の要約 (v1.42)。押すとその人たちに絞り込む */}
+      <div className="grid grid-cols-4 gap-2" aria-label="人数">
+        {(
+          [
+            { label: "現役", count: users.filter((u) => isActiveMember(u.role)).length, on: () => setEnrollment("active") },
+            { label: "OB/OG", count: users.filter((u) => u.role === "ob").length, on: () => setEnrollment("ob") },
+            { label: "折衝", count: users.filter((u) => u.role === "coordinator").length, color: "text-[var(--info)]" },
+            { label: "3役", count: users.filter((u) => u.role === "admin").length, color: "text-[var(--accent)]" },
+          ] as { label: string; count: number; on?: () => void; color?: string }[]
+        ).map((tile) => {
+          const body = (
+            <>
+              <span className={`block text-[24px] font-bold leading-none tabular-nums ${tile.color ?? ""}`}>
+                {tile.count}
+              </span>
+              <span className="mt-1 block text-[12px] text-[var(--muted)]">{tile.label}</span>
+            </>
+          );
+          return tile.on ? (
+            <button
+              key={tile.label}
+              type="button"
+              onClick={tile.on}
+              className="rounded-2xl bg-[var(--cell)] px-3 py-3 text-left active:opacity-70"
+            >
+              {body}
+            </button>
+          ) : (
+            <div key={tile.label} className="rounded-2xl bg-[var(--cell)] px-3 py-3">
+              {body}
+            </div>
+          );
+        })}
       </div>
 
       <ErrorMessage>{error}</ErrorMessage>
       {notice ? (
-        <p className="rounded-lg bg-[var(--surface)] px-3 py-2 text-sm">
+        <p className="rounded-lg bg-[var(--surface)] px-3 py-2 text-[15px]">
           {notice}
         </p>
       ) : null}
@@ -121,10 +147,10 @@ export function AdminClient({
         }
       />
 
-      <section className="space-y-3">
-        <h2 className="text-base font-bold">
+      <section className="space-y-3" data-tour="admin-users">
+        <h2 className="text-[17px] font-semibold">
           ユーザー一覧
-          <span className="ml-2 text-xs font-normal text-[var(--muted)]">
+          <span className="ml-2 text-[13px] font-normal text-[var(--muted)]">
             {filtered.length} / {users.length}人
           </span>
         </h2>
@@ -132,7 +158,7 @@ export function AdminClient({
         <input
           type="search"
           value={query}
-          placeholder="ユーザーIDで検索 (例: 22BREAK)"
+          placeholder="ユーザーIDで検索(例: 22BREAK)"
           onChange={(e) => setQuery(e.target.value)}
           className={inputClass}
         />
@@ -182,12 +208,20 @@ export function AdminClient({
         />
 
         {filtered.length === 0 ? (
-          <p className="py-6 text-center text-sm text-[var(--muted)]">
+          <p className="py-6 text-center text-[15px] text-[var(--muted)]">
             該当するユーザーがいません
           </p>
         ) : (
-          <ul className="divide-y divide-[var(--border)] rounded-xl border border-[var(--border)]">
-            {filtered.map((user) => (
+          // 期ごとに見出しで区切る (新しい期が上。v1.42)
+          <div className="space-y-4">
+            {groupByGeneration(filtered).map(([gen, members]) => (
+              <section key={gen} aria-label={`${gen}期`}>
+                <h3 className="sticky top-0 z-10 flex items-baseline gap-2 bg-[var(--background)] px-1 pb-1.5 pt-1">
+                  <span className="text-[15px] font-semibold tabular-nums">{gen}期</span>
+                  <span className="text-[13px] tabular-nums text-[var(--muted)]">{members.length}人</span>
+                </h3>
+          <ul className="divide-y divide-[var(--separator)] overflow-hidden rounded-2xl bg-[var(--cell)]">
+            {members.map((user) => (
               <li key={user.userId}>
                 <button
                   type="button"
@@ -197,26 +231,37 @@ export function AdminClient({
                     )
                   }
                   aria-expanded={expanded === user.userId}
-                  className="flex w-full items-center gap-2 px-3 py-2 text-left"
+                  className="flex w-full items-center gap-3 px-4 py-2.5 text-left active:bg-[var(--fill)]"
                 >
                   <span className="min-w-0 flex-1">
-                    <span className="block truncate text-sm font-medium">
+                    <span className="block truncate text-[16px]">
                       {user.username}
                     </span>
-                    <span className="block text-xs text-[var(--muted)]">
+                    <span className="block text-[13px] text-[var(--muted)]">
                       {user.generation}期 /{" "}
                       {GENRE_BY_ID.get(user.mainGenreId)?.code ?? "-"}
                     </span>
                   </span>
                   <RoleBadge role={user.role} />
                   {user.userId === currentUserId ? (
-                    <span className="shrink-0 rounded-full border border-[var(--border)] px-2 py-0.5 text-[10px]">
-                      自分
-                    </span>
+                    <span className="shrink-0 text-[12px] text-[var(--muted)]">自分</span>
                   ) : null}
-                  <span aria-hidden className="shrink-0 text-xs text-[var(--muted)]">
-                    {expanded === user.userId ? "▲" : "▼"}
-                  </span>
+                  <svg
+                    aria-hidden
+                    viewBox="0 0 24 24"
+                    width="14"
+                    height="14"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2.4"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    className={`shrink-0 text-[var(--muted)] transition-transform duration-200 ease-[var(--ease-smooth)] ${
+                      expanded === user.userId ? "rotate-90" : ""
+                    }`}
+                  >
+                    <path d="m9 6 6 6-6 6" />
+                  </svg>
                 </button>
 
                 {expanded === user.userId ? (
@@ -240,6 +285,9 @@ export function AdminClient({
               </li>
             ))}
           </ul>
+              </section>
+            ))}
+          </div>
         )}
       </section>
 
@@ -278,7 +326,7 @@ function PassphraseSection({
 
   async function save() {
     if (
-      !window.confirm(
+      !await confirmAction(
         `${filled.map((e) => e.label).join("・")} を変更します。\n` +
           "変更後は、新しい合言葉を知っている人しか登録・権限の追加ができません。",
       )
@@ -300,7 +348,7 @@ function PassphraseSection({
       });
       const json = await res.json().catch(() => ({}));
       if (!res.ok) {
-        onError(json.error ?? "合言葉を変更できませんでした");
+        onError(json.error ?? "合言葉を変更できませんでした。");
         return;
       }
       setValues({ signupPass: "", coordinatorPass: "", adminPass: "" });
@@ -312,11 +360,11 @@ function PassphraseSection({
   }
 
   return (
-    <section className="space-y-3 rounded-xl border border-[var(--border)] p-3">
-      <h2 className="text-base font-bold">合言葉</h2>
-      <p className="text-xs text-[var(--muted)]">
-        <strong>代替わり・卒業の時期には必ず変更してください</strong>
-        (SPEC §3.5)。空欄の項目は変更しません。変更しても、今の権限は取り消されません。
+    <section className="space-y-3 rounded-2xl bg-[var(--cell)] p-4" data-tour="admin-pass">
+      <h2 className="text-[17px] font-semibold">合言葉</h2>
+      <p className="text-[13px] text-[var(--muted)]">
+        <strong>代替わり・卒業の時期には必ず変えてください。</strong>
+        空欄の項目は変わりません。
       </p>
 
       {entries.map((entry) => (
@@ -346,26 +394,33 @@ function PassphraseSection({
   );
 }
 
+/** 期ごとにまとめる。新しい期が上、期の中はユーザーID順 */
+function groupByGeneration(list: AdminUser[]): [number, AdminUser[]][] {
+  const map = new Map<number, AdminUser[]>();
+  for (const user of list) {
+    (map.get(user.generation) ?? map.set(user.generation, []).get(user.generation)!).push(user);
+  }
+  return [...map.entries()]
+    .sort(([a], [b]) => b - a)
+    .map(([gen, members]) => [gen, members.sort((x, y) => x.username.localeCompare(y.username, "ja"))]);
+}
+
 function RoleBadge({ role }: { role: Role }) {
   // OB は名簿に残り続けるので、現役と一目で区別が付く必要がある (SPEC §3.6)。
-  // 閲覧のみ (v1.30) は破線にして、名簿に居ても数に入らない人だと分かるようにする
-  const style =
+  // 色の付いた文字だけにする (枠で囲んだ札にしない。v1.39)。メンバーは出さない。
+  // 閲覧のみ (v1.30) は灰色にして、名簿に居ても数に入らない人だと分かるようにする
+  if (role === "member") return null;
+  const color =
     role === "ob"
-      ? "border-[var(--ob)] text-[var(--ob)]"
+      ? "text-[var(--ob)]"
       : role === "viewer"
-        ? "border-dashed border-[var(--muted)] text-[var(--muted)]"
+        ? "text-[var(--muted)]"
         : role === "admin"
-          ? "border-[var(--accent)] text-[var(--accent)]"
-          : role === "coordinator"
-            ? "border-[var(--info)] text-[var(--info)]"
-            : "border-[var(--border)] text-[var(--muted)]";
+          ? "text-[var(--accent)]"
+          : "text-[var(--info)]";
 
   return (
-    <span
-      className={`shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-bold ${style}`}
-    >
-      {ROLE_LABELS[role]}
-    </span>
+    <span className={`shrink-0 text-[12px] font-semibold ${color}`}>{ROLE_LABELS[role]}</span>
   );
 }
 
@@ -378,18 +433,19 @@ function ChipRow({
 }) {
   return (
     <div className="flex items-center gap-2">
-      <span className="w-12 shrink-0 text-xs text-[var(--muted)]">{label}</span>
+      <span className="w-12 shrink-0 text-[13px] text-[var(--muted)]">{label}</span>
       {/* 期もジャンルも数が多い。折り返すと縦に伸びるので横スクロールにする */}
-      <div className="h-scroll flex flex-1 gap-1.5 overflow-x-auto pb-1">
+      <div className="h-scroll no-scrollbar flex flex-1 gap-1.5 overflow-x-auto">
         {items.map((item) => (
           <button
             key={item.key}
             type="button"
             onClick={item.onClick}
-            className={`shrink-0 rounded-full border px-2.5 py-1 text-xs ${
+            aria-pressed={item.on}
+            className={`h-8 shrink-0 rounded-full px-3 text-[13px] transition-colors ${
               item.on
-                ? "border-[var(--primary)] bg-[var(--primary)] font-bold text-[var(--primary-fg)]"
-                : "border-[var(--border)]"
+                ? "bg-[var(--primary)] font-semibold text-[var(--primary-fg)]"
+                : "bg-[var(--fill)]"
             }`}
           >
             {item.label}
@@ -449,7 +505,7 @@ function EditPanel({
 
   async function save() {
     if (!valid) {
-      onError("名前と期を正しく入力してください");
+      onError("名前と期を正しく入力してください。");
       return;
     }
 
@@ -485,11 +541,11 @@ function EditPanel({
     }
     if (restoring) {
       lines.push(
-        "\n現役へ戻すと全体カレンダーと公式練が再び見えるようになります。" +
+        "\n現役へ戻すと公式練・空き部屋・鍵の画面が再び見えるようになります。" +
           "削除済みの申請・出欠は戻りません。",
       );
     }
-    if (!window.confirm(lines.join("\n"))) return;
+    if (!await confirmAction(lines.join("\n"))) return;
 
     setPending(true);
     onError(null);
@@ -507,7 +563,7 @@ function EditPanel({
       });
       const body = await res.json().catch(() => ({}));
       if (!res.ok) {
-        onError(body.error ?? "更新に失敗しました");
+        onError(body.error ?? "更新に失敗しました。");
         return;
       }
 
@@ -532,7 +588,7 @@ function EditPanel({
 
   async function resetPassword() {
     if (
-      !window.confirm(
+      !await confirmAction(
         `${user.username} の仮パスワードを発行します。\n` +
           "今のパスワードは使えなくなります。発行した文字列は本人へ伝えてください。",
       )
@@ -550,7 +606,7 @@ function EditPanel({
       );
       const body = await res.json().catch(() => ({}));
       if (!res.ok) {
-        onError(body.error ?? "仮パスワードを発行できませんでした");
+        onError(body.error ?? "仮パスワードを発行できませんでした。");
         return;
       }
       setTempPassword(body.password);
@@ -564,7 +620,7 @@ function EditPanel({
   async function removeUser() {
     // 確認を2段にする。ロールの変更と違って元に戻せないため
     if (
-      !window.confirm(
+      !await confirmAction(
         `${user.username} を削除します。\n` +
           "この人の申請・出欠・ナンバー所属・購読URLもすべて消え、元に戻せません。\n\n" +
           "卒業する人ならOB/OGへの移行を使ってください。",
@@ -585,7 +641,7 @@ function EditPanel({
       });
       const body = await res.json().catch(() => ({}));
       if (!res.ok) {
-        onError(body.error ?? "削除できませんでした");
+        onError(body.error ?? "削除できませんでした。");
         return;
       }
       onNotice(`${body.username} を削除しました`);
@@ -597,7 +653,7 @@ function EditPanel({
   }
 
   return (
-    <div className="space-y-3 border-t border-[var(--border)] bg-[var(--surface)] px-3 py-3">
+    <div className="space-y-3 border-t border-[var(--separator)] px-4 py-4">
       <Field label="名前">
         <input
           type="text"
@@ -640,8 +696,8 @@ function EditPanel({
         label="権限"
         hint={
           isSelf
-            ? "自分自身の権限は変更できません (最後の3役が消えるのを防ぐため)"
-            : "OB/OGにすると全体カレンダーと公式練が見えなくなります。閲覧のみは、全部見られるが書き込みできず名簿にも載りません (引退した人向け)"
+            ? "自分の権限は変えられません。3役が誰もいなくなるのを防ぐためです。"
+            : "OB/OGにすると、公式練・空き部屋・鍵の画面が見えなくなります。閲覧のみは全部見られますが、書き込みはできず名簿にも載りません。"
         }
       >
         <select
@@ -658,7 +714,7 @@ function EditPanel({
         </select>
       </Field>
 
-      <p className="text-xs text-[var(--muted)]">
+      <p className="text-[13px] text-[var(--muted)]">
         変更後のログインID:{" "}
         <strong className="font-mono">{nextUsername}</strong>
       </p>
@@ -684,8 +740,8 @@ function EditPanel({
 
         {tempPassword ? (
           <div className="rounded-lg border border-[var(--foreground)] px-3 py-2">
-            <p className="text-xs text-[var(--muted)]">
-              仮パスワード (この画面でしか読めません。本人へ伝えてください)
+            <p className="text-[13px] text-[var(--muted)]">
+              仮パスワード(この画面でしか見られません。本人に伝えてください)
             </p>
             <p className="select-all font-mono text-lg font-bold">
               {tempPassword}
@@ -702,9 +758,8 @@ function EditPanel({
         >
           このアカウントを削除する
         </button>
-        <p className="text-xs text-[var(--muted)]">
-          卒業はOB/OGへの移行を使ってください。削除は誤登録の整理用で、
-          活動の記録が残っているアカウントは削除できません。
+        <p className="text-[13px] text-[var(--muted)]">
+          卒業した人は、削除ではなくOB/OGへ移してください。削除は誤登録の整理用で、活動の記録があるアカウントは消せません。
         </p>
       </div>
     </div>
@@ -752,7 +807,7 @@ function BulkGraduateSection({
   async function graduate() {
     const names = targets.map((t) => t.username).join("\n");
     if (
-      !window.confirm(
+      !await confirmAction(
         `${generation}期の${targets.length}人をOB/OGへ移行します。\n\n${names}\n\n` +
           "全員の未来の空き申請と公式練・スタ練の出欠が削除され、サブジャンルの設定が消えます。\n" +
           "ナンバー所属・過去の履歴・購読URLは残ります。",
@@ -772,7 +827,7 @@ function BulkGraduateSection({
       });
       const body = await res.json().catch(() => ({}));
       if (!res.ok) {
-        onError(body.error ?? "移行に失敗しました");
+        onError(body.error ?? "移行に失敗しました。");
         return;
       }
       onGraduated(targets.map((t) => t.userId));
@@ -784,11 +839,10 @@ function BulkGraduateSection({
   }
 
   return (
-    <section className="space-y-3 rounded-xl border border-[var(--border)] p-3">
-      <h2 className="text-base font-bold">卒業処理 (一括OB化)</h2>
-      <p className="text-xs text-[var(--muted)]">
-        卒業者は<strong>削除ではなくOB/OGへ移行</strong>します。ナンバー機能と購読URLは
-        そのまま使えます (SPEC §3.6)。削除は誤登録の整理にのみ使ってください。
+    <section className="space-y-3 rounded-2xl bg-[var(--cell)] p-4" data-tour="admin-graduate">
+      <h2 className="text-[17px] font-semibold">卒業処理(一括OB化)</h2>
+      <p className="text-[13px] text-[var(--muted)]">
+        ナンバーと購読URLは、OB/OGになっても使えます。
       </p>
 
       <div className="flex gap-2">
@@ -808,7 +862,7 @@ function BulkGraduateSection({
           type="button"
           onClick={graduate}
           disabled={pending || targets.length === 0}
-          className="shrink-0 rounded-lg border border-[var(--border)] px-3 text-sm font-medium disabled:opacity-50"
+          className="shrink-0 rounded-lg bg-[var(--fill)] px-3 text-[15px] font-semibold text-[var(--tint)] disabled:opacity-40"
         >
           {targets.length}人を移行
         </button>

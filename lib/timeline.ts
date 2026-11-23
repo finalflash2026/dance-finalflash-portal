@@ -91,15 +91,25 @@ export function timelineAxis(items: TimeSpan[]): {
   start: number;
   end: number;
 } {
-  const dayStart = toMinutes(DAY_START_TIME);
-  const dayEnd = toMinutes(DAY_END_TIME);
-
-  const overflows = items.some(
-    (item) =>
-      toMinutes(item.startTime) < dayStart || toMinutes(item.endTime) > dayEnd,
-  );
-
-  return overflows
-    ? { start: FULL_DAY_START, end: FULL_DAY_END }
-    : { start: dayStart, end: dayEnd };
+  /*
+   * **v1.31 (§6.7.13) で「予定のある時間帯だけ」に変えた。** 0〜24時を全部描くと、
+   * 予定が2〜3件の日でもスマホで数画面ぶん縦に伸び、ホームを下までスクロール
+   * しないと何も見えなかった。前後の日との見比べは、選んだ日の一覧で足りる。
+   * 予定の前後に余白を持たせ、最低でも MIN_SPAN ぶんは描く。
+   */
+  if (items.length === 0) {
+    return { start: toMinutes(DAY_START_TIME), end: toMinutes(DAY_END_TIME) };
+  }
+  const earliest = Math.min(...items.map((item) => toMinutes(item.startTime)));
+  const latest = Math.max(...items.map((item) => toMinutes(item.endTime)));
+  let start = Math.max(FULL_DAY_START, Math.floor(earliest / 60) * 60);
+  let end = Math.min(FULL_DAY_END, Math.ceil(latest / 60) * 60);
+  if (end - start < MIN_SPAN) {
+    end = Math.min(FULL_DAY_END, start + MIN_SPAN);
+    start = Math.max(FULL_DAY_START, end - MIN_SPAN);
+  }
+  return { start, end };
 }
+
+/** 時間表に描く最低の幅 (分)。1件だけの日に、ブロックが画面いっぱいに伸びないように */
+const MIN_SPAN = 4 * 60;

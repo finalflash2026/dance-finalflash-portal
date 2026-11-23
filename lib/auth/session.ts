@@ -24,11 +24,17 @@ export const getCurrentProfile = cache(async (): Promise<Profile | null> => {
   } = await supabase.auth.getUser();
   if (!user) return null;
 
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from("profiles")
     .select("*")
     .eq("user_id", user.id)
     .maybeSingle();
+
+  // **DB が応答しないときは null にしない** (v1.50.2)。null は「プロフィールが無い = 登録の途中」の意味で、
+  // レイアウトが登録の続き (/welcome) へ送ってしまう。エラーの画面を出して、読み込み直してもらう
+  if (error) {
+    throw new Error(`プロフィールを読み込めませんでした: ${error.message}`);
+  }
 
   return (data as Profile | null) ?? null;
 });

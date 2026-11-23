@@ -2,6 +2,7 @@
 
 import { useEffect } from "react";
 
+import { hasSupabaseEnv } from "@/lib/env";
 import { REFRESH_EVENT } from "@/lib/refresh-signal";
 
 /**
@@ -35,6 +36,9 @@ export function useLiveRefresh(
   intervalMs = 15_000,
 ): void {
   useEffect(() => {
+    // デモ (Supabase 未設定) では取り直さない (v1.31.11)。ダミーのクライアントは
+    // 空で答えるので、見本のデータ (開いている部屋・鍵の持ち主) が消えてしまう
+    if (!hasSupabaseEnv()) return;
     let timer: ReturnType<typeof setInterval> | null = null;
 
     const stop = () => {

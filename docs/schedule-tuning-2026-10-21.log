@@ -1,0 +1,44 @@
+
+> dance-finalflash-portal@0.1.0 tune:schedule
+> tsx scripts/tune-schedule.ts
+
+学習用 学期A・学期C・休みA / 検証用 学期B・学期D・休みB
+[何もしない条件] 点 0.8586  参加率 62.6% / 下位1割 24.4% / 広さの合い方 0.57 / 広い部屋 最少0.0回
+[今の条件]       点 0.9225  参加率 62.8% / 下位1割 25.5% / 広さの合い方 0.61 / 広い部屋 最少1.0回
+試行 1 点 0.8993 {"sameRoomBonus":2,"fairnessWeight":0.5,"fairnessTarget":0.8,"minBigPerGenre":1,"roomStrength":0.1}
+試行 2 点 0.8898 {"sameRoomBonus":1,"fairnessWeight":4,"fairnessTarget":0.9,"minBigPerGenre":0,"roomStrength":0.1}
+試行 3 点 0.8569 {"sameRoomBonus":0,"fairnessWeight":2,"fairnessTarget":0.6,"minBigPerGenre":0,"roomStrength":0.1}
+試行 4 点 0.9161 {"sameRoomBonus":1,"fairnessWeight":1,"fairnessTarget":0.9,"minBigPerGenre":1,"roomStrength":0.1}
+試行 5 点 0.9337 {"sameRoomBonus":1,"fairnessWeight":0.5,"fairnessTarget":0.8,"minBigPerGenre":2,"roomStrength":0.3} ← 一番良い
+試行 6 点 0.8983 {"sameRoomBonus":3,"fairnessWeight":0.5,"fairnessTarget":0.6,"minBigPerGenre":1,"roomStrength":0.1}
+試行 7 点 0.9191 {"sameRoomBonus":3,"fairnessWeight":8,"fairnessTarget":0.6,"minBigPerGenre":2,"roomStrength":0.1}
+試行 8 点 0.9225 {"sameRoomBonus":0,"fairnessWeight":1,"fairnessTarget":0.8,"minBigPerGenre":2,"roomStrength":0.2}
+試行 9 点 0.9240 {"sameRoomBonus":5,"fairnessWeight":4,"fairnessTarget":0.8,"minBigPerGenre":1,"roomStrength":0.1}
+試行10 点 0.9183 {"sameRoomBonus":5,"fairnessWeight":0.5,"fairnessTarget":0.9,"minBigPerGenre":2,"roomStrength":0.1}
+試行11 点 0.9117 {"sameRoomBonus":2,"fairnessWeight":0.5,"fairnessTarget":0.9,"minBigPerGenre":1,"roomStrength":0.3}
+試行12 点 0.9140 {"sameRoomBonus":3,"fairnessWeight":2,"fairnessTarget":0.7,"minBigPerGenre":1,"roomStrength":0.3}
+試行13 点 0.9093 {"sameRoomBonus":3,"fairnessWeight":2,"fairnessTarget":0.8,"minBigPerGenre":2,"roomStrength":0.2}
+試行14 点 0.9169 {"sameRoomBonus":0,"fairnessWeight":0.5,"fairnessTarget":0.5,"minBigPerGenre":2,"roomStrength":0.3}
+試行15 点 0.8984 {"sameRoomBonus":0,"fairnessWeight":0.5,"fairnessTarget":0.7,"minBigPerGenre":1,"roomStrength":0.1}
+試行16 点 0.9149 {"sameRoomBonus":5,"fairnessWeight":8,"fairnessTarget":0.5,"minBigPerGenre":2,"roomStrength":0.2}
+試行17 点 0.8993 {"sameRoomBonus":5,"fairnessWeight":0.5,"fairnessTarget":0.7,"minBigPerGenre":1,"roomStrength":0.1}
+試行18 点 0.9194 {"sameRoomBonus":5,"fairnessWeight":8,"fairnessTarget":0.9,"minBigPerGenre":2,"roomStrength":0.1}
+試行19 点 0.9165 {"sameRoomBonus":5,"fairnessWeight":8,"fairnessTarget":0.7,"minBigPerGenre":1,"roomStrength":0.1}
+試行20 点 0.9117 {"sameRoomBonus":1,"fairnessWeight":4,"fairnessTarget":0.9,"minBigPerGenre":1,"roomStrength":0.1}
+試行21 点 0.9237 {"sameRoomBonus":0,"fairnessWeight":1,"fairnessTarget":0.9,"minBigPerGenre":2,"roomStrength":0.1}
+試行22 点 0.9018 {"sameRoomBonus":1,"fairnessWeight":4,"fairnessTarget":0.9,"minBigPerGenre":0,"roomStrength":0.2}
+試行23 点 0.8708 {"sameRoomBonus":5,"fairnessWeight":0,"fairnessTarget":0.7,"minBigPerGenre":0,"roomStrength":0.2}
+試行24 点 0.8499 {"sameRoomBonus":3,"fairnessWeight":0.5,"fairnessTarget":0.6,"minBigPerGenre":0,"roomStrength":0.1}
+試行25 点 0.9116 {"sameRoomBonus":5,"fairnessWeight":1,"fairnessTarget":0.5,"minBigPerGenre":1,"roomStrength":0.2}
+試行26 点 0.9445 {"sameRoomBonus":5,"fairnessWeight":8,"fairnessTarget":0.8,"minBigPerGenre":2,"roomStrength":0.2} ← 一番良い
+試行27 点 0.8553 {"sameRoomBonus":1,"fairnessWeight":1,"fairnessTarget":0.6,"minBigPerGenre":0,"roomStrength":0.1}
+試行28 点 0.9039 {"sameRoomBonus":5,"fairnessWeight":0,"fairnessTarget":0.9,"minBigPerGenre":2,"roomStrength":0.1}
+試行29 点 0.9119 {"sameRoomBonus":0,"fairnessWeight":0.5,"fairnessTarget":0.6,"minBigPerGenre":2,"roomStrength":0.1}
+試行30 点 0.9166 {"sameRoomBonus":1,"fairnessWeight":0,"fairnessTarget":0.7,"minBigPerGenre":1,"roomStrength":0.3}
+
+--- 検証用の月で確かめる ---
+何もしない条件 点 0.9565  参加率 63.0% / 下位1割 30.7% / 広さの合い方 0.28 / 広い部屋 最少2.0回
+今の条件       点 0.9647  参加率 62.9% / 下位1割 30.5% / 広さの合い方 0.35 / 広い部屋 最少2.0回
+選んだ条件     点 0.9551  参加率 63.0% / 下位1割 30.8% / 広さの合い方 0.27 / 広い部屋 最少2.0回
+選んだ条件: {"sameRoomBonus":5,"fairnessWeight":8,"fairnessTarget":0.8,"minBigPerGenre":2,"roomStrength":0.2}
+検証用の月で今の条件より悪かったので、learned.json は変えません

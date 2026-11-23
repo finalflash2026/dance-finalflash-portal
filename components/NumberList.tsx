@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 
 import { ErrorMessage, buttonClass, inputClass } from "@/components/ui";
+import { dbErrorMessage } from "@/lib/error-message";
 import { numberColor } from "@/lib/numbers";
 import { useCanWrite } from "@/lib/role";
 import { createClient } from "@/lib/supabase/client";
@@ -63,7 +64,7 @@ export function NumberList({
 
     setPending(false);
     if (insertError) {
-      setError(`作成できませんでした: ${insertError.message}`);
+      setError(dbErrorMessage("作成できませんでした", insertError));
       return;
     }
     setName("");
@@ -74,14 +75,12 @@ export function NumberList({
     <>
       <ErrorMessage>{error}</ErrorMessage>
 
-      <section className="space-y-2">
-        <h2 className="text-sm font-bold">現在進行中のナンバー</h2>
+      <section className="space-y-2" data-tour="numbers">
+        <h2 className="text-[15px] font-bold">現在進行中のナンバー</h2>
 
         {numbers.length === 0 ? (
-          <p className="rounded-xl border border-[var(--border)] px-4 py-5 text-center text-sm text-[var(--muted)]">
-            所属しているナンバーはありません。
-            <br />
-            自分で作るか、主催者に追加してもらってください
+          <p className="rounded-xl bg-[var(--cell)] px-4 py-5 text-center text-[15px] text-[var(--muted)]">
+            所属しているナンバーはありません
           </p>
         ) : (
           <ul className="space-y-2">
@@ -91,20 +90,20 @@ export function NumberList({
                 <li key={number.id}>
                   <Link
                     href={`/numbers/${number.id}`}
-                    className="flex items-center gap-3 rounded-xl border border-[var(--border)] p-3"
+                    className="flex items-center gap-3 rounded-xl bg-[var(--cell)] p-3"
                   >
                     <span
                       aria-hidden
-                      className="h-8 w-1.5 shrink-0 rounded-full"
+                      className="h-3 w-3 shrink-0 rounded-full"
                       style={{ backgroundColor: color.bg }}
                     />
                     <span className="min-w-0 flex-1">
                       <span className="block truncate font-medium">
                         {number.name}
                       </span>
-                      <span className="block text-xs text-[var(--muted)]">
+                      <span className="block text-[13px] text-[var(--muted)]">
                         メンバー{number.memberCount}人
-                        {number.isOwner ? " / 主催" : ""}
+                        {number.isOwner ? "・主催" : ""}
                       </span>
                     </span>
                     <span aria-hidden className="text-[var(--muted)]">
@@ -122,12 +121,10 @@ export function NumberList({
       {canWrite ? (
         <form
           onSubmit={create}
-          className="space-y-2 rounded-xl border border-[var(--border)] p-3"
+          className="space-y-2 rounded-xl bg-[var(--cell)] p-3"
+          data-tour="number-create"
         >
-          <h2 className="text-sm font-bold">ナンバーを作る</h2>
-          <p className="text-xs text-[var(--muted)]">
-            作った人が主催になります。メンバーの追加と日程の登録は主催のみ行えます
-          </p>
+          <h2 className="text-[15px] font-bold">ナンバーを作る</h2>
           <input
             aria-label="ナンバー名"
             value={name}

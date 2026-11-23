@@ -44,7 +44,7 @@ export async function POST(request: Request) {
 
   if (!hasSupabaseEnv()) {
     return Response.json(
-      { error: "サーバーの設定が未完了です (Supabase 未接続)" },
+      { error: "サーバーの設定が未完了です(Supabase 未接続)。" },
       { status: 503 },
     );
   }
