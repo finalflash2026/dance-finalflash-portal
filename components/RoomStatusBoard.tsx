@@ -1,10 +1,9 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { BoardMessages } from "@/components/BoardMessages";
 import { Sheet } from "@/components/Sheet";
-import { fillButtonClass, primaryButtonClass } from "@/components/ui";
 import type { BoardMessage } from "@/lib/board-messages";
 import { dbErrorMessage } from "@/lib/error-message";
 import { UNDO_WINDOW_MS } from "@/lib/key-undo";
@@ -264,43 +263,16 @@ export function RoomStatusBoard({
       </ul>
 
       {confirming ? (
-        <Sheet
-          title={confirming.unlock ? "開けたことを報告" : "閉めたことを報告"}
+        <ReportSheet
+          name={confirming.name}
+          unlock={confirming.unlock}
           onClose={() => setConfirming(null)}
-          footer={
-            <div className="space-y-2">
-              <button
-                type="button"
-                className={primaryButtonClass}
-                onClick={() => {
-                  const { roomId, unlock } = confirming;
-                  setConfirming(null);
-                  void toggle(roomId, !unlock);
-                }}
-              >
-                {confirming.unlock ? "開けました" : "閉めました"}と報告する
-              </button>
-              <button
-                type="button"
-                className={fillButtonClass}
-                onClick={() => setConfirming(null)}
-              >
-                やめる
-              </button>
-            </div>
-          }
-        >
-          <p className="text-[17px] leading-relaxed">
-            <strong>{confirming.name}</strong>を
-            {confirming.unlock ? "「開いている」" : "「閉まっている」"}にして、
-            現役全員に通知します。
-          </p>
-          <p className="mt-2 text-[15px] text-[var(--muted)]">
-            {confirming.unlock
-              ? "実際に鍵を開けたときだけ押してください。"
-              : "実際に鍵を閉めたときだけ押してください。"}
-          </p>
-        </Sheet>
+          onReport={() => {
+            const { roomId, unlock } = confirming;
+            setConfirming(null);
+            void toggle(roomId, !unlock);
+          }}
+        />
       ) : null}
 
       {/* ○×では表せない状況を書き残す欄 (§6.1.3)。中身は窓の中 */}
@@ -314,6 +286,56 @@ export function RoomStatusBoard({
   );
 }
 
+/**
+ * 開け閉めの報告の窓 (v1.50.4)。真ん中の大きな丸い鍵のボタン1つで、今の状態を出す
+ * (閉まっている = 黒・閉じた錠前、開いている = 緑・開いた錠前)。押すと絵が入れ替わり、
+ * 入れ替わりを見せてから報告する。文字だけの窓では何が起きるか分かりにくかった
+ */
+function ReportSheet({
+  name,
+  unlock,
+  onClose,
+  onReport,
+}: {
+  name: string;
+  /** 報告したあとの状態。true = 開けた */
+  unlock: boolean;
+  onClose: () => void;
+  onReport: () => void;
+}) {
+  const [pressed, setPressed] = useState(false);
+  // 親が描き直しても待ちを始め直さないよう、最新の関数は ref で持つ
+  const report = useRef(onReport);
+  report.current = onReport;
+  useEffect(() => {
+    if (!pressed) return;
+    const timer = window.setTimeout(() => report.current(), 450);
+    return () => window.clearTimeout(timer);
+  }, [pressed]);
+  // 押す前は今の状態、押したあとは報告したあとの状態
+  const showUnlocked = pressed ? unlock : !unlock;
+
+  return (
+    <Sheet title={name} onClose={onClose}>
+      <div className="flex flex-col items-center gap-4 pb-2 pt-3">
+        <button
+          type="button"
+          disabled={pressed}
+          onClick={() => setPressed(true)}
+          aria-label={unlock ? `${name}を開けたと報告する` : `${name}を閉めたと報告する`}
+          className={`grid h-32 w-32 place-items-center rounded-full text-white shadow-[0_10px_30px_-12px_rgba(0,0,0,0.45)] transition-[background-color,transform] duration-300 active:scale-95 ${
+            showUnlocked ? "bg-[var(--success-fg)]" : "bg-[var(--foreground)]"
+          }`}
+        >
+          <LockIcon unlocked={showUnlocked} size={52} />
+        </button>
+        <p className="text-[17px] font-semibold">{unlock ? "開けたと報告" : "閉めたと報告"}</p>
+        <p className="text-[14px] text-[var(--muted)]">現役全員に通知が届きます。</p>
+      </div>
+    </Sheet>
+  );
+}
+
 /** 錠前の絵 (v1.50.4)。開いている = つるが外れて緑、閉まっている = 閉じて灰色 */
 function LockBadge({ unlocked }: { unlocked: boolean }) {
   return (
@@ -323,23 +345,27 @@ function LockBadge({ unlocked }: { unlocked: boolean }) {
         unlocked ? "bg-[var(--success-fg)] text-white" : "bg-[var(--fill)] text-[var(--muted)]"
       }`}
     >
-      <svg
-        viewBox="0 0 24 24"
-        width="22"
-        height="22"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="2.2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      >
-        <rect x="4.5" y="10.5" width="15" height="10" rx="2.5" fill="currentColor" stroke="none" />
-        {/* つる。開いているときは右の足を上げて外す */}
-        <path
-          d={unlocked ? "M8 10.5V7a4 4 0 0 1 7.6-1.7" : "M8 10.5V7a4 4 0 0 1 8 0v3.5"}
-          className="transition-[d] duration-300"
-        />
-      </svg>
+      <LockIcon unlocked={unlocked} size={22} />
     </span>
+  );
+}
+
+function LockIcon({ unlocked, size }: { unlocked: boolean; size: number }) {
+  return (
+    <svg
+      aria-hidden
+      viewBox="0 0 24 24"
+      width={size}
+      height={size}
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2.2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <rect x="4.5" y="10.5" width="15" height="10" rx="2.5" fill="currentColor" stroke="none" />
+      {/* つる。開いているときは右の足を上げて外す */}
+      <path d={unlocked ? "M8 10.5V7a4 4 0 0 1 7.6-1.7" : "M8 10.5V7a4 4 0 0 1 8 0v3.5"} />
+    </svg>
   );
 }
