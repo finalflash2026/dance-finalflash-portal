@@ -89,7 +89,7 @@ Next.js の決まりで、**フォルダの並びがそのまま URL になる**
 | `app/(app)/layout.tsx` | ログイン後の全画面 | ヘッダー(ベル・?・歯車)、下のタブバー、初回ツアー、起動時の案内 |
 | `app/(app)/(calendar)/page.tsx` | `/` | **ホーム**。サーバーで予定・コマ・締切などを並列に取り、`CalendarHome.tsx` に渡す |
 | `app/(app)/(calendar)/CalendarHome.tsx` | 〃 | ホームの操作部分(今日・自主練できる部屋・週の帯・その日の予定・絞り込み) |
-| `app/(app)/keys` | `/keys` | 練習場所の鍵・部室の鍵・連絡 |
+| `app/(app)/keys` | `/keys/room`・`/keys/club-key` | 練習場所の鍵・部室の鍵と、それぞれの連絡・これまでの記録(`/keys` は `/keys/room` へ移す) |
 | `app/(app)/notifications` | `/notifications` | お知らせ一覧 |
 | `app/(app)/number-cal`・`numbers/[id]` | `/number-cal` `/numbers/…` | ナンバーの一覧・作成・スタ練、ナンバーの詳細 |
 | `app/(app)/settings` | `/settings` | 設定(カレンダー追加・通知・テーマ・権限) |
@@ -129,7 +129,7 @@ Next.js の決まりで、**フォルダの並びがそのまま URL になる**
 | `Splash.tsx` | 起動アニメーション |
 | `LabelCalendar.tsx`・`DayTimeline.tsx`・`DayGrid.tsx` | 月カレンダー、その日の時間表、部屋×時間の表 |
 | `ClaimSheet.tsx`・`AttendanceSheet.tsx` | 空き申請の窓、出欠の窓 |
-| `RoomStatusBoard.tsx`・`ClubKeyBoard.tsx`・`BoardMessages.tsx` | 鍵のボードと連絡欄 |
+| `RoomStatusBoard.tsx`・`ClubKeyBoard.tsx`・`BoardMessages.tsx`・`KeysHistory.tsx` | 鍵のボードと連絡欄、これまでの記録 |
 | `NotificationList.tsx`・`NumberList.tsx`・`StudioPracticeSection.tsx` | お知らせ一覧・ナンバー一覧・スタ練 |
 | `GenerationPeriods.tsx` | 公式練の対象期の期間の一覧と編集の窓(折衝の ④ 公開と管理画面で使う) |
 | `PullToRefresh.tsx`・`ServiceWorkerRegistrar.tsx` | 引っぱって更新、Service Worker の登録 |
@@ -162,7 +162,7 @@ Next.js の決まりで、**フォルダの並びがそのまま URL になる**
 
 | 場所 | 役割 |
 |---|---|
-| `supabase/migrations/0001〜0030_*.sql` | **データベースの設計図**。テーブル・権限(RLS)を番号順に積み重ねる。本番には Supabase の画面か CLI で番号順に流す |
+| `supabase/migrations/0001〜0031_*.sql` | **データベースの設計図**。テーブル・権限(RLS)を番号順に積み重ねる。本番には Supabase の画面か CLI で番号順に流す |
 | `public/sw.js` | Service Worker。通知の表示と、`/_next/static/`(アプリの部品ファイル)の端末保存 |
 | `public/` のアイコン類 | ホーム画面のアイコンなど |
 | `assets/` | 起動アニメーションのロゴ、ロゴの元データ(`assets/logo/`) |

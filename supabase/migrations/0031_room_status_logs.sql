@@ -2,9 +2,8 @@
 -- 0031_room_status_logs.sql
 -- SPEC.md v1.50.4 の差分。練習場所の開け閉めの記録 (§6.1.1)。
 --
--- 0001〜0029 適用済みの環境に対して追加で流す。
--- **番号は 0030 を飛ばしている。** サークル側の未公開の 0030 (アカウント削除・端末の
--- 通知の宛先) と重ねないため。0030 とは関係が無いので、どちらを先に流してもよい。
+-- 0001〜0019 適用済みの環境に対して追加で流す。0020〜0029・0030 (対象期の期間。v1.51) の表は
+-- 使わないので、その前でも後でも流せる。if not exists 付きなので、2回流してもエラーにならない。
 -- =========================================================
 
 -- room_status は「今日の今の状態」を1部屋1行で上書きするだけなので、
@@ -31,12 +30,13 @@ drop policy if exists sel_rslog on public.room_status_logs;
 create policy sel_rslog on public.room_status_logs for select to authenticated
   using (public.app_role() is not null and public.app_role() <> 'ob');
 
--- 書けるのは自分の報告だけ。閲覧のみ・OB は書けない
+-- 書けるのは自分の今日の報告だけ (room_status と同じく当日のみ)。閲覧のみ・OB は書けない
 drop policy if exists ins_rslog on public.room_status_logs;
 create policy ins_rslog on public.room_status_logs for insert to authenticated
   with check (
     user_id = auth.uid()
     and public.app_role() not in ('ob', 'viewer')
+    and date = (now() at time zone 'Asia/Tokyo')::date
   );
 
 -- 更新・削除のポリシーは置かない (記録は書き換えられない)。
