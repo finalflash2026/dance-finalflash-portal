@@ -121,11 +121,6 @@ export interface SlotDraft {
   endTime: string;
   status: SlotStatus;
   genreId: number | null;
-  /**
-   * コマごとの対象期 (v1.50.4)。`"month"` はこの月の対象期に合わせる。
-   * 月の対象期を変えたときに一緒に変わるのは `"month"` のコマだけ
-   */
-  generations: number[] | "month";
 }
 
 export type SlotValidation = { ok: true } | { ok: false; message: string };
@@ -228,43 +223,29 @@ export function generationsKey(value: number[] | null): string {
 }
 
 /**
- * その月の公式練コマから対象期を読み取る (SPEC §6.2 Step2-3 / v1.9 / v1.50.4)。
+ * その月の公式練コマから対象期を読み取る (SPEC §6.2 Step2-2 / v1.9)。
  *
- * 対象期は月単位で決まるのが基本だが、クリパの練習のように
- * **コマごとに変えたもの**が混ざる (v1.50.4)。そこで一番多い対象期を
- * 「この月の対象期」とみなし、それと違うコマの数を `custom` で返す。
- * 同じ数で並んだら、先に出てきたほうにする。
+ * 対象期は月単位で決まるので、通常は全コマが同じ値を持つ。
+ * v1.9 より前に作ったコマが混ざっていると食い違うことがあるため、
+ * その場合は `mixed` を立てて画面で警告できるようにする。
  */
 export function deriveMonthGenerations(slots: SlotInfo[]): {
   value: number[] | null;
-  /** 月の対象期と違うコマの数 */
-  custom: number;
-  /** 月の対象期のままのコマの数 (月を変えたときに変わる数) */
-  following: number;
+  mixed: boolean;
+  count: number;
 } {
   const genreSlots = slots.filter((s) => s.status === "genre");
-  if (genreSlots.length === 0) return { value: null, custom: 0, following: 0 };
+  if (genreSlots.length === 0) return { value: null, mixed: false, count: 0 };
 
-  const tally = new Map<string, { value: number[] | null; count: number }>();
-  for (const slot of genreSlots) {
-    const key = generationsKey(slot.targetGenerations);
-    const entry = tally.get(key);
-    if (entry) entry.count += 1;
-    else tally.set(key, { value: slot.targetGenerations, count: 1 });
-  }
-  let top = { value: null as number[] | null, count: 0 };
-  for (const entry of tally.values()) if (entry.count > top.count) top = entry;
-
-  const value = top.value && top.value.length > 0 ? top.value : null;
-  return { value, custom: genreSlots.length - top.count, following: top.count };
-}
-
-/** コマの対象期が月の対象期と同じか (SPEC §6.2 Step2-3 / v1.50.4) */
-export function followsMonth(
-  slotGenerations: number[] | null,
-  monthGenerations: number[] | null,
-): boolean {
-  return generationsKey(slotGenerations) === generationsKey(monthGenerations);
+  const first = generationsKey(genreSlots[0].targetGenerations);
+  const mixed = genreSlots.some(
+    (s) => generationsKey(s.targetGenerations) !== first,
+  );
+  return {
+    value: mixed ? null : genreSlots[0].targetGenerations,
+    mixed,
+    count: genreSlots.length,
+  };
 }
 
 /**

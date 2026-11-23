@@ -26,7 +26,6 @@ import {
   SLOT_STATUS_LABELS,
   applySlotPreset,
   deriveMonthGenerations,
-  followsMonth,
   generationsKey,
   invalidatedClaims,
   validateSlot,
@@ -53,7 +52,6 @@ import {
   type PaintTarget,
   type PeriodEdit,
 } from "./SlotGrid";
-import { SlotGenerationPicker } from "./SlotGenerationPicker";
 import { SlotTimeline } from "./SlotTimeline";
 import {
   useMonthReservations,
@@ -160,7 +158,7 @@ export function SlotStep({
 
   // 月を切り替えたときと、保存後の再読込のたびに DB の値へ揃える。
   // 画面の選択が DB と食い違ったまま新規コマに使われるのを防ぐ
-  const derivedKey = `${month}|${generationsKey(derived.value)}|${derived.custom}`;
+  const derivedKey = `${month}|${generationsKey(derived.value)}|${derived.mixed}`;
   useEffect(() => {
     setMonthGenerations(derived.value);
     // derivedKey に derived.value の内容が畳み込まれている
@@ -170,9 +168,8 @@ export function SlotStep({
   const supabase = createClient();
 
   /**
-   * この月の対象期を変える (SPEC §6.2 Step2-3 / v1.9)。
-   * その月の公式練コマに即時反映する。**コマごとに変えたコマ (v1.50.4) には触らない**。
-   * クリパの練習のように「24期だけ」にした回が、月を直すたびに戻ってしまうため。
+   * この月の対象期を変える (SPEC §6.2 Step2-2 / v1.9)。
+   * **その月の公式練コマすべてに即時反映する。** 対象期は月単位で決まるため。
    */
   async function toggleMonthGeneration(generation: number) {
     const current = monthGenerations ?? [];
@@ -185,11 +182,7 @@ export function SlotStep({
 
     const ids = reservations
       .flatMap((r) => r.slots)
-      .filter(
-        (s) =>
-          s.status === "genre" &&
-          followsMonth(s.targetGenerations, monthGenerations),
-      )
+      .filter((s) => s.status === "genre")
       .map((s) => s.id);
     if (ids.length === 0) return; // まだコマが無い月。新規作成時に使われる
 
@@ -295,16 +288,9 @@ export function SlotStep({
       end_time: draft.endTime,
       status: draft.status,
       genre_id: draft.status === "genre" ? draft.genreId : null,
-      // 対象期は月の設定が基本 (v1.9)。窓で期を選んだコマだけ、そのコマの値にする
-      // (v1.50.4)。公式練でなくなったら消す
-      target_generations:
-        draft.status !== "genre"
-          ? null
-          : draft.generations === "month"
-            ? monthGenerations
-            : draft.generations.length > 0
-              ? draft.generations
-              : null,
+      // 対象期は月単位 (v1.9)。公式練にはこの月の設定を必ず入れ、
+      // 公式練でなくなったら消す。コマ個別には選ばせない
+      target_generations: draft.status === "genre" ? monthGenerations : null,
     };
 
     const { error: writeError } = draft.id
@@ -534,15 +520,8 @@ export function SlotStep({
       end_time: period.endTime,
       status,
       genre_id: genreId,
-      // 対象期は月の設定 (v1.9)。公式練でなくなったら消す。
-      // **もともと公式練のコマは、塗り直しても対象期を残す** (v1.50.4)。
-      // コマごとに「24期だけ」にした回が、ジャンルの塗り直しで戻らないように
-      target_generations:
-        status !== "genre"
-          ? null
-          : cell.slot?.status === "genre"
-            ? cell.slot.targetGenerations
-            : monthGenerations,
+      // 対象期は月単位 (v1.9)。公式練でなくなったら消す
+      target_generations: status === "genre" ? monthGenerations : null,
     };
 
     if (cell.slot) {
@@ -627,30 +606,6 @@ export function SlotStep({
     });
   }
 
-  /**
-   * 1つのコマの対象期を変える (SPEC §6.2 Step2-3 / v1.50.4)。日ごとのカードの窓から。
-   * 押した瞬間に保存し、月ぶんは読み直さない (塗るときと同じ)
-   */
-  async function setSlotGenerations(slot: SlotInfo, value: number[] | "month") {
-    const reservationId = reservations.find((r) =>
-      r.slots.some((s) => s.id === slot.id),
-    )?.id;
-    if (!reservationId) return;
-    const next =
-      value === "month" ? monthGenerations : value.length > 0 ? value : null;
-    const { error: writeError } = await supabase
-      .from("slots")
-      .update({ target_generations: next })
-      .eq("id", slot.id);
-    if (writeError) {
-      setError(dbErrorMessage("対象期を保存できませんでした", writeError));
-      reload();
-      return;
-    }
-    setError(null);
-    applySlot(reservationId, { ...slot, targetGenerations: next });
-  }
-
   return (
     <div className="space-y-4">
       {header}
@@ -687,8 +642,8 @@ export function SlotStep({
         <MonthGenerationPicker
           candidates={generations}
           value={monthGenerations}
-          followingCount={derived.following}
-          customCount={derived.custom}
+          genreSlotCount={derived.count}
+          mixed={derived.mixed}
           disabled={pending || loading}
           onToggle={toggleMonthGeneration}
         />
@@ -721,9 +676,6 @@ export function SlotStep({
             disabled={pending}
             availability={availability}
             onPaint={paint}
-            monthGenerations={monthGenerations}
-            candidates={generations}
-            onSetGenerations={setSlotGenerations}
           />
         )
       ) : view === "grid" ? (
@@ -744,7 +696,6 @@ export function SlotStep({
             reservations={reservations}
             disabled={pending}
             onPaint={paint}
-            monthGenerations={monthGenerations}
             onSavePeriods={(edits: PeriodEdit[]) => {
               void periods.saveOverrides(edits, periods.table.base);
             }}
@@ -783,9 +734,6 @@ export function SlotStep({
                   endTime: slot.endTime,
                   status: slot.status,
                   genreId: slot.genreId,
-                  generations: followsMonth(slot.targetGenerations, monthGenerations)
-                    ? "month"
-                    : (slot.targetGenerations ?? []),
                 },
               });
             }}
@@ -802,7 +750,6 @@ export function SlotStep({
                   endTime: "",
                   status: "genre",
                   genreId: null,
-                  generations: "month",
                 },
               });
             }}
@@ -818,7 +765,6 @@ export function SlotStep({
           initial={editing.draft}
           gap={editing.gap}
           monthGenerations={monthGenerations}
-          candidates={generations}
           disabled={pending}
           onSave={(draft) => saveSlot(editing.reservation, draft)}
           onDelete={() => {
@@ -998,15 +944,15 @@ function Legend() {
 function MonthGenerationPicker({
   candidates,
   value,
-  followingCount,
-  customCount,
+  genreSlotCount,
+  mixed,
   disabled,
   onToggle,
 }: {
   candidates: number[];
   value: number[] | null;
-  followingCount: number;
-  customCount: number;
+  genreSlotCount: number;
+  mixed: boolean;
   disabled: boolean;
   onToggle: (generation: number) => void;
 }) {
@@ -1048,9 +994,15 @@ function MonthGenerationPicker({
       )}
 
       <p className="text-xs text-[var(--muted)]">
-        変えると、この月の公式練 {followingCount}件にすぐ反映されます。
-        {customCount > 0 ? `コマごとに変えた${customCount}件はそのままです。` : ""}
+        変えると、この月の公式練 {genreSlotCount}件にすぐ反映されます。
       </p>
+
+      {mixed ? (
+        <p className="rounded-lg bg-[var(--danger-bg)] px-3 py-2 text-xs text-[var(--danger-fg)]">
+          この月にはコマごとに異なる対象期が設定されています。
+          上で選び直すと全部が揃います。
+        </p>
+      ) : null}
     </section>
   );
 }
@@ -1090,7 +1042,6 @@ function SlotEditor({
   initial,
   gap,
   monthGenerations,
-  candidates,
   disabled,
   onSave,
   onDelete,
@@ -1101,8 +1052,6 @@ function SlotEditor({
   /** 押した未割当区間 (既存コマの編集ならそのコマの範囲) */
   gap: { startTime: string; endTime: string };
   monthGenerations: number[] | null;
-  /** 選べる期 (現役の登録者がいる期) */
-  candidates: number[];
   disabled: boolean;
   onSave: (draft: SlotDraft) => void;
   onDelete: () => void;
@@ -1270,13 +1219,15 @@ function SlotEditor({
                 ))}
               </select>
             </label>
-<SlotGenerationPicker
-              value={draft.generations}
-              monthGenerations={monthGenerations}
-              candidates={candidates}
-              disabled={disabled}
-              onChange={(generations) => setDraft((p) => ({ ...p, generations }))}
-            />
+            <p className="text-xs text-[var(--muted)]">
+              対象期は{" "}
+              <strong>
+                {monthGenerations && monthGenerations.length > 0
+                  ? `${monthGenerations.join("・")}期`
+                  : "全期"}
+              </strong>{" "}
+              になります(この月の設定。変更は画面上部から)
+            </p>
           </>
         ) : null}
 
@@ -1319,4 +1270,3 @@ function SlotEditor({
     </div>
   );
 }
-
