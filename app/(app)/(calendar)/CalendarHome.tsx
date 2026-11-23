@@ -1088,12 +1088,20 @@ function WeekStrip({
                   >
                     {parseDate(date).day}
                   </span>
-                  <span className="flex h-1.5 gap-0.5">
-                    {dayEvents.slice(0, 4).map((event, i) => (
+                  {/*
+                    点は色ごとに1つ。全部出す (v1.50.4。4つで止めていて、6ジャンルある日に
+                    4つしか出なかった)。1行に5つまで、それより多ければ折り返す
+                  */}
+                  <span
+                    className="flex min-h-1.5 flex-wrap justify-center gap-0.5"
+                    // 点 6px × 5 + すき間 2px × 4。超えると隣の日まではみ出す
+                    style={{ maxWidth: 38 }}
+                  >
+                    {[...new Set(dayEvents.map((event) => eventColor(event).bg))].map((bg) => (
                       <span
-                        key={i}
+                        key={bg}
                         className="h-1.5 w-1.5 rounded-full"
-                        style={{ backgroundColor: eventColor(event).bg }}
+                        style={{ backgroundColor: bg }}
                       />
                     ))}
                   </span>
