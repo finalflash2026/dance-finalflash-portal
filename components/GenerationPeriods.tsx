@@ -59,22 +59,28 @@ export function useGenerationPeriods() {
   const [error, setError] = useState<string | null>(null);
 
   const reload = useCallback(async () => {
-    const { data, error: loadError } = await createClient()
-      .from("generation_periods")
-      .select(GENERATION_PERIOD_COLUMNS)
-      .order("start_date", { ascending: true });
-    if (isMissingRelation(loadError)) {
-      setAvailable(false);
-      setPeriods([]);
-      return;
+    try {
+      const { data, error: loadError } = await createClient()
+        .from("generation_periods")
+        .select(GENERATION_PERIOD_COLUMNS)
+        .order("start_date", { ascending: true });
+      if (isMissingRelation(loadError)) {
+        setAvailable(false);
+        setPeriods([]);
+        return;
+      }
+      setAvailable(true);
+      if (loadError) {
+        setError(dbErrorMessage("対象期の期間を読めませんでした", loadError));
+        return;
+      }
+      setError(null);
+      setPeriods(((data ?? []) as GenerationPeriodRow[]).map(fromRow));
+    } catch {
+      // 通信そのものが失敗したとき。「読み込み中」のまま止めない
+      setAvailable(true);
+      setError("対象期の期間を読めませんでした。通信を確かめてください。");
     }
-    setAvailable(true);
-    if (loadError) {
-      setError(dbErrorMessage("対象期の期間を読めませんでした", loadError));
-      return;
-    }
-    setError(null);
-    setPeriods(((data ?? []) as GenerationPeriodRow[]).map(fromRow));
   }, []);
 
   useEffect(() => {
@@ -129,7 +135,8 @@ export function GenerationPeriodsSection({
   const { periods, available, error, reload } = useGenerationPeriods();
   const [draft, setDraft] = useState<PeriodDraft | null>(null);
 
-  if (available === false) return null;
+  // 表が無い DB (0030 の前) では出さない。読み込み中も出さない — 前の DB で欄が一瞬見えてしまうため
+  if (available !== true) return null;
 
   const visible = month
     ? periodsOverlapping(periods, startOfMonth(month), endOfMonth(month))
@@ -152,19 +159,12 @@ export function GenerationPeriodsSection({
     <section>
       <div className="flex items-end justify-between px-4 pb-1.5">
         <GroupHeader>対象期</GroupHeader>
-        <button
-          type="button"
-          onClick={create}
-          disabled={available === null}
-          className={`${tintTextClass} disabled:opacity-40`}
-        >
+        <button type="button" onClick={create} className={tintTextClass}>
           追加
         </button>
       </div>
       <ErrorMessage>{error}</ErrorMessage>
-      {available === null ? (
-        <p className={`${groupClass} px-4 py-3 text-[15px] text-[var(--muted)]`}>読み込み中…</p>
-      ) : visible.length === 0 ? (
+      {visible.length === 0 ? (
         <p className={`${groupClass} px-4 py-3 text-[15px] text-[var(--muted)]`}>
           {month ? "この月はすべて全期" : "まだありません"}
         </p>
