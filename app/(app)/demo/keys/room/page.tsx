@@ -1,3 +1,4 @@
+import { KeysHistory } from "@/components/KeysHistory";
 import { RoomStatusBoard } from "@/components/RoomStatusBoard";
 import { DEMO_USER_ID, demoCalendar } from "../../data";
 
@@ -14,6 +15,7 @@ export default function DemoRoomKeys() {
         initialMessages={boards.roomMessages}
         currentUserId={DEMO_USER_ID}
       />
+      <KeysHistory kind="room" />
     </main>
   );
 }

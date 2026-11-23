@@ -174,20 +174,7 @@ export function ClubKeyBoard({
         ) : null}
       </div>
 
-      {rows.length > 1 ? (
-        <details className="mt-2">
-          <summary className="cursor-pointer py-1 text-[14px] text-[var(--tint)]">
-            受け渡しの履歴
-          </summary>
-          <ul className="mt-1 space-y-0.5">
-            {rows.slice(1).map((row) => (
-              <li key={row.id} className="text-[14px] text-[var(--muted)]">
-                {formatAsTokyoDateTime(row.takenAt)} {row.username}
-              </li>
-            ))}
-          </ul>
-        </details>
-      ) : null}
+      {/* 受け渡しの履歴は画面の下の「これまでの記録」へ (v1.50.4) */}
 
       <BoardMessages
         scope="club_key"

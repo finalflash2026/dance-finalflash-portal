@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 
+import { KeysHistory } from "@/components/KeysHistory";
 import { ClubKeyBoard } from "@/components/ClubKeyBoard";
 import { SetupNotice } from "@/components/SetupNotice";
 import { getCurrentProfile } from "@/lib/auth/session";
@@ -40,6 +41,7 @@ export default async function ClubKeyPage() {
         currentUserId={profile.user_id}
         initialMessages={toBoardMessages(messagesResult.data ?? [])}
       />
+      <KeysHistory kind="club-key" />
     </main>
   );
 }

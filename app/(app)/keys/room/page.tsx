@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 
+import { KeysHistory } from "@/components/KeysHistory";
 import { RoomStatusBoard, type RoomStatusRow } from "@/components/RoomStatusBoard";
 import { SetupNotice } from "@/components/SetupNotice";
 import { getCurrentProfile } from "@/lib/auth/session";
@@ -48,6 +49,7 @@ export default async function RoomKeysPage() {
         initialMessages={toBoardMessages(messagesResult.data ?? [])}
         currentUserId={profile.user_id}
       />
+      <KeysHistory kind="room" />
     </main>
   );
 }

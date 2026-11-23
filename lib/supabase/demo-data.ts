@@ -113,5 +113,25 @@ export function demoRows(table: string): Row[] {
       { user_id: "u9", number_event_id: "n4", status: "leave_early", time_value: "22:00:00", reason: "用事" },
     ];
   }
+  // 鍵の画面の「これまでの記録」(v1.50.4) の見本
+  const ago = (minutes: number) => new Date(Date.now() - minutes * 60_000).toISOString();
+  if (table === "room_status_logs") {
+    const who = (username: string) => ({ profiles: { username } });
+    return [
+      { id: 7, room_id: 6, is_unlocked: true, created_at: ago(15), ...who("22BREAKたろう") },
+      { id: 6, room_id: 5, is_unlocked: false, created_at: ago(30), ...who("23LOCKはなこ") },
+      { id: 5, room_id: 5, is_unlocked: true, created_at: ago(40), ...who("23LOCKはなこ") },
+      { id: 4, room_id: 3, is_unlocked: false, created_at: ago(26 * 60), ...who("24GIRLSあやね(古川)") },
+      { id: 3, room_id: 3, is_unlocked: true, created_at: ago(29 * 60), ...who("24GIRLSあやね(古川)") },
+      { id: 2, room_id: 1, is_unlocked: false, created_at: ago(50 * 60), ...who("21HIPHOPじろう") },
+      { id: 1, room_id: 1, is_unlocked: true, created_at: ago(53 * 60), ...who("21HIPHOPじろう") },
+    ];
+  }
+  if (table === "club_key_holders") {
+    return [
+      { id: "k1", user_id: "u3", taken_at: ago(3 * 60), profiles: { username: "21HIPHOPじろう" } },
+      { id: "k0", user_id: "u2", taken_at: ago(27 * 60), profiles: { username: "23LOCKはなこ" } },
+    ];
+  }
   return [];
 }

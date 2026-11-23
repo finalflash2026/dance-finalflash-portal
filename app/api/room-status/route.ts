@@ -7,6 +7,7 @@ import { hasSupabaseEnv } from "@/lib/env";
 import { activeMemberIds, sendPush } from "@/lib/push";
 import { fetchRoomMap } from "@/lib/rooms-server";
 import { NOTIFY_DELAY_MS, UNDO_ACCEPT_MS, sleep } from "@/lib/key-undo";
+import { isMissingRelation } from "@/lib/schema-errors";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { todayInTokyo } from "@/lib/time";
@@ -109,7 +110,35 @@ export async function POST(request: Request) {
     );
   }
 
-  if (parsed.data.undo) return Response.json({ ok: true });
+  if (parsed.data.undo) {
+    // 取り消した報告は、開け閉めの記録 (v1.50.4) からも消す。記録は誰も消せない表なので
+    // service role で、自分のこの部屋のいちばん新しい1行だけ
+    const admin = createAdminClient();
+    const { data: log } = await admin
+      .from("room_status_logs")
+      .select("id, created_at")
+      .eq("date", today)
+      .eq("room_id", room.id)
+      .eq("user_id", profile.user_id)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (log && Date.now() - new Date(log.created_at as string).getTime() <= UNDO_ACCEPT_MS) {
+      await admin.from("room_status_logs").delete().eq("id", log.id);
+    }
+    return Response.json({ ok: true });
+  }
+
+  // 開け閉めの記録 (v1.50.4)。表がまだ無い DB (0031 前) では書かずに進む
+  const { error: logError } = await supabase.from("room_status_logs").insert({
+    date: today,
+    room_id: room.id,
+    is_unlocked: parsed.data.isUnlocked,
+    user_id: profile.user_id,
+  });
+  if (logError && !isMissingRelation(logError)) {
+    console.error("room_status_logs insert failed", logError.message);
+  }
 
   // 応答を返してから送る。150人ぶんの送信を待たせると、
   // 押してから ○ が変わるまでが目に見えて遅くなる。

@@ -189,7 +189,7 @@ export function RoomStatusBoard({
         </p>
       ) : null}
 
-      <ul className="mt-3 grid grid-cols-2 gap-2">
+      <ul className="mt-3 space-y-2">
         {rooms.map((room) => {
           const row = byRoomId.get(room.id);
           // 行が無い = 未設定。UI 上は × (施錠中) を既定とする
@@ -219,33 +219,35 @@ export function RoomStatusBoard({
                     : `${room.name}: ${unlocked ? "開錠済" : "施錠中"}`
                 }
                 aria-pressed={unlocked}
-                className={`flex min-h-[76px] w-full items-center gap-2 rounded-xl border-2 px-3 py-2.5 text-left transition-colors active:opacity-70 disabled:cursor-default ${
+                className={`flex min-h-[64px] w-full items-center gap-3 rounded-xl border-2 px-3 py-2.5 text-left transition-colors active:opacity-70 disabled:cursor-default ${
                   unlocked
                     ? "border-[var(--success-fg)] bg-[var(--success-bg)]"
                     : "border-transparent bg-[var(--background)]"
                 } ${stale ? "opacity-60" : ""} ${pendingRoomId === room.id ? "opacity-40" : ""}`}
               >
-                <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-                  {/* 建物の括弧は落とす (「練習室2(フレスコ)」→「練習室2」)。細いカードで2行に折れないように */}
-                  <span className="truncate text-[15px] font-semibold leading-snug">
-                    {room.name.replace(/[(（][^)）]*[)）]$/, "") || room.name}
-                  </span>
-                  <span
-                    className={`text-[13px] font-semibold ${
-                      unlocked ? "text-[var(--success-fg)]" : "text-[var(--muted)]"
-                    }`}
-                  >
-                    {unlocked ? "開いている" : "閉まっている"}
-                  </span>
-                  {unlocked && row ? (
-                    <span className="truncate text-[12px] text-[var(--muted)]">
-                      {formatAsTokyoTime(row.updated_at)} {row.profiles?.username ?? ""}
-                      {stale ? " (古いかも)" : ""}
-                    </span>
-                  ) : null}
-                </span>
                 {/* 状態は錠前の絵で示す (v1.50.4)。開いていれば、つるの外れた錠前を緑の丸に */}
                 <LockBadge unlocked={unlocked} />
+                {/* 1列にして、部屋と開けた人の名前は切らずに折り返す (v1.50.4) */}
+                <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+                  <span className="break-words text-[16px] font-semibold leading-snug">
+                    {room.name}
+                  </span>
+                  <span className="flex flex-wrap items-baseline gap-x-2 text-[13px] leading-snug">
+                    <span
+                      className={`shrink-0 font-semibold ${
+                        unlocked ? "text-[var(--success-fg)]" : "text-[var(--muted)]"
+                      }`}
+                    >
+                      {unlocked ? "開いている" : "閉まっている"}
+                    </span>
+                    {unlocked && row ? (
+                      <span className="break-words text-[var(--muted)]">
+                        {formatAsTokyoTime(row.updated_at)} {row.profiles?.username ?? ""}
+                        {stale ? " (古いかも)" : ""}
+                      </span>
+                    ) : null}
+                  </span>
+                </span>
               </button>
             </li>
           );

@@ -1,3 +1,4 @@
+import { KeysHistory } from "@/components/KeysHistory";
 import { ClubKeyBoard } from "@/components/ClubKeyBoard";
 import { DEMO_USER_ID, demoCalendar } from "../../data";
 
@@ -12,6 +13,7 @@ export default function DemoClubKey() {
         currentUserId={DEMO_USER_ID}
         initialMessages={boards.keyMessages}
       />
+      <KeysHistory kind="club-key" />
     </main>
   );
 }
