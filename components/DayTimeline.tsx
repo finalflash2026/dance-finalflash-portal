@@ -61,11 +61,11 @@ const MINE_LANE_WEIGHT = 1.6;
  * ブロックの高さで、文字の大きさと余白を変える (v1.50.4)。
  * 余白と2行の文字の合計より低いブロックで2行を出すと、上下が切れて読めなかった。
  *   ROOMY 以上 … 13px・余白 8px・2行
- *   TWO_LINE 以上 … 12px・余白 4px・2行
+ *   TWO_LINE 以上 … 12px・余白 2px・2行 (70分の練習でも時刻まで出す。v1.51.2)
  *   それ未満 … 12px・名前だけ1行
  */
 const ROOMY_BLOCK_HEIGHT = 52;
-const TWO_LINE_BLOCK_HEIGHT = 38;
+const TWO_LINE_BLOCK_HEIGHT = 34;
 
 export function DayTimeline({
   date,
@@ -222,7 +222,7 @@ export function DayTimeline({
               blockHeight >= ROOMY_BLOCK_HEIGHT
                 ? "px-2.5 py-2 text-[13px] leading-[16px]"
                 : blockHeight >= TWO_LINE_BLOCK_HEIGHT
-                  ? "px-2 py-1 text-[12px] leading-[15px]"
+                  ? "px-2 py-[2px] text-[12px] leading-[15px]"
                   : "px-2 py-0.5 text-[12px] leading-[15px]";
             const compact = blockHeight < TWO_LINE_BLOCK_HEIGHT;
             const range = formatTimeRange(item.startTime, item.endTime);
