@@ -184,7 +184,7 @@ export function HelpButton() {
 
       {open ? (
         <Sheet title="使い方とヒント" onClose={() => setOpen(false)}>
-          <div className="space-y-5">
+          <div className="space-y-5" data-help-hints>
             {/* ツアーは一番上に (v1.31.11)。手順を読むより、画面で見せたほうが早い */}
             <button type="button" onClick={startTour} className={`${fillButtonClass} gap-2`}>
               <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" aria-hidden>
@@ -198,7 +198,24 @@ export function HelpButton() {
                 <ul className={groupClass}>
                   {group.hints.map((hint) => (
                     <li key={hint.q}>
-                      <details className="group">
+                      <details
+                        className="group"
+                        // 1つ開いたら他は閉じる (v1.50.4)。name 属性の排他は古い Safari に無いので自分で閉じる
+                        onToggle={(event) => {
+                          const opened = event.currentTarget;
+                          if (!opened.open) return;
+                          opened
+                            .closest("[data-help-hints]")
+                            ?.querySelectorAll("details[open]")
+                            .forEach((other) => {
+                              if (other !== opened) (other as HTMLDetailsElement).open = false;
+                            });
+                          // 上の手順が閉じると位置がずれるので、開いた見出しを画面に入れ直す
+                          requestAnimationFrame(() =>
+                            opened.querySelector("summary")?.scrollIntoView({ block: "nearest" }),
+                          );
+                        }}
+                      >
                         <summary className="flex min-h-[48px] cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-[17px] [&::-webkit-details-marker]:hidden">
                           {hint.q}
                           <svg
