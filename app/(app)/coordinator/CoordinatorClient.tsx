@@ -50,9 +50,12 @@ export interface CoordinatorPlan {
 export function CoordinatorClient({
   plan,
   openRoundMonth,
+  isAdmin = false,
 }: {
   /** 見本の割り振り (Supabase の無い環境だけ) */
   plan?: CoordinatorPlan;
+  /** 3役か (公開済みの公式練の対象期を変えられる。v1.51) */
+  isAdmin?: boolean;
   /** 受付中の日程調整の月 (?step=plan で来たときにその月を開く。v1.44) */
   openRoundMonth?: DateString | null;
 }) {
@@ -204,7 +207,11 @@ export function CoordinatorClient({
             }
           />
         ) : (
-          <PublishStep month={month} onPublished={() => void reloadReservations()} />
+          <PublishStep
+            month={month}
+            isAdmin={isAdmin}
+            onPublished={() => void reloadReservations()}
+          />
         )}
       </div>
     </main>
