@@ -58,7 +58,7 @@ const MIN_LANE_WIDTH = 84;
 /** 自分の予定の列は右の列より広く取る (重さ。v1.30 の 62% : 37% に近い) */
 const MINE_LANE_WEIGHT = 1.6;
 /**
- * ブロックの高さで、文字の大きさと余白を変える (v1.50.4)。
+ * ブロックの高さで、文字の大きさと余白を変える (v1.51.2)。
  * 余白と2行の文字の合計より低いブロックで2行を出すと、上下が切れて読めなかった。
  *   ROOMY 以上 … 13px・余白 8px・2行
  *   TWO_LINE 以上 … 12px・余白 2px・2行 (70分の練習でも時刻まで出す。v1.51.2)
@@ -146,7 +146,7 @@ export function DayTimeline({
    * 1/10 の幅に潰れる。自分の予定は左の広い列を、重なり合うぶんだけで割る。
    */
   const onSide = (event: TimelineEvent) => event.side ?? Boolean(event.pale);
-  // 畳んだ時間帯の中で終わる予定 (朝の空きなど) は描かない (v1.50.4)。帯の文字と重なり、
+  // 畳んだ時間帯の中で終わる予定 (朝の空きなど) は描かない (v1.51.2)。帯の文字と重なり、
   // 見えない列のぶんだけ他の列が細くなっていた。開けば出る
   const shown = events.filter((event) => {
     const start = toMinutes(event.startTime);
@@ -212,7 +212,7 @@ export function DayTimeline({
           {packed.map(({ item, lane, lanes, region }) => {
             const [from, to] = region;
             const laneWidth = (to - from) / lanes;
-            // 畳んだ時間帯から始まる予定 (朝からの空きなど) は、畳んだ帯の下から描く (v1.50.4)。
+            // 畳んだ時間帯から始まる予定 (朝からの空きなど) は、畳んだ帯の下から描く (v1.51.2)。
             // 帯の中に頭を置くと、帯の文字と予定の名前が重なっていた
             const start = toMinutes(item.startTime);
             const fold = segments.find((s) => s.folded && start >= s.start && start < s.end);

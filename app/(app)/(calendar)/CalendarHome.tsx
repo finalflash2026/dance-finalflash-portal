@@ -440,7 +440,7 @@ export function CalendarHome({
                 date={selectedDate}
                 blocks={dayBlocks}
                 currentUserId={currentUserId}
-                // 公式練を押すと、一覧・時間と同じ出欠の窓を開く (v1.50.4)。
+                // 公式練を押すと、一覧・時間と同じ出欠の窓を開く (v1.51.2)。
                 // 同じジャンル・同じ時間の部屋はまとめて1つの練習として開く
                 onOpenGenre={(slot) => {
                   const same = dayBlocks.filter(
@@ -1121,7 +1121,7 @@ function WeekStrip({
                     {parseDate(date).day}
                   </span>
                   {/*
-                    点は色ごとに1つ。全部出す (v1.50.4。4つで止めていて、6ジャンルある日に
+                    点は色ごとに1つ。全部出す (v1.51.2。4つで止めていて、6ジャンルある日に
                     4つしか出なかった)。1行に5つまで、それより多ければ折り返す
                   */}
                   <span
@@ -1158,7 +1158,7 @@ function FilterButton({
 }: {
   filter: Filter;
   otherGenres: string[];
-  /** 自分のジャンル (1ジャン・2/3ジャン)。常に出るので、オンのまま押せないスイッチで並べる (v1.50.4) */
+  /** 自分のジャンル (1ジャン・2/3ジャン)。常に出るので、オンのまま押せないスイッチで並べる (v1.51.2) */
   myGenres: string[];
   onChange: (filter: Filter) => void;
   compact?: boolean;
@@ -1228,7 +1228,7 @@ function FilterButton({
                 <span className="text-[17px]">自分の予定</span>
                 <span className="text-[15px] text-[var(--muted)]">常に表示</span>
               </li>
-              {/* 自分のジャンル (v1.50.4)。ほかのジャンルと同じ形で並べ、切り替えられないことはスイッチで示す */}
+              {/* 自分のジャンル (v1.51.2)。ほかのジャンルと同じ形で並べ、切り替えられないことはスイッチで示す */}
               {myGenres.map((code) => (
                 <li key={code} className="flex min-h-[48px] items-center justify-between gap-3 px-4">
                   <span className="flex items-center gap-2 text-[17px]">

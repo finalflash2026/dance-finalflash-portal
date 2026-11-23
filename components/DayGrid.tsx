@@ -70,7 +70,7 @@ const PX_PER_MINUTE = 34 / 60;
 /** これより低いブロックは時刻の行を省く (label だけにする) */
 const COMPACT_BLOCK_HEIGHT = 28;
 /**
- * これより低いブロックは文字を出さず色だけにする (v1.50.4)。練習の間の10分ほどの空きで
+ * これより低いブロックは文字を出さず色だけにする (v1.51.2)。練習の間の10分ほどの空きで
  * 「空き」の文字が上下で切れていた。押せば中身が出る
  */
 const LABEL_MIN_HEIGHT = 16;
@@ -97,7 +97,7 @@ export function DayGrid({
   blocks: DayBlock[];
   currentUserId: string;
   /**
-   * 公式練を押したとき (v1.50.4)。渡すと、他の表示と同じ出欠の窓を呼び出し側で開く。
+   * 公式練を押したとき (v1.51.2)。渡すと、他の表示と同じ出欠の窓を呼び出し側で開く。
    * 渡さないときは今までどおりこの部品の詳細の窓
    */
   onOpenGenre?: (slot: DayBlock) => void;
@@ -154,7 +154,7 @@ export function DayGrid({
        * 高さは中身なりで、外から制限していないので隠れる部分は無い。
        */}
       {/*
-       * 見た目は時間表 (DayTimeline) とそろえる (v1.50.4)。枠線で囲んだ表をやめ、
+       * 見た目は時間表 (DayTimeline) とそろえる (v1.51.2)。枠線で囲んだ表をやめ、
        * 部屋の名前は線で区切らずに並べ、時刻は目盛の線の左に小さく置く
        */}
       <div className="h-scroll overflow-x-auto overflow-y-hidden rounded-xl bg-[var(--cell)]">
@@ -332,7 +332,7 @@ function GridBlock({
       style={{
         top: (start - dayStart) * PX_PER_MINUTE,
         height,
-        // 時間表と同じく、色を混ぜた地に濃い文字 (v1.50.4)。空きはうすく
+        // 時間表と同じく、色を混ぜた地に濃い文字 (v1.51.2)。空きはうすく
         ...eventBlockStyle(drawable.color.bg, drawable.segment?.kind === "free"),
       }}
     >

@@ -287,9 +287,10 @@ export function RoomStatusBoard({
 }
 
 /**
- * 開け閉めの報告の窓 (v1.50.4)。真ん中の大きな丸い鍵のボタン1つで、今の状態を出す
+ * 開け閉めの報告の窓 (v1.51.2)。真ん中の大きな丸い鍵のボタン1つで、今の状態を出す
  * (閉まっている = 黒・閉じた錠前、開いている = 緑・開いた錠前)。押すと絵が入れ替わり、
- * 入れ替わりを見せてから報告する。文字だけの窓では何が起きるか分かりにくかった
+ * 入れ替わりを見せてから報告する。文字だけの窓では何が起きるか分かりにくかった。
+ * 錠前は画面の地の色で描く (v1.51.3)。ダークでは丸 (文字色・緑) が明るくなり、白では見えなかった
  */
 function ReportSheet({
   name,
@@ -323,7 +324,7 @@ function ReportSheet({
           disabled={pressed}
           onClick={() => setPressed(true)}
           aria-label={unlock ? `${name}を開けたと報告する` : `${name}を閉めたと報告する`}
-          className={`grid h-32 w-32 place-items-center rounded-full text-white shadow-[0_10px_30px_-12px_rgba(0,0,0,0.45)] transition-[background-color,transform] duration-300 active:scale-95 ${
+          className={`grid h-32 w-32 place-items-center rounded-full text-[var(--background)] shadow-[0_10px_30px_-12px_rgba(0,0,0,0.45)] transition-[background-color,transform] duration-300 active:scale-95 ${
             showUnlocked ? "bg-[var(--success-fg)]" : "bg-[var(--foreground)]"
           }`}
         >
