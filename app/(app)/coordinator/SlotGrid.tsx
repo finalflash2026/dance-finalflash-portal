@@ -32,8 +32,10 @@ import {
   normalizeTimeInput,
 } from "@/lib/time";
 import { availabilityRatio, type AvailabilityLookup } from "@/lib/scheduling/availability";
+import { followsMonth } from "@/lib/slots";
 import type { DateString } from "@/lib/types";
 
+import { generationsLabel } from "./SlotGenerationPicker";
 import type { ReservationInfo } from "./useMonthReservations";
 
 /**
@@ -158,6 +160,7 @@ export function SlotGrid({
   onSavePeriods,
   onChangeRowCount,
   availability = null,
+  monthGenerations = null,
 }: {
   dates: readonly DateString[];
   rooms: readonly Room[];
@@ -170,6 +173,8 @@ export function SlotGrid({
   onChangeRowCount: (date: DateString, delta: 1 | -1) => void;
   /** 日程調整の回答から数えた出られる人の数 (v1.47)。回答が無ければ null */
   availability?: AvailabilityLookup | null;
+  /** この月の対象期。違うコマはセルの右上に期を出す (v1.50.4) */
+  monthGenerations?: number[] | null;
 }) {
   const [brush, setBrush] = useState<Brush | null>(null);
   const [menu, setMenu] = useState<{
@@ -394,6 +399,7 @@ export function SlotGrid({
                         onDragEnter: extendDrag,
                         availability,
                         brushGenreId: brush?.kind === "genre" ? brush.genreId : null,
+                        monthGenerations,
                       })}
                     </tr>
                   ))}
@@ -461,9 +467,11 @@ function renderRow({
   onDragEnter,
   availability,
   brushGenreId,
+  monthGenerations,
 }: {
   availability: AvailabilityLookup | null;
   brushGenreId: number | null;
+  monthGenerations: number[] | null;
   columns: (
     | { kind: "time"; section: string }
     | { kind: "room"; room: Room }
@@ -559,6 +567,13 @@ function renderRow({
     }
 
     const face = cellFace(cell);
+    // 月と違う対象期のコマ (v1.50.4)。クリパの「24期だけ」の回などを見分ける
+    const ownGenerations =
+      cell.kind === "genre" &&
+      cell.slot &&
+      !followsMonth(cell.slot.targetGenerations, monthGenerations)
+        ? generationsLabel(cell.slot.targetGenerations)
+        : null;
     // 出られる人の数 (v1.47)。置いた公式練はそのジャンル、空いているセルは選んでいるジャンル
     const placedGenre = cell.kind === "genre" ? (cell.slot?.genreId ?? null) : null;
     const placed =
@@ -612,7 +627,7 @@ function renderRow({
             if (painting && !disabled && clickable) onDragEnter(dragKey, targets);
           }}
           title={`${formatDateLabel(date)} ${formatTimeRange(period.startTime, period.endTime)} ${roomLabel} — ${face.title}`}
-          aria-label={`${formatDateLabel(date)} ${formatTimeRange(period.startTime, period.endTime)} ${roomLabel} ${face.title}${peopleLabel ? ` ○${peopleLabel.ok}人 △${peopleLabel.maybe}人 / ${peopleLabel.total}人` : ""}`}
+          aria-label={`${formatDateLabel(date)} ${formatTimeRange(period.startTime, period.endTime)} ${roomLabel} ${face.title}${ownGenerations ? ` ${ownGenerations}` : ""}${peopleLabel ? ` ○${peopleLabel.ok}人 △${peopleLabel.maybe}人 / ${peopleLabel.total}人` : ""}`}
           className={`relative h-8 w-full cursor-pointer text-[12px] font-bold transition-[box-shadow] disabled:cursor-default ${
             painting && clickable ? "cursor-crosshair" : ""
           } ${inDrag ? "z-10 shadow-[inset_0_0_0_2px_var(--tint)]" : ""}`}
@@ -656,6 +671,14 @@ function renderRow({
           ) : (
             <span className="relative">{face.text}</span>
           )}
+          {ownGenerations ? (
+            <span
+              aria-hidden
+              className="absolute right-0.5 top-0 text-[9px] font-semibold leading-none tabular-nums"
+            >
+              {ownGenerations}
+            </span>
+          ) : null}
         </button>
       </td>,
     );

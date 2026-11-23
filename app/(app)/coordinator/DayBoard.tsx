@@ -23,9 +23,11 @@ import {
   type PeriodTable,
   type SlotPeriod,
 } from "@/lib/slot-grid";
+import { followsMonth, type SlotInfo } from "@/lib/slots";
 import { formatDateLabel, formatTimeRange } from "@/lib/time";
 import type { DateString } from "@/lib/types";
 
+import { SlotGenerationPicker, generationsLabel } from "./SlotGenerationPicker";
 import type { Brush, PaintTarget } from "./SlotGrid";
 import type { ReservationInfo } from "./useMonthReservations";
 
@@ -44,6 +46,9 @@ export function DayBoard({
   disabled,
   availability,
   onPaint,
+  monthGenerations,
+  candidates,
+  onSetGenerations,
 }: {
   dates: readonly DateString[];
   rooms: readonly Room[];
@@ -52,6 +57,10 @@ export function DayBoard({
   disabled: boolean;
   availability: AvailabilityLookup | null;
   onPaint: (targets: PaintTarget[], brush: Brush) => void;
+  /** この月の対象期と、選べる期 (v1.50.4。コマごとの対象期) */
+  monthGenerations: number[] | null;
+  candidates: number[];
+  onSetGenerations: (slot: SlotInfo, value: number[] | "month") => Promise<void>;
 }) {
   const [editing, setEditing] = useState<PaintTarget | null>(null);
 
@@ -151,6 +160,7 @@ export function DayBoard({
                                       : null
                                   }
                                   disabled={disabled}
+                                  monthGenerations={monthGenerations}
                                   onClick={() => setEditing({ date: day.date, room, period, cell })}
                                 />
                               ) : null}
@@ -173,6 +183,9 @@ export function DayBoard({
           target={editing}
           availability={availability}
           monthCounts={totals.byGenre}
+          monthGenerations={monthGenerations}
+          candidates={candidates}
+          onSetGenerations={onSetGenerations}
           onPick={(brush) => {
             onPaint([editing], brush);
             setEditing(null);
@@ -196,12 +209,14 @@ function Chip({
   label,
   people,
   disabled,
+  monthGenerations,
   onClick,
 }: {
   cell: GridCell;
   label: string;
   people: { ok: number; maybe: number; total: number } | null;
   disabled: boolean;
+  monthGenerations: number[] | null;
   onClick: () => void;
 }) {
   const base =
@@ -211,17 +226,26 @@ function Chip({
   if (cell.kind === "genre") {
     const genre = cell.slot?.genreId != null ? GENRE_BY_ID.get(cell.slot.genreId) : null;
     const color = genre ? GENRE_COLORS[genre.code as GenreCode] : SLOT_OPEN_COLOR;
+    // 月と違う対象期のコマ (v1.50.4)。クリパの「24期だけ」の回などを見分ける
+    const own =
+      cell.slot && !followsMonth(cell.slot.targetGenerations, monthGenerations)
+        ? generationsLabel(cell.slot.targetGenerations)
+        : null;
     return (
       <button
         type="button"
         disabled={!can}
         onClick={onClick}
-        aria-label={`${label} ${genre?.code ?? "公式練"}${people ? ` ○${people.ok}人 △${people.maybe}人 / ${people.total}人` : ""}${cell.slot?.published ? "" : " 下書き"}`}
+        aria-label={`${label} ${genre?.code ?? "公式練"}${own ? ` ${own}` : ""}${people ? ` ○${people.ok}人 △${people.maybe}人 / ${people.total}人` : ""}${cell.slot?.published ? "" : " 下書き"}`}
         className={`${base} ${cell.slot?.published ? "" : "outline-dashed outline-1 -outline-offset-2 outline-white/60"}`}
         style={{ backgroundColor: color.bg, color: color.fg }}
       >
         <span className="truncate">{genre?.code ?? "公式練"}</span>
-        {people ? (
+        {own ? (
+          <span aria-hidden className="text-[10px] font-semibold tabular-nums">
+            {own}
+          </span>
+        ) : people ? (
           <span aria-hidden className="text-[10px] font-semibold tabular-nums opacity-80">
             ○{people.ok}/{people.total}
           </span>
@@ -260,12 +284,18 @@ function SlotSheet({
   target,
   availability,
   monthCounts,
+  monthGenerations,
+  candidates,
+  onSetGenerations,
   onPick,
   onClose,
 }: {
   target: PaintTarget;
   availability: AvailabilityLookup | null;
   monthCounts: Map<number, number>;
+  monthGenerations: number[] | null;
+  candidates: number[];
+  onSetGenerations: (slot: SlotInfo, value: number[] | "month") => Promise<void>;
   onPick: (brush: Brush) => void;
   onClose: () => void;
 }) {
@@ -278,6 +308,14 @@ function SlotSheet({
   }, [onClose]);
 
   const { date, room, period, cell } = target;
+  const genreSlot = cell.kind === "genre" ? (cell.slot ?? null) : null;
+  // 押した瞬間に保存するので、窓の中では選んだ値を手元で持つ
+  const [generations, setGenerations] = useState<number[] | "month">(() =>
+    genreSlot && !followsMonth(genreSlot.targetGenerations, monthGenerations)
+      ? (genreSlot.targetGenerations ?? [])
+      : "month",
+  );
+  const [savingGenerations, setSavingGenerations] = useState(false);
   const current = cell.kind === "genre" ? (cell.slot?.genreId ?? null) : null;
   const rows = GENRES.map((genre, index) => {
     const people = availability ? availability(date, period.startTime, period.endTime, genre.id) : null;
@@ -314,6 +352,23 @@ function SlotSheet({
             </svg>
           </button>
         </header>
+
+        {genreSlot ? (
+          <div className="px-5 pb-3">
+            <SlotGenerationPicker
+              value={generations}
+              monthGenerations={monthGenerations}
+              candidates={candidates}
+              disabled={savingGenerations}
+              onChange={async (value) => {
+                setGenerations(value);
+                setSavingGenerations(true);
+                await onSetGenerations(genreSlot, value);
+                setSavingGenerations(false);
+              }}
+            />
+          </div>
+        ) : null}
 
         <p aria-hidden className="flex justify-end px-8 pb-1 text-[11px] text-[var(--muted)]">今月</p>
         <ul className="min-h-0 flex-1 space-y-1.5 overflow-y-auto px-5" aria-label="ジャンル">
