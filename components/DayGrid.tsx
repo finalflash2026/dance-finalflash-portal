@@ -68,6 +68,11 @@ const TIME_COLUMN_WIDTH = 34;
 const PX_PER_MINUTE = 34 / 60;
 /** これより低いブロックは時刻の行を省く (label だけにする) */
 const COMPACT_BLOCK_HEIGHT = 28;
+/**
+ * これより低いブロックは文字を出さず色だけにする (v1.50.4)。練習の間の10分ほどの空きで
+ * 「空き」の文字が上下で切れていた。押せば中身が出る
+ */
+const LABEL_MIN_HEIGHT = 16;
 
 /** グリッド上に描く1ブロック。slot そのものか、空きコマを分割した区間 */
 type Drawable = {
@@ -321,6 +326,7 @@ function GridBlock({
       type="button"
       onClick={() => onSelect(drawable)}
       title={`${drawable.label} ${formatTimeRange(drawable.startTime, drawable.endTime)}`}
+      aria-label={`${drawable.label} ${formatTimeRange(drawable.startTime, drawable.endTime)}`}
       className="absolute inset-x-px overflow-hidden rounded px-0.5 py-0.5 text-left text-[10px] leading-tight"
       style={{
         top: (start - dayStart) * PX_PER_MINUTE,
@@ -329,7 +335,9 @@ function GridBlock({
         color: drawable.color.fg,
       }}
     >
-      <span className="block truncate font-bold">{drawable.label}</span>
+      {height >= LABEL_MIN_HEIGHT ? (
+        <span className="block truncate font-bold">{drawable.label}</span>
+      ) : null}
       {/* 列が細いので、開始と終了は2行に分ける */}
       {compact ? null : (
         <span className="block opacity-80 tabular-nums">

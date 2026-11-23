@@ -234,6 +234,7 @@ export function DayTimeline({
                 disabled={!onSelect}
                 onClick={() => onSelect?.(item)}
                 title={`${range} ${item.title}${item.subtitle ? `・${item.subtitle}` : ""}`}
+                aria-label={`${range} ${item.title}${item.subtitle ? `・${item.subtitle}` : ""}`}
                 // ボタンは中身を縦の中央に寄せるので、上詰めを明示する。
                 // 長いブロックだと見出しが開始時刻から離れた位置に出てしまう
                 // 予定のブロック (v1.50.1): 色を混ぜた地・濃い文字。左端の線は付けない
