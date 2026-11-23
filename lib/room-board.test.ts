@@ -3,7 +3,7 @@ import { test } from "node:test";
 
 import { carriedOpenRows, usedRoomIds } from "./room-board";
 
-test("今日使う部屋は、公式練か空き申請のある部屋だけ", () => {
+test("今日使う部屋は、公式練か空きのある部屋 (使えない部屋だけ除く)", () => {
   assert.deepEqual(
     usedRoomIds([
       { room_id: 1, status: "genre", claims: [] },
@@ -12,7 +12,7 @@ test("今日使う部屋は、公式練か空き申請のある部屋だけ", ()
       { room_id: 4, status: "unavailable", claims: [] },
       { room_id: 1, status: "open", claims: [] },
     ]).sort(),
-    [1, 3],
+    [1, 2, 3],
   );
 });
 

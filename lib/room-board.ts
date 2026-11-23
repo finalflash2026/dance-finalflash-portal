@@ -3,14 +3,17 @@
  * サーバー (ページ) とデモの両方から呼ぶので、"use client" のファイルには置かない
  */
 
-/** 今日使う部屋。公式練のコマか、空き申請のあるコマがある部屋 (空いているだけ・使えない部屋は除く) */
+/**
+ * 今日使う部屋。公式練か空きのコマがある部屋 (使えない部屋だけ除く)。
+ * v1.51.2: 空きだけの部屋も出す。自主練で来た人が、申請せずに開けて報告することがある
+ */
 export function usedRoomIds(
   slots: { room_id: number; status: string; claims?: unknown[] | null }[],
 ): number[] {
   return [
     ...new Set(
       slots
-        .filter((slot) => slot.status === "genre" || (slot.claims?.length ?? 0) > 0)
+        .filter((slot) => slot.status !== "unavailable")
         .map((slot) => slot.room_id),
     ),
   ];

@@ -187,6 +187,7 @@ export function CalendarHome({
     });
   const [layout, setLayout] = useState<HomeLayout>(DEFAULT_HOME_LAYOUT);
   const [selected, setSelected] = useState<MyEvent | null>(null);
+  const roomById = useRoomById();
   const [claiming, setClaiming] = useState<{
     date: DateString;
     slot: DayBlock;
@@ -364,6 +365,7 @@ export function CalendarHome({
                 <FilterButton
                   filter={filter}
                   otherGenres={otherGenres}
+                  myGenres={GENRE_ORDER.filter((code) => genreCodes.includes(code))}
                   onChange={changeFilter}
                   // 「今日」ボタンが出ている間は1行に収まらないので、文字を畳んで絵だけにする
                   compact={selectedDate !== today}
@@ -434,7 +436,37 @@ export function CalendarHome({
             }
           >
             {dayView === "rooms" && !isOb ? (
-              <DayGrid date={selectedDate} blocks={dayBlocks} currentUserId={currentUserId} />
+              <DayGrid
+                date={selectedDate}
+                blocks={dayBlocks}
+                currentUserId={currentUserId}
+                // 公式練を押すと、一覧・時間と同じ出欠の窓を開く (v1.50.4)。
+                // 同じジャンル・同じ時間の部屋はまとめて1つの練習として開く
+                onOpenGenre={(slot) => {
+                  const same = dayBlocks.filter(
+                    (b) =>
+                      b.status === "genre" &&
+                      b.genreCode === slot.genreCode &&
+                      b.startTime === slot.startTime &&
+                      b.endTime === slot.endTime,
+                  );
+                  setSelected({
+                    kind: "genre",
+                    sourceId: slot.id,
+                    sourceIds: same.map((b) => b.id),
+                    date: selectedDate,
+                    startTime: slot.startTime,
+                    endTime: slot.endTime,
+                    title: `${slot.genreCode ?? ""} 公式練`,
+                    location: same
+                      .map((b) => roomById.get(b.roomId)?.name ?? "")
+                      .filter(Boolean)
+                      .join("・"),
+                    numberId: null,
+                    genreCode: slot.genreCode,
+                  });
+                }}
+              />
             ) : (
               <DayContent
                 date={selectedDate}
@@ -1088,12 +1120,20 @@ function WeekStrip({
                   >
                     {parseDate(date).day}
                   </span>
-                  <span className="flex h-1.5 gap-0.5">
-                    {dayEvents.slice(0, 4).map((event, i) => (
+                  {/*
+                    点は色ごとに1つ。全部出す (v1.50.4。4つで止めていて、6ジャンルある日に
+                    4つしか出なかった)。1行に5つまで、それより多ければ折り返す
+                  */}
+                  <span
+                    className="flex min-h-1.5 flex-wrap justify-center gap-0.5"
+                    // 点 6px × 5 + すき間 2px × 4。超えると隣の日まではみ出す
+                    style={{ maxWidth: 38 }}
+                  >
+                    {[...new Set(dayEvents.map((event) => eventColor(event).bg))].map((bg) => (
                       <span
-                        key={i}
+                        key={bg}
                         className="h-1.5 w-1.5 rounded-full"
-                        style={{ backgroundColor: eventColor(event).bg }}
+                        style={{ backgroundColor: bg }}
                       />
                     ))}
                   </span>
@@ -1112,11 +1152,14 @@ function WeekStrip({
 function FilterButton({
   filter,
   otherGenres,
+  myGenres,
   onChange,
   compact = false,
 }: {
   filter: Filter;
   otherGenres: string[];
+  /** 自分のジャンル (1ジャン・2/3ジャン)。常に出るので、オンのまま押せないスイッチで並べる (v1.50.4) */
+  myGenres: string[];
   onChange: (filter: Filter) => void;
   compact?: boolean;
 }) {
@@ -1185,6 +1228,20 @@ function FilterButton({
                 <span className="text-[17px]">自分の予定</span>
                 <span className="text-[15px] text-[var(--muted)]">常に表示</span>
               </li>
+              {/* 自分のジャンル (v1.50.4)。ほかのジャンルと同じ形で並べ、切り替えられないことはスイッチで示す */}
+              {myGenres.map((code) => (
+                <li key={code} className="flex min-h-[48px] items-center justify-between gap-3 px-4">
+                  <span className="flex items-center gap-2 text-[17px]">
+                    <span
+                      aria-hidden
+                      className="h-2.5 w-2.5 rounded-full"
+                      style={{ backgroundColor: GENRE_COLORS[code as GenreCode]?.bg }}
+                    />
+                    {code}
+                  </span>
+                  <Switch label={`${code}は自分のジャンルなので常に表示`} checked disabled onChange={() => {}} />
+                </li>
+              ))}
               <li className="flex min-h-[48px] items-center justify-between gap-3 px-4">
                 <span className="flex items-center gap-2 text-[17px]">
                   <span aria-hidden className="h-2.5 w-2.5 rounded-full bg-[#34c759]" />

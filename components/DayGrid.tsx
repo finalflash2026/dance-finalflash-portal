@@ -15,6 +15,7 @@ import {
 } from "@/lib/constants";
 import { splitOpenSlot, type ClaimInfo, type OpenSegment } from "@/lib/claims";
 import { dbErrorMessage } from "@/lib/error-message";
+import { eventBlockStyle } from "@/lib/event-style";
 import { useCanWrite } from "@/lib/role";
 import { useRoomById, useRoomSections } from "@/lib/rooms";
 import { createClient } from "@/lib/supabase/client";
@@ -58,7 +59,7 @@ export interface DayBlock {
 }
 
 /** 1列の最小幅。これより狭くなる部屋数のときだけ横スクロールにする */
-const MIN_COLUMN_WIDTH = 44;
+const MIN_COLUMN_WIDTH = 46;
 const TIME_COLUMN_WIDTH = 34;
 /**
  * 縦の縮尺。09:00〜22:00 = 780分なので、この値が日別ビューの高さを決める。
@@ -68,6 +69,11 @@ const TIME_COLUMN_WIDTH = 34;
 const PX_PER_MINUTE = 34 / 60;
 /** これより低いブロックは時刻の行を省く (label だけにする) */
 const COMPACT_BLOCK_HEIGHT = 28;
+/**
+ * これより低いブロックは文字を出さず色だけにする (v1.50.4)。練習の間の10分ほどの空きで
+ * 「空き」の文字が上下で切れていた。押せば中身が出る
+ */
+const LABEL_MIN_HEIGHT = 16;
 
 /** グリッド上に描く1ブロック。slot そのものか、空きコマを分割した区間 */
 type Drawable = {
@@ -85,10 +91,16 @@ export function DayGrid({
   date,
   blocks,
   currentUserId,
+  onOpenGenre,
 }: {
   date: DateString;
   blocks: DayBlock[];
   currentUserId: string;
+  /**
+   * 公式練を押したとき (v1.50.4)。渡すと、他の表示と同じ出欠の窓を呼び出し側で開く。
+   * 渡さないときは今までどおりこの部品の詳細の窓
+   */
+  onOpenGenre?: (slot: DayBlock) => void;
   /** 折衝以上か。他人の申請も取消せる (SPEC §6.1-5) */
 }) {
   const [selected, setSelected] = useState<Drawable | null>(null);
@@ -141,83 +153,73 @@ export function DayGrid({
        * すべて収まっているのに数pxだけ縦スクロールできる状態になっていた。
        * 高さは中身なりで、外から制限していないので隠れる部分は無い。
        */}
-      <div className="h-scroll overflow-x-auto overflow-y-hidden rounded-xl border border-[var(--border)]">
-        <div style={{ width: `max(100%, ${TIME_COLUMN_WIDTH + flatRooms.length * MIN_COLUMN_WIDTH}px)` }}>
-          {/* section 見出し */}
-          <div className="flex border-b border-[var(--border)] bg-[var(--surface)]">
+      {/*
+       * 見た目は時間表 (DayTimeline) とそろえる (v1.50.4)。枠線で囲んだ表をやめ、
+       * 部屋の名前は線で区切らずに並べ、時刻は目盛の線の左に小さく置く
+       */}
+      <div className="h-scroll overflow-x-auto overflow-y-hidden rounded-xl bg-[var(--cell)]">
+        <div
+          className="pb-3"
+          style={{ width: `max(100%, ${TIME_COLUMN_WIDTH + flatRooms.length * MIN_COLUMN_WIDTH}px)` }}
+        >
+          {/* 建物と部屋の名前 */}
+          <div className="flex pt-2.5">
             <div
-              className="sticky left-0 z-20 shrink-0 bg-[var(--surface)]"
+              className="sticky left-0 z-20 shrink-0 bg-[var(--cell)]"
               style={{ width: TIME_COLUMN_WIDTH }}
             />
             {groups.map((group) => (
-              <div
-                key={group.section}
-                className="min-w-0 truncate border-l border-[var(--border)] px-0.5 py-1 text-center text-[11px] font-bold"
-                style={{ flex: group.rooms.length }}
-              >
-                {group.section}
+              <div key={group.section} className="min-w-0 px-0.5" style={{ flex: group.rooms.length }}>
+                {/* 建物は小さく、その下に細い線で部屋をまとめる */}
+                <div className="truncate border-b border-[var(--separator)] pb-1 text-center text-[11px] font-medium text-[var(--muted)]">
+                  {group.section}
+                </div>
+                <div className="flex">
+                  {group.rooms.map((room) => (
+                    <div
+                      key={room.id}
+                      className="min-w-0 flex-1 px-px pb-1.5 pt-1 text-center text-[10px] font-semibold leading-tight [overflow-wrap:anywhere] [word-break:keep-all]"
+                    >
+                      {shortRoomName(room.name)}
+                    </div>
+                  ))}
+                </div>
               </div>
             ))}
           </div>
 
-          {/* 部屋名 */}
-          <div className="flex border-b border-[var(--border)]">
-            <div
-              className="sticky left-0 z-20 shrink-0 bg-[var(--background)]"
-              style={{ width: TIME_COLUMN_WIDTH }}
-            />
-            {flatRooms.map((room) => (
-              <div
-                key={room.id}
-                className="min-w-0 flex-1 break-all border-l border-[var(--border)] px-0.5 py-1 text-center text-[10px] leading-tight"
-              >
-                {shortRoomName(room.name)}
-              </div>
-            ))}
-          </div>
-
-          {/* 本体 */}
-          <div className="flex" style={{ height: totalHeight }}>
+          {/* 本体 (上下に余白を置き、端の時刻が切れないように) */}
+          <div className="flex pt-2" style={{ height: totalHeight + 8 }}>
             {/* 時間軸 (sticky) */}
             <div
-              className="sticky left-0 z-20 relative shrink-0 bg-[var(--background)]"
+              className="sticky left-0 z-20 relative shrink-0 bg-[var(--cell)]"
               style={{ width: TIME_COLUMN_WIDTH }}
             >
-              {ticks.map((minute) => (
-                <div
-                  key={minute}
-                  // 一番上と一番下の目盛は、枠の外にはみ出さないよう内側に寄せる
-                  className={`absolute right-1 text-[10px] text-[var(--muted)] ${
-                    minute === dayStart
-                      ? "translate-y-0.5"
-                      : minute === dayEnd
-                        ? "-translate-y-full"
-                        : "-translate-y-1/2"
-                  }`}
-                  style={{ top: (minute - dayStart) * PX_PER_MINUTE }}
-                >
-                  {minute % 60 === 0 ? fromMinutes(minute) : ""}
-                </div>
-              ))}
+              {ticks.map((minute) =>
+                minute % 60 === 0 ? (
+                  <div
+                    key={minute}
+                    className="absolute right-1.5 -translate-y-1/2 text-[10px] text-[var(--muted)] tabular-nums"
+                    style={{ top: (minute - dayStart) * PX_PER_MINUTE }}
+                  >
+                    {fromMinutes(minute)}
+                  </div>
+                ) : null,
+              )}
             </div>
 
             {flatRooms.map((room) => (
-              <div
-                key={room.id}
-                className="relative min-w-0 flex-1 border-l border-[var(--border)]"
-              >
-                {/* 目盛線 */}
-                {ticks.map((minute) => (
-                  <div
-                    key={minute}
-                    className="absolute inset-x-0 border-t"
-                    style={{
-                      top: (minute - dayStart) * PX_PER_MINUTE,
-                      borderColor:
-                        minute % 60 === 0 ? "var(--border)" : "transparent",
-                    }}
-                  />
-                ))}
+              <div key={room.id} className="relative min-w-0 flex-1">
+                {/* 目盛線 (1時間ごと。細く) */}
+                {ticks
+                  .filter((minute) => minute % 60 === 0)
+                  .map((minute) => (
+                    <div
+                      key={minute}
+                      className="absolute inset-x-0 border-t border-[var(--separator)]"
+                      style={{ top: (minute - dayStart) * PX_PER_MINUTE }}
+                    />
+                  ))}
 
                 {drawables
                   .filter((d) => d.roomId === room.id)
@@ -227,7 +229,11 @@ export function DayGrid({
                       drawable={drawable}
                       dayStart={dayStart}
                       dayEnd={dayEnd}
-                      onSelect={setSelected}
+                      onSelect={(target) =>
+                        target.slot.status === "genre" && onOpenGenre
+                          ? onOpenGenre(target.slot)
+                          : setSelected(target)
+                      }
                     />
                   ))}
               </div>
@@ -321,15 +327,18 @@ function GridBlock({
       type="button"
       onClick={() => onSelect(drawable)}
       title={`${drawable.label} ${formatTimeRange(drawable.startTime, drawable.endTime)}`}
-      className="absolute inset-x-px overflow-hidden rounded px-0.5 py-0.5 text-left text-[10px] leading-tight"
+      aria-label={`${drawable.label} ${formatTimeRange(drawable.startTime, drawable.endTime)}`}
+      className="absolute inset-x-[2px] overflow-hidden rounded-[6px] px-1 py-0.5 text-left text-[10px] leading-tight"
       style={{
         top: (start - dayStart) * PX_PER_MINUTE,
         height,
-        backgroundColor: drawable.color.bg,
-        color: drawable.color.fg,
+        // 時間表と同じく、色を混ぜた地に濃い文字 (v1.50.4)。空きはうすく
+        ...eventBlockStyle(drawable.color.bg, drawable.segment?.kind === "free"),
       }}
     >
-      <span className="block truncate font-bold">{drawable.label}</span>
+      {height >= LABEL_MIN_HEIGHT ? (
+        <span className="block truncate font-bold">{drawable.label}</span>
+      ) : null}
       {/* 列が細いので、開始と終了は2行に分ける */}
       {compact ? null : (
         <span className="block opacity-80 tabular-nums">
