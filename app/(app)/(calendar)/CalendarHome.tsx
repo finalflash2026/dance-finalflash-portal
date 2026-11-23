@@ -1205,6 +1205,8 @@ interface Row {
   subtitle: string;
   color: { bg: string; fg: string };
   pale: boolean;
+  /** 時間表で右の列に置く (他ジャンルの練習と空き。v1.50.4 で薄さと分けた) */
+  side?: boolean;
   important?: boolean;
   /** 今日の終わった予定。薄く出す (v1.31.6) */
   ended?: boolean;
@@ -1215,7 +1217,8 @@ interface Row {
 
 /**
  * 選んだ日の予定。**一覧**と**時間表**で同じ行を使う。
- * 自分の予定は濃く、絞り込みで足した他ジャンルの練習と空きは薄く下に。
+ * 自分の予定は上 (時間表では左の広い列)、絞り込みで足した他ジャンルの練習と空きは下 (右の列)。
+ * 薄くするのは空きだけ (v1.50.4)。
  */
 function DayContent({
   date,
@@ -1275,25 +1278,46 @@ function DayContent({
   });
 
   // ---- 絞り込みで足した他ジャンルの公式練 (同じ時間・同じジャンルは部屋をまとめる) ----
-  const groups = new Map<string, { block: DayBlock; rooms: string[] }>();
+  // **そのジャンルの色で濃く出し、押すと出欠の窓を開く** (v1.50.4)。全ジャンルを足したとき、
+  // 薄いと色で見分けられず、押しても何も起きなかった。自分の出欠のボタンは参加者にだけ出る
+  const groups = new Map<string, { block: DayBlock; rooms: string[]; ids: string[] }>();
   for (const block of blocks) {
     if (block.status !== "genre" || mySlotIds.has(block.id)) continue;
     if (!block.genreCode || !filter.genres.includes(block.genreCode)) continue;
     const key = `${block.genreCode}|${block.startTime}|${block.endTime}`;
-    const group = groups.get(key) ?? { block, rooms: [] };
+    const group = groups.get(key) ?? { block, rooms: [], ids: [] };
     group.rooms.push(roomById.get(block.roomId)?.name ?? "");
+    group.ids.push(block.id);
     groups.set(key, group);
   }
-  const otherRows: Row[] = [...groups.values()].map(({ block, rooms }) => ({
-    key: `other-${block.id}`,
-    startTime: block.startTime,
-    endTime: block.endTime,
-    wholeDay: false,
-    title: `${block.genreCode} 公式練`,
-    subtitle: rooms.filter(Boolean).join("・"),
-    color: GENRE_COLORS[block.genreCode as GenreCode] ?? SLOT_OPEN_COLOR,
-    pale: true,
-  }));
+  const otherRows: Row[] = [...groups.values()].map(({ block, rooms, ids }) => {
+    const title = `${block.genreCode} 公式練`;
+    const location = rooms.filter(Boolean).join("・");
+    return {
+      key: `other-${block.id}`,
+      startTime: block.startTime,
+      endTime: block.endTime,
+      wholeDay: false,
+      title,
+      subtitle: location,
+      color: GENRE_COLORS[block.genreCode as GenreCode] ?? SLOT_OPEN_COLOR,
+      pale: false,
+      side: true,
+      onClick: () =>
+        onSelect({
+          kind: "genre",
+          sourceId: block.id,
+          sourceIds: ids,
+          date,
+          startTime: block.startTime,
+          endTime: block.endTime,
+          title,
+          location,
+          numberId: null,
+          genreCode: block.genreCode,
+        }),
+    };
+  });
 
   // ---- 空き (押すと申請) ----
   const freeRows: Row[] = filter.free
@@ -1309,6 +1333,7 @@ function DayContent({
             subtitle: roomById.get(block.roomId)?.name ?? "",
             color: { bg: "rgba(52, 199, 89, 0.35)", fg: "var(--foreground)" },
             pale: true,
+            side: true,
             filler: true,
             onClick: () => onClaim(block, range),
           })),
@@ -1331,6 +1356,7 @@ function DayContent({
         subtitle: row.subtitle,
         color: row.color,
         pale: row.pale,
+        side: row.side,
         filler: row.filler,
       };
     };
