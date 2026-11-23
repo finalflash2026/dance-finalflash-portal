@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
+import { GenerationPeriodsSection } from "@/components/GenerationPeriods";
 import { Sheet } from "@/components/Sheet";
 import {
   ErrorMessage,
@@ -21,12 +22,13 @@ import { confirmAction } from "@/lib/confirm";
 import { dbErrorMessage } from "@/lib/error-message";
 import { createClient } from "@/lib/supabase/client";
 import {
+  addDays,
   formatAsTokyoDateTime,
   formatDateLabel,
   normalizeTime,
 } from "@/lib/time";
 import { showToast } from "@/lib/toast";
-import type { Announcement, CircleEvent, Deadline } from "@/lib/types";
+import type { Announcement, CircleEvent, DateString, Deadline } from "@/lib/types";
 
 /**
  * イベント・締切・告知の管理 (SPEC.md §6.7.11 / v1.30)
@@ -38,7 +40,7 @@ import type { Announcement, CircleEvent, Deadline } from "@/lib/types";
  * 手元で差し替えるより、サーバーの並び (日付順) に任せるほうが間違いが無い。
  */
 
-type Tab = "events" | "deadlines" | "announcements";
+type Tab = "events" | "deadlines" | "announcements" | "periods";
 
 export function ManageClient({
   currentUserId,
@@ -47,6 +49,7 @@ export function ManageClient({
   events,
   deadlines,
   announcements,
+  periodsAvailable = false,
   loadError,
 }: {
   currentUserId: string;
@@ -55,6 +58,8 @@ export function ManageClient({
   events: CircleEvent[];
   deadlines: Deadline[];
   announcements: Announcement[];
+  /** 対象期の期間 (v1.51)。3役だけ・0030 のある DB だけ */
+  periodsAvailable?: boolean;
   loadError: string | null;
 }) {
   const [tab, setTab] = useState<Tab>("events");
@@ -63,6 +68,7 @@ export function ManageClient({
     { value: "events", label: "イベント" },
     { value: "deadlines", label: "締切" },
     ...(isAdmin ? [{ value: "announcements" as const, label: "告知" }] : []),
+    ...(isAdmin && periodsAvailable ? [{ value: "periods" as const, label: "対象期" }] : []),
   ];
 
   return (
@@ -87,6 +93,9 @@ export function ManageClient({
       ) : null}
       {tab === "announcements" && isAdmin ? (
         <AnnouncementsPanel announcements={announcements} />
+      ) : null}
+      {tab === "periods" && isAdmin && periodsAvailable ? (
+        <GenerationPeriodsSection isAdmin since={addDays(today as DateString, -30)} />
       ) : null}
     </main>
   );

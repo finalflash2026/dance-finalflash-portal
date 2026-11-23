@@ -5,6 +5,7 @@ import { canUseCoordinator } from "@/lib/auth/guard";
 import { getCurrentProfile } from "@/lib/auth/session";
 import { hasSupabaseEnv } from "@/lib/env";
 import { hasSchemaV2 } from "@/lib/schema";
+import { isMissingRelation } from "@/lib/schema-errors";
 import { createClient } from "@/lib/supabase/server";
 import { addDays, todayInTokyo } from "@/lib/time";
 import type { Announcement, CircleEvent, Deadline } from "@/lib/types";
@@ -14,7 +15,7 @@ import { ManageClient } from "./ManageClient";
 /**
  * イベント・締切・告知の管理 (SPEC.md §6.7.11 / v1.30)
  *
- * coordinator 以上。権限不足は 404 (§7: 存在を隠す)。告知の欄は admin だけ。
+ * coordinator 以上。権限不足は 404 (§7: 存在を隠す)。告知と対象期 (v1.51) の欄は admin だけ。
  * ここは表示制御で、認可の実体は RLS (`ins_cevents` など) と
  * `/api/announcements` の requireRole にある (§13.2)。
  *
@@ -38,7 +39,7 @@ export default async function ManagePage() {
   const since = addDays(todayInTokyo(), -PAST_DAYS);
   const isAdmin = profile!.role === "admin";
 
-  const [eventsResult, deadlinesResult, announcementsResult] = await Promise.all([
+  const [eventsResult, deadlinesResult, announcementsResult, periodsProbe] = await Promise.all([
     supabase
       .from("circle_events")
       .select("*")
@@ -56,6 +57,10 @@ export default async function ManagePage() {
           .order("created_at", { ascending: false })
           .limit(30)
       : Promise.resolve({ data: [], error: null }),
+    // 対象期の期間の表は 0030 から (v1.51。済んでいない DB では欄を出さない)
+    isAdmin
+      ? supabase.from("generation_periods").select("id").limit(1)
+      : Promise.resolve({ data: [], error: null }),
   ]);
 
   const error =
@@ -69,6 +74,7 @@ export default async function ManagePage() {
       events={(eventsResult.data ?? []) as CircleEvent[]}
       deadlines={(deadlinesResult.data ?? []) as Deadline[]}
       announcements={(announcementsResult.data ?? []) as Announcement[]}
+      periodsAvailable={isAdmin && !isMissingRelation(periodsProbe.error)}
       loadError={error?.message ?? null}
     />
   );

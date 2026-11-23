@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 
+import { GenerationPeriodsSection } from "@/components/GenerationPeriods";
 import { ErrorMessage, buttonClass } from "@/components/ui";
 import { confirmAction } from "@/lib/confirm";
 import { useRoomById } from "@/lib/rooms";
@@ -19,12 +20,17 @@ import { useMonthReservations } from "./useMonthReservations";
  *
  * 公開は**取り消せない操作ではない**が (Step2 で個別に戻せる)、
  * お知らせは配ってしまうと戻せないので、押す前に件数を必ず出す。
+ *
+ * 上に、その月にかかる対象期の期間を置く (v1.51)。公開の前に折衝が登録する。
  */
 export function PublishStep({
   month,
+  isAdmin = false,
   onPublished,
 }: {
   month: DateString;
+  /** 公開済みの公式練の対象期を変えられるのは3役だけ (v1.51) */
+  isAdmin?: boolean;
   /** 公開したあと (手順のボタンの数を読み直す) */
   onPublished?: () => void;
 }) {
@@ -86,6 +92,7 @@ export function PublishStep({
 
   return (
     <div className="space-y-4">
+      <GenerationPeriodsSection key={month} month={month} isAdmin={isAdmin} />
       <ErrorMessage>{error}</ErrorMessage>
       {result ? (
         <p className="rounded-lg bg-[var(--surface)] px-3 py-2 text-sm">

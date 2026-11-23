@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 
+import { PeriodSummary, useGenerationPeriods } from "@/components/GenerationPeriods";
 import {
   ErrorMessage,
   buttonClass,
@@ -12,6 +13,7 @@ import { confirmAction } from "@/lib/confirm";
 import { dbErrorMessage } from "@/lib/error-message";
 import { useRoomById, useRooms } from "@/lib/rooms";
 import { GENRES, GENRE_BY_ID, PRACTICE_WEEKDAYS } from "@/lib/constants";
+import { formatGenerations, targetOn } from "@/lib/generation-periods";
 import { findSplitReservations } from "@/lib/reservations";
 import { isMissingRelation } from "@/lib/schema-errors";
 import type { AvailabilityLookup } from "@/lib/scheduling/availability";
@@ -165,6 +167,13 @@ export function SlotStep({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [derivedKey]);
 
+  // 0030 (v1.51) があれば対象期は期間で決まる (§6.2 Step2-3)。無い DB では月の対象期 (v1.9) のまま
+  const generationPeriods = useGenerationPeriods();
+  const periodMode = generationPeriods.available === true;
+  /** その日の公式練に入る対象期。期間のときは DB のトリガも同じ値を入れる (画面の値は使われない) */
+  const targetFor = (date: DateString) =>
+    periodMode ? targetOn(generationPeriods.periods, date) : monthGenerations;
+
   const supabase = createClient();
 
   /**
@@ -288,9 +297,9 @@ export function SlotStep({
       end_time: draft.endTime,
       status: draft.status,
       genre_id: draft.status === "genre" ? draft.genreId : null,
-      // 対象期は月単位 (v1.9)。公式練にはこの月の設定を必ず入れ、
-      // 公式練でなくなったら消す。コマ個別には選ばせない
-      target_generations: draft.status === "genre" ? monthGenerations : null,
+      // 公式練には期間 (v1.51) か月 (v1.9) の対象期を入れ、公式練でなくなったら消す。
+      // コマ個別には選ばせない
+      target_generations: draft.status === "genre" ? targetFor(reservation.date) : null,
     };
 
     const { error: writeError } = draft.id
@@ -520,8 +529,8 @@ export function SlotStep({
       end_time: period.endTime,
       status,
       genre_id: genreId,
-      // 対象期は月単位 (v1.9)。公式練でなくなったら消す
-      target_generations: status === "genre" ? monthGenerations : null,
+      // 期間 (v1.51) か月 (v1.9) の対象期。公式練でなくなったら消す
+      target_generations: status === "genre" ? targetFor(date) : null,
     };
 
     if (cell.slot) {
@@ -620,7 +629,7 @@ export function SlotStep({
         />
       </div>
 
-      <ErrorMessage>{error ?? periods.error}</ErrorMessage>
+      <ErrorMessage>{error ?? periods.error ?? generationPeriods.error}</ErrorMessage>
 
       <SplitReservationNotice
         groups={splitGroups}
@@ -639,14 +648,18 @@ export function SlotStep({
           <span aria-hidden className="text-[var(--muted)] transition-transform group-open:rotate-90">›</span>
         </summary>
         <div className="mt-3 space-y-4">
-        <MonthGenerationPicker
-          candidates={generations}
-          value={monthGenerations}
-          genreSlotCount={derived.count}
-          mixed={derived.mixed}
-          disabled={pending || loading}
-          onToggle={toggleMonthGeneration}
-        />
+        {periodMode ? (
+          <PeriodSummary periods={generationPeriods.periods} month={month} />
+        ) : generationPeriods.available === false ? (
+          <MonthGenerationPicker
+            candidates={generations}
+            value={monthGenerations}
+            genreSlotCount={derived.count}
+            mixed={derived.mixed}
+            disabled={pending || loading}
+            onToggle={toggleMonthGeneration}
+          />
+        ) : null}
         <PeriodPanel
           month={month}
           base={periods.table.base}
@@ -764,7 +777,8 @@ export function SlotStep({
           reservation={editing.reservation}
           initial={editing.draft}
           gap={editing.gap}
-          monthGenerations={monthGenerations}
+          target={targetFor(editing.reservation.date)}
+          fromPeriods={periodMode}
           disabled={pending}
           onSave={(draft) => saveSlot(editing.reservation, draft)}
           onDelete={() => {
@@ -1041,7 +1055,8 @@ function SlotEditor({
   reservation,
   initial,
   gap,
-  monthGenerations,
+  target,
+  fromPeriods,
   disabled,
   onSave,
   onDelete,
@@ -1051,7 +1066,10 @@ function SlotEditor({
   initial: SlotDraft;
   /** 押した未割当区間 (既存コマの編集ならそのコマの範囲) */
   gap: { startTime: string; endTime: string };
-  monthGenerations: number[] | null;
+  /** 公式練にしたときに入る対象期 */
+  target: number[] | null;
+  /** 期間で決まる (v1.51)。false なら月の設定 (v1.9) */
+  fromPeriods: boolean;
   disabled: boolean;
   onSave: (draft: SlotDraft) => void;
   onDelete: () => void;
@@ -1220,13 +1238,8 @@ function SlotEditor({
               </select>
             </label>
             <p className="text-xs text-[var(--muted)]">
-              対象期は{" "}
-              <strong>
-                {monthGenerations && monthGenerations.length > 0
-                  ? `${monthGenerations.join("・")}期`
-                  : "全期"}
-              </strong>{" "}
-              になります(この月の設定。変更は画面上部から)
+              対象期は <strong>{formatGenerations(target)}</strong> になります
+              {fromPeriods ? "" : "(この月の設定。変更は画面上部から)"}
             </p>
           </>
         ) : null}

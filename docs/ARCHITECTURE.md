@@ -107,6 +107,7 @@ Next.js の決まりで、**フォルダの並びがそのまま URL になる**
 | `room-status`・`club-key/claim`・`board-messages` | 鍵の報告・部室の鍵・連絡。**全員に通知が飛ぶのでサーバー経由にしている** |
 | `announcements` | 3役からの告知(お知らせ作成 + 通知) |
 | `slots/publish`・`reservations/bulk`・`import/parse`・`rooms` | 折衝係の操作(公開・予約の取込・部屋の追加) |
+| `generation-periods`・`generation-periods/delete` | 公式練の対象期の期間の保存・削除。公開済みの練習が変わるときは対象の人に通知する |
 | `push/subscribe`・`unsubscribe` | 端末の通知登録 |
 | `cal/[token]`・`cal/regenerate` | カレンダー購読用の .ics を返す / 購読URLの作り直し |
 | `cron/reminders` | 毎朝7時のリマインド(今日の予定・締切) |
@@ -130,6 +131,7 @@ Next.js の決まりで、**フォルダの並びがそのまま URL になる**
 | `ClaimSheet.tsx`・`AttendanceSheet.tsx` | 空き申請の窓、出欠の窓 |
 | `RoomStatusBoard.tsx`・`ClubKeyBoard.tsx`・`BoardMessages.tsx` | 鍵のボードと連絡欄 |
 | `NotificationList.tsx`・`NumberList.tsx`・`StudioPracticeSection.tsx` | お知らせ一覧・ナンバー一覧・スタ練 |
+| `GenerationPeriods.tsx` | 公式練の対象期の期間の一覧と編集の窓(折衝の ④ 公開と管理画面で使う) |
 | `PullToRefresh.tsx`・`ServiceWorkerRegistrar.tsx` | 引っぱって更新、Service Worker の登録 |
 
 ### 3.4 `lib/` … 画面を持たない処理(計算・データの取り方)
@@ -147,6 +149,7 @@ Next.js の決まりで、**フォルダの並びがそのまま URL になる**
 | `reminders.ts` | 朝のリマインドの文面づくり |
 | `claims.ts` | 空きコマを「申請済み」「空き」に分ける計算 |
 | `slots.ts`・`slot-grid.ts`・`reservations.ts`・`import.ts`・`csv.ts` | 折衝係のコマ割り・予約取込の計算と検証 |
+| `generation-periods.ts` | 対象期の期間の計算(その日の対象期・保存したときに重なる期間がどうなるか・対象期が変わる公開済みのコマ)。DB の関数と同じ規則 |
 | `time.ts`・`day-span.ts`・`timeline.ts` | 日付・時刻の計算(**日本時間で、文字列のまま計算**して日付ずれを防ぐ)、日をまたぐ予定、時間表の配置 |
 | `constants.ts`・`rooms.tsx`・`rooms-server.ts` | ジャンル・色・役職名などの定数、練習場所の一覧 |
 | `theme.ts` | 明暗テーマの切り替え |
@@ -159,7 +162,7 @@ Next.js の決まりで、**フォルダの並びがそのまま URL になる**
 
 | 場所 | 役割 |
 |---|---|
-| `supabase/migrations/0001〜0029_*.sql` | **データベースの設計図**。テーブル・権限(RLS)を番号順に積み重ねる。本番には Supabase の画面か CLI で番号順に流す |
+| `supabase/migrations/0001〜0030_*.sql` | **データベースの設計図**。テーブル・権限(RLS)を番号順に積み重ねる。本番には Supabase の画面か CLI で番号順に流す |
 | `public/sw.js` | Service Worker。通知の表示と、`/_next/static/`(アプリの部品ファイル)の端末保存 |
 | `public/` のアイコン類 | ホーム画面のアイコンなど |
 | `assets/` | 起動アニメーションのロゴ、ロゴの元データ(`assets/logo/`) |

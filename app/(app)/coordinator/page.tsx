@@ -30,5 +30,10 @@ export default async function CoordinatorPage() {
 
   // 日程調整の欄は、表で選んでいる月の回と回答を画面が読みにいく (§6.2 / v1.44)
   const openRound = await getOpenRound(todayInTokyo(), profile!.user_id);
-  return <CoordinatorClient openRoundMonth={openRound?.month ?? null} />;
+  return (
+    <CoordinatorClient
+      openRoundMonth={openRound?.month ?? null}
+      isAdmin={profile!.role === "admin"}
+    />
+  );
 }
