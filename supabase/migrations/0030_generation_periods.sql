@@ -2,8 +2,11 @@
 -- 0030_generation_periods.sql
 -- SPEC.md v1.51 の差分。公式練の対象期を「月」ではなく「期間」で決める (§6.2 / §5.2)。
 --
--- 0001〜0029 適用済みの環境に対して追加で流す。**1回だけ流す** (create table に
--- if not exists が無いので、2回目はエラーになる)。
+-- 0001〜0019 適用済みの環境に対して追加で流す。**0020〜0029 とは独立**していて、その前でも後でも流せる
+-- (大規模アップデートの SQL を待たずに使い始められるように。0020〜0029 の表・関数は使わない)。
+-- ただし**コード (v1.51) を先に出してから流す**。前のコードの「この月の対象期」は、下のトリガが値を
+-- 期間から入れ直すので効かなくなる。
+-- **1回だけ流す** (create table に if not exists が無いので、2回目はエラーになる)。
 -- =========================================================
 
 -- ---------- 期間の表 ----------
@@ -91,6 +94,8 @@ create trigger slots_target_from_period
 --   p_allow_published が false (折衝) なら全体を取り消す — 公開済みの練習を変えられるのは3役だけ
 --   対象から外れた人の出欠を消す
 --   対象が変わった人 (そのジャンルを1〜3ジャンに持つ現役のうち、入った人・外れた人) にお知らせを入れる
+-- 2・3ジャンは今の user_subgenres で見る。入れ直すのは今日から先の練習だけなので、0023 の
+-- had_subgenre_on (その日に持っていたか) と同じ答えになり、0020〜0029 の前の DB でも動く。
 -- 外からは呼ばせない (save / delete の中だけで使う)。
 create or replace function public.refresh_slot_targets(p_from date, p_to date, p_allow_published boolean)
 returns jsonb
@@ -155,7 +160,9 @@ begin
            as d(date date, genre_id smallint, old_target smallint[], new_target smallint[])
     join public.profiles p
       on p.role not in ('ob', 'viewer')
-     and (p.main_genre_id = d.genre_id or public.had_subgenre_on(p.user_id, d.genre_id, d.date))
+     and (p.main_genre_id = d.genre_id
+          or exists (select 1 from public.user_subgenres us
+                      where us.user_id = p.user_id and us.genre_id = d.genre_id))
      and (d.old_target is null or p.generation = any(d.old_target))
          is distinct from (d.new_target is null or p.generation = any(d.new_target));
 
