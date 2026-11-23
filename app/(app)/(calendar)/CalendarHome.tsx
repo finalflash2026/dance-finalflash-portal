@@ -73,6 +73,7 @@ import type { DateString, MyEvent } from "@/lib/types";
  * 自前でなぞるより iPhone の標準に近く、なめらかに感じる。
  */
 
+const GENRE_ORDER: string[] = GENRES.map((g) => g.code);
 const FILTER_STORAGE_KEY = "calendar-filter-v2";
 const VIEW_STORAGE_KEY = "calendar-day-view-v2";
 const MONTH_OPEN_KEY = "calendar-month-open";
@@ -281,6 +282,38 @@ export function CalendarHome({
     [events],
   );
 
+  // 週の帯と月表示に出す予定。絞り込みで足した他ジャンルの公式練も、ジャンルごとに1件で後ろに足す
+  // (v1.50.4。今までは自分の予定しか出ず、全ジャンルを足しても月表示が変わらなかった)
+  const calendarByDate = useMemo(() => {
+    if (filter.genres.length === 0) return eventsByDate;
+    const map = new Map(eventsByDate);
+    for (const [date, blocks] of Object.entries(blocksByDate)) {
+      const byGenre = new Map<string, DayBlock[]>();
+      for (const block of blocks) {
+        if (block.status !== "genre" || !block.genreCode || mySlotIds.has(block.id)) continue;
+        if (!filter.genres.includes(block.genreCode)) continue;
+        byGenre.set(block.genreCode, [...(byGenre.get(block.genreCode) ?? []), block]);
+      }
+      if (byGenre.size === 0) continue;
+      const others: MyEvent[] = [...byGenre.entries()]
+        .sort(([a], [b]) => GENRE_ORDER.indexOf(a) - GENRE_ORDER.indexOf(b))
+        .map(([genreCode, list]) => ({
+          kind: "genre",
+          sourceId: list[0].id,
+          sourceIds: list.map((block) => block.id),
+          date,
+          startTime: list[0].startTime,
+          endTime: list[0].endTime,
+          title: `${genreCode} 公式練`,
+          location: "",
+          numberId: null,
+          genreCode,
+        }));
+      map.set(date, [...(map.get(date) ?? []), ...others]);
+    }
+    return map;
+  }, [eventsByDate, blocksByDate, filter.genres, mySlotIds]);
+
   const todayBlocks = blocksByDate[today] ?? [];
   const dayBlocks = blocksByDate[selectedDate] ?? [];
   const otherGenres = GENRES.map((g) => g.code as string).filter(
@@ -351,7 +384,7 @@ export function CalendarHome({
                 rangeEnd={rangeEnd}
                 selectedDate={selectedDate}
                 today={today}
-                eventsByDate={eventsByDate}
+                eventsByDate={calendarByDate}
                 onSelect={selectDate}
               />
             </Collapse>
@@ -361,7 +394,8 @@ export function CalendarHome({
                 monthAnchor={startOfMonth(selectedDate)}
                 selectedDate={selectedDate}
                 today={today}
-                eventsByDate={eventsByDate}
+                eventsByDate={calendarByDate}
+                maxLabels={filter.genres.length > 0 ? 3 : 2}
                 // 日を押しても月表示のまま (v1.31.10)。週に戻すのは日付のボタンで
                 onSelectDate={selectDate}
                 onChangeMonth={(diff) => {
@@ -412,6 +446,7 @@ export function CalendarHome({
                 mySlotIds={mySlotIds}
                 onSelect={setSelected}
                 onClaim={(slot, range) => setClaiming({ date: selectedDate, slot, range })}
+                onShowRooms={() => changeView("rooms")}
               />
             )}
           </div>
@@ -1054,7 +1089,7 @@ function WeekStrip({
                     {parseDate(date).day}
                   </span>
                   <span className="flex h-1.5 gap-0.5">
-                    {dayEvents.slice(0, 3).map((event, i) => (
+                    {dayEvents.slice(0, 4).map((event, i) => (
                       <span
                         key={i}
                         className="h-1.5 w-1.5 rounded-full"
@@ -1205,6 +1240,10 @@ interface Row {
   subtitle: string;
   color: { bg: string; fg: string };
   pale: boolean;
+  /** 時間表で右の列に置く (他ジャンルの練習と空き。v1.50.4 で薄さと分けた) */
+  side?: boolean;
+  /** 時間表の細い列で使う短い見出し (v1.50.4。「JAZZ 公式練」→「JAZZ」) */
+  shortTitle?: string;
   important?: boolean;
   /** 今日の終わった予定。薄く出す (v1.31.6) */
   ended?: boolean;
@@ -1215,7 +1254,8 @@ interface Row {
 
 /**
  * 選んだ日の予定。**一覧**と**時間表**で同じ行を使う。
- * 自分の予定は濃く、絞り込みで足した他ジャンルの練習と空きは薄く下に。
+ * 自分の予定は上 (時間表では左の広い列)、絞り込みで足した他ジャンルの練習と空きは下 (右の列)。
+ * 薄くするのは空きだけ (v1.50.4)。
  */
 function DayContent({
   date,
@@ -1227,6 +1267,7 @@ function DayContent({
   mySlotIds,
   onSelect,
   onClaim,
+  onShowRooms,
 }: {
   date: DateString;
   today: DateString;
@@ -1237,6 +1278,7 @@ function DayContent({
   mySlotIds: Set<string>;
   onSelect: (event: MyEvent) => void;
   onClaim: (slot: DayBlock, range: TimeRange) => void;
+  onShowRooms: () => void;
 }) {
   const roomById = useRoomById();
   // 今日を選んでいるときは、終わった予定を後ろへ回して薄くする (v1.31.6。
@@ -1275,45 +1317,76 @@ function DayContent({
   });
 
   // ---- 絞り込みで足した他ジャンルの公式練 (同じ時間・同じジャンルは部屋をまとめる) ----
-  const groups = new Map<string, { block: DayBlock; rooms: string[] }>();
+  // **そのジャンルの色で濃く出し、押すと出欠の窓を開く** (v1.50.4)。全ジャンルを足したとき、
+  // 薄いと色で見分けられず、押しても何も起きなかった。自分の出欠のボタンは参加者にだけ出る
+  const groups = new Map<string, { block: DayBlock; rooms: string[]; ids: string[] }>();
   for (const block of blocks) {
     if (block.status !== "genre" || mySlotIds.has(block.id)) continue;
     if (!block.genreCode || !filter.genres.includes(block.genreCode)) continue;
     const key = `${block.genreCode}|${block.startTime}|${block.endTime}`;
-    const group = groups.get(key) ?? { block, rooms: [] };
+    const group = groups.get(key) ?? { block, rooms: [], ids: [] };
     group.rooms.push(roomById.get(block.roomId)?.name ?? "");
+    group.ids.push(block.id);
     groups.set(key, group);
   }
-  const otherRows: Row[] = [...groups.values()].map(({ block, rooms }) => ({
-    key: `other-${block.id}`,
-    startTime: block.startTime,
-    endTime: block.endTime,
-    wholeDay: false,
-    title: `${block.genreCode} 公式練`,
-    subtitle: rooms.filter(Boolean).join("・"),
-    color: GENRE_COLORS[block.genreCode as GenreCode] ?? SLOT_OPEN_COLOR,
-    pale: true,
-  }));
+  const otherRows: Row[] = [...groups.values()].map(({ block, rooms, ids }) => {
+    const title = `${block.genreCode} 公式練`;
+    const location = rooms.filter(Boolean).join("・");
+    return {
+      key: `other-${block.id}`,
+      startTime: block.startTime,
+      endTime: block.endTime,
+      wholeDay: false,
+      title,
+      shortTitle: block.genreCode ?? title,
+      subtitle: location,
+      color: GENRE_COLORS[block.genreCode as GenreCode] ?? SLOT_OPEN_COLOR,
+      pale: false,
+      side: true,
+      onClick: () =>
+        onSelect({
+          kind: "genre",
+          sourceId: block.id,
+          sourceIds: ids,
+          date,
+          startTime: block.startTime,
+          endTime: block.endTime,
+          title,
+          location,
+          numberId: null,
+          genreCode: block.genreCode,
+        }),
+    };
+  });
 
   // ---- 空き (押すと申請) ----
-  const freeRows: Row[] = filter.free
-    ? blocks
-        .filter((block) => block.status === "open")
-        .flatMap((block) =>
-          freeRanges(block, block.claims).map((range) => ({
-            key: `free-${block.id}-${range.startTime}`,
-            startTime: range.startTime,
-            endTime: range.endTime,
-            wholeDay: false,
-            title: "空き",
-            subtitle: roomById.get(block.roomId)?.name ?? "",
-            color: { bg: "rgba(52, 199, 89, 0.35)", fg: "var(--foreground)" },
-            pale: true,
-            filler: true,
-            onClick: () => onClaim(block, range),
-          })),
-        )
-    : [];
+  // 同じ時間の空きは部屋をまとめて1件にする (v1.50.4。部屋ごとに列が割れて潰れていた)。
+  // 1部屋なら押すと申請、複数なら部屋の表示へ移って部屋を選ぶ
+  const freeGroups = new Map<string, { block: DayBlock; range: TimeRange; rooms: string[] }>();
+  if (filter.free) {
+    for (const block of blocks) {
+      if (block.status !== "open") continue;
+      for (const range of freeRanges(block, block.claims)) {
+        const key = `${range.startTime}|${range.endTime}`;
+        const group = freeGroups.get(key) ?? { block, range, rooms: [] };
+        group.rooms.push(roomById.get(block.roomId)?.name ?? "");
+        freeGroups.set(key, group);
+      }
+    }
+  }
+  const freeRows: Row[] = [...freeGroups.values()].map(({ block, range, rooms }) => ({
+    key: `free-${block.id}-${range.startTime}`,
+    startTime: range.startTime,
+    endTime: range.endTime,
+    wholeDay: false,
+    title: rooms.length > 1 ? `空き ${rooms.length}部屋` : "空き",
+    subtitle: rooms.filter(Boolean).join("・"),
+    color: { bg: "rgba(52, 199, 89, 0.35)", fg: "var(--foreground)" },
+    pale: true,
+    side: true,
+    filler: true,
+    onClick: () => (rooms.length > 1 ? onShowRooms() : onClaim(block, range)),
+  }));
 
   const others = [...otherRows, ...freeRows].sort((a, b) =>
     a.startTime.localeCompare(b.startTime),
@@ -1327,10 +1400,11 @@ function DayContent({
         key: row.key,
         startTime: row.startTime,
         endTime: row.endTime,
-        title: `${row.important ? "【大事】" : ""}${row.title}`,
+        title: `${row.important ? "【大事】" : ""}${row.shortTitle ?? row.title}`,
         subtitle: row.subtitle,
         color: row.color,
         pale: row.pale,
+        side: row.side,
         filler: row.filler,
       };
     };

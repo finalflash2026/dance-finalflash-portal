@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { eventBlockStyle } from "@/lib/event-style";
 import { packLanes, timelineAxis } from "@/lib/timeline";
@@ -32,6 +32,11 @@ export interface TimelineEvent {
    */
   pale?: boolean;
   /**
+   * 右の列に置く (v1.50.4)。他ジャンルの練習と空き。指定が無ければ `pale` と同じ。
+   * 他ジャンルの練習は濃く出すようにしたので、置き場所と薄さを分けた
+   */
+  side?: boolean;
+  /**
    * 時間を埋めるだけの予定 (「空き」)。**折りたたみの判断に使わない** (v1.31.5)。
    * 空きは長い時間帯に広がるので、数えると1日がほぼ埋まって何も畳めない
    */
@@ -45,6 +50,13 @@ const FOLD_HEIGHT = 22;
 /** 練習の無い時間がこれだけ続いたら折りたたむ (分)。1時間だけの隙間は畳んでも短くならない */
 const MIN_FOLD_MINUTES = 120;
 const TIME_COLUMN_WIDTH = 44;
+/**
+ * 重なった予定の1列の最小幅 (px。v1.50.4)。全ジャンルを足すと右の列が9つに割れ、
+ * 潰れて押せなかった。収まらないときは予定の部分だけ横にスクロールする
+ */
+const MIN_LANE_WIDTH = 84;
+/** 自分の予定の列は右の列より広く取る (重さ。v1.30 の 62% : 37% に近い) */
+const MINE_LANE_WEIGHT = 1.6;
 /** これより低いブロックはタイトルだけにする (2行だと両方切れて読めない) */
 const COMPACT_BLOCK_HEIGHT = 30;
 
@@ -126,16 +138,23 @@ export function DayTimeline({
    * 同じ時間に9ジャンルの練習があると、混ぜて横に割ったとき自分の予定が
    * 1/10 の幅に潰れる。自分の予定は左の広い列を、重なり合うぶんだけで割る。
    */
-  const mine = events.filter((event) => !event.pale);
-  const pale = events.filter((event) => event.pale);
-  const split = mine.length > 0 && pale.length > 0;
-  const regions = split
-    ? { mine: [0, 62], pale: [63, 100] }
-    : { mine: [0, 100], pale: [0, 100] };
+  const onSide = (event: TimelineEvent) => event.side ?? Boolean(event.pale);
+  const mine = packLanes(events.filter((event) => !onSide(event)));
+  const side = packLanes(events.filter(onSide));
+  const mineLanes = Math.max(0, ...mine.map((p) => p.lanes));
+  const sideLanes = Math.max(0, ...side.map((p) => p.lanes));
+  // 列の重さで左右を分ける。1列ずつなら 62% : 38% (v1.30 と同じ見た目)
+  const weight = mineLanes * MINE_LANE_WEIGHT + sideLanes;
+  const boundary = mineLanes === 0 || sideLanes === 0 ? null : (mineLanes * MINE_LANE_WEIGHT * 100) / weight;
+  const regions = {
+    mine: [0, boundary ?? 100],
+    side: [boundary === null ? 0 : boundary + 0.5, 100],
+  };
   const packed = [
-    ...packLanes(mine).map((p) => ({ ...p, region: regions.mine })),
-    ...packLanes(pale).map((p) => ({ ...p, region: regions.pale })),
+    ...mine.map((p) => ({ ...p, region: regions.mine })),
+    ...side.map((p) => ({ ...p, region: regions.side })),
   ];
+  const minWidth = Math.round(weight * MIN_LANE_WIDTH);
 
   // 目盛は開いている区間だけ。畳んだ区間の両端も、1行の見出しが時刻を示すので描かない (重なる)
   const hours: number[] = [];
@@ -166,7 +185,8 @@ export function DayTimeline({
           ))}
         </div>
 
-        <div className="relative flex-1">
+        {/* 予定の部分だけ横にスクロールする (v1.50.4)。時刻の列は動かさない */}
+        <LaneScroller height={height} minWidth={minWidth}>
           {hours.map((m) => (
             <div
               key={m}
@@ -213,7 +233,7 @@ export function DayTimeline({
               </button>
             );
           })}
-        </div>
+        </LaneScroller>
 
         {/*
          * 畳んだ時間帯。時間軸の列もまたいで全幅に置き、押すと開く。
@@ -314,4 +334,60 @@ function foldSegments(
     else merged.push({ ...segment, foldable });
   }
   return merged;
+}
+
+/**
+ * 予定の部分の横スクロール (v1.50.4)。
+ *
+ * はみ出すときだけ `.h-scroll` を付ける。付けると日の横スワイプ (DaySwipe) が
+ * この中で効かなくなるので、収まっている日は今までどおりスワイプで日を移れる。
+ */
+function LaneScroller({
+  height,
+  minWidth,
+  children,
+}: {
+  height: number;
+  minWidth: number;
+  children: React.ReactNode;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [overflows, setOverflows] = useState(false);
+  // 右にまだ隠れている予定があるか。端を影で示す (v1.50.4。横に動かせると気づけなかった)
+  const [moreRight, setMoreRight] = useState(false);
+  useEffect(() => {
+    const element = ref.current;
+    if (!element) return;
+    const check = () => {
+      setOverflows(element.scrollWidth > element.clientWidth + 1);
+      setMoreRight(element.scrollLeft + element.clientWidth < element.scrollWidth - 1);
+    };
+    check();
+    const observer = new ResizeObserver(check);
+    observer.observe(element);
+    element.addEventListener("scroll", check, { passive: true });
+    return () => {
+      observer.disconnect();
+      element.removeEventListener("scroll", check);
+    };
+  }, [minWidth]);
+
+  return (
+    <div className="relative min-w-0 flex-1" style={{ height }}>
+      <div
+        ref={ref}
+        className={`h-full overflow-y-hidden ${overflows ? "h-scroll overflow-x-auto" : "overflow-x-hidden"}`}
+      >
+        <div className="relative h-full" style={{ minWidth }}>
+          {children}
+        </div>
+      </div>
+      {overflows && moreRight ? (
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-y-0 right-0 w-6 bg-gradient-to-l from-[var(--cell)] to-transparent"
+        />
+      ) : null}
+    </div>
+  );
 }
