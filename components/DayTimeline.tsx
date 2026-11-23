@@ -57,8 +57,15 @@ const TIME_COLUMN_WIDTH = 44;
 const MIN_LANE_WIDTH = 84;
 /** 自分の予定の列は右の列より広く取る (重さ。v1.30 の 62% : 37% に近い) */
 const MINE_LANE_WEIGHT = 1.6;
-/** これより低いブロックはタイトルだけにする (2行だと両方切れて読めない) */
-const COMPACT_BLOCK_HEIGHT = 30;
+/**
+ * ブロックの高さで、文字の大きさと余白を変える (v1.50.4)。
+ * 余白と2行の文字の合計より低いブロックで2行を出すと、上下が切れて読めなかった。
+ *   ROOMY 以上 … 13px・余白 8px・2行
+ *   TWO_LINE 以上 … 12px・余白 4px・2行
+ *   それ未満 … 12px・名前だけ1行
+ */
+const ROOMY_BLOCK_HEIGHT = 52;
+const TWO_LINE_BLOCK_HEIGHT = 38;
 
 export function DayTimeline({
   date,
@@ -139,8 +146,15 @@ export function DayTimeline({
    * 1/10 の幅に潰れる。自分の予定は左の広い列を、重なり合うぶんだけで割る。
    */
   const onSide = (event: TimelineEvent) => event.side ?? Boolean(event.pale);
-  const mine = packLanes(events.filter((event) => !onSide(event)));
-  const side = packLanes(events.filter(onSide));
+  // 畳んだ時間帯の中で終わる予定 (朝の空きなど) は描かない (v1.50.4)。帯の文字と重なり、
+  // 見えない列のぶんだけ他の列が細くなっていた。開けば出る
+  const shown = events.filter((event) => {
+    const start = toMinutes(event.startTime);
+    const end = toMinutes(event.endTime);
+    return !segments.some((s) => s.folded && start >= s.start && end <= s.end);
+  });
+  const mine = packLanes(shown.filter((event) => !onSide(event)));
+  const side = packLanes(shown.filter(onSide));
   const mineLanes = Math.max(0, ...mine.map((p) => p.lanes));
   const sideLanes = Math.max(0, ...side.map((p) => p.lanes));
   // 列の重さで左右を分ける。1列ずつなら 62% : 38% (v1.30 と同じ見た目)
@@ -198,9 +212,19 @@ export function DayTimeline({
           {packed.map(({ item, lane, lanes, region }) => {
             const [from, to] = region;
             const laneWidth = (to - from) / lanes;
-            const top = y(toMinutes(item.startTime));
-            const blockHeight = y(toMinutes(item.endTime)) - top;
-            const compact = blockHeight < COMPACT_BLOCK_HEIGHT;
+            // 畳んだ時間帯から始まる予定 (朝からの空きなど) は、畳んだ帯の下から描く (v1.50.4)。
+            // 帯の中に頭を置くと、帯の文字と予定の名前が重なっていた
+            const start = toMinutes(item.startTime);
+            const fold = segments.find((s) => s.folded && start >= s.start && start < s.end);
+            const top = fold ? y(fold.end) : y(start);
+            const blockHeight = Math.max(0, y(toMinutes(item.endTime)) - top);
+            const size =
+              blockHeight >= ROOMY_BLOCK_HEIGHT
+                ? "px-2.5 py-2 text-[13px] leading-[16px]"
+                : blockHeight >= TWO_LINE_BLOCK_HEIGHT
+                  ? "px-2 py-1 text-[12px] leading-[15px]"
+                  : "px-2 py-0.5 text-[12px] leading-[15px]";
+            const compact = blockHeight < TWO_LINE_BLOCK_HEIGHT;
             const range = formatTimeRange(item.startTime, item.endTime);
 
             return (
@@ -213,7 +237,7 @@ export function DayTimeline({
                 // ボタンは中身を縦の中央に寄せるので、上詰めを明示する。
                 // 長いブロックだと見出しが開始時刻から離れた位置に出てしまう
                 // 予定のブロック (v1.50.1): 色を混ぜた地・濃い文字。左端の線は付けない
-                className={`absolute flex flex-col justify-start gap-0.5 overflow-hidden rounded-[8px] text-left text-[13px] leading-[16px] ${compact ? "px-2 py-0.5" : "px-2.5 py-2"}`}
+                className={`absolute flex flex-col justify-start overflow-hidden rounded-[8px] text-left ${size} ${blockHeight >= ROOMY_BLOCK_HEIGHT ? "gap-0.5" : ""}`}
                 style={{
                   top,
                   height: blockHeight,
@@ -223,7 +247,10 @@ export function DayTimeline({
                   ...eventBlockStyle(item.color.bg, item.pale),
                 }}
               >
-                <span className="block truncate font-semibold">{item.title}</span>
+                {/* 文字1行ぶんも無い短いブロックは色だけ (押すと中身が見られる) */}
+                {blockHeight >= 16 ? (
+                  <span className="block truncate font-semibold">{item.title}</span>
+                ) : null}
                 {compact ? null : (
                   <span className="block truncate tabular-nums">
                     {range}
