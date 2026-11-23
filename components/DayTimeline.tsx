@@ -213,7 +213,7 @@ export function DayTimeline({
                 // ボタンは中身を縦の中央に寄せるので、上詰めを明示する。
                 // 長いブロックだと見出しが開始時刻から離れた位置に出てしまう
                 // 予定のブロック (v1.50.1): 色を混ぜた地・濃い文字。左端の線は付けない
-                className="absolute flex flex-col justify-start overflow-hidden rounded-[6px] px-1.5 py-1 text-left text-[12px] leading-[15px]"
+                className={`absolute flex flex-col justify-start gap-0.5 overflow-hidden rounded-[8px] text-left text-[13px] leading-[16px] ${compact ? "px-2 py-0.5" : "px-2.5 py-2"}`}
                 style={{
                   top,
                   height: blockHeight,

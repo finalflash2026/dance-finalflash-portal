@@ -1473,20 +1473,20 @@ function ListRow({ row }: { row: Row }) {
           </>
         )}
       </span>
+      {/* 予定の色は丸で示す (v1.50.1)。名前と場所の2行の真ん中に置く (v1.50.4) */}
+      <span aria-hidden className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: row.color.bg }} />
       <span className="min-w-0 flex-1">
         <span className="flex items-center gap-1.5 text-[16px] font-semibold leading-[20px]">
-          {/* 予定の色は名前の前の丸で示す (左端の線はやめた。v1.50.1) */}
-          <span aria-hidden className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: row.color.bg }} />
           {row.important ? <ImportantBadge /> : null}
           <span className="truncate">{row.title}</span>
         </span>
         {row.subtitle ? (
-          <span className="block truncate pl-4 text-[14px] leading-[20px] text-[var(--muted)]">{row.subtitle}</span>
+          <span className="block truncate text-[14px] leading-[20px] text-[var(--muted)]">{row.subtitle}</span>
         ) : null}
       </span>
     </>
   );
-  const className = `flex w-full min-h-[56px] items-stretch gap-2.5 px-4 py-2 text-left ${
+  const className = `flex w-full min-h-[60px] items-center gap-3 px-4 py-2.5 text-left ${
     row.pale ? "opacity-55" : row.ended ? "opacity-50" : ""
   }`;
   return (
