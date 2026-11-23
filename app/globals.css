@@ -626,3 +626,19 @@ html.native-app [data-web-tabbar] {
 html.native-app [data-header-action] {
   visibility: hidden;
 }
+
+/*
+ * 画面の一番上の見出しの上の余白 (SPEC §12 / v1.50.4)
+ *
+ * viewport-fit=cover なので、ステータスバーの高さ (safe-area-inset-top) は自分で空ける。
+ * **ホーム画面から開いたとき (standalone) は、さらに 14px 下げる。** iOS は
+ * ステータスバーのすぐ下を少しぼかして描くため、名前の行がぼけて読みにくかった。
+ */
+.app-top {
+  padding-top: max(env(safe-area-inset-top), 10px);
+}
+@media (display-mode: standalone) {
+  .app-top {
+    padding-top: calc(env(safe-area-inset-top) + 14px);
+  }
+}

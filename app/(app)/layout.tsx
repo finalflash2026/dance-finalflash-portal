@@ -73,8 +73,8 @@ export default async function AppLayout({
   return (
     /* 浮いたタブバーのぶんの下の余白は TabBar が置く (サブ画面ではバーを出さない。v1.32.7) */
     <div className="min-h-dvh">
-      {/* 上端はノッチ・ステータスバーを避ける (v1.32.7。viewport-fit=cover のため) */}
-      <header className="flex items-center justify-between gap-2 px-4 pb-2 pt-[max(env(safe-area-inset-top),8px)]">
+      {/* 上端はノッチ・ステータスバーと、その下のぼかしを避ける (v1.32.7 / v1.50.4。globals.css の .app-top) */}
+      <header className="app-top flex items-center justify-between gap-2 px-4 pb-2">
         <div className="flex min-w-0 items-center gap-2">
           {/* 設定・鍵・お知らせなどでは左上に戻るボタン (v1.31.9。どの画面でも同じ場所) */}
           <BackButton />
