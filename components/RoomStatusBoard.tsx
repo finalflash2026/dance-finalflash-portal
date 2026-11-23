@@ -55,6 +55,7 @@ export function RoomStatusBoard({
   initialRows,
   initialMessages,
   currentUserId,
+  carriedRows = [],
 }: {
   today: DateString;
   /** 今日、公開済み slots が1件以上ある部屋 */
@@ -63,6 +64,8 @@ export function RoomStatusBoard({
   /** 今日の連絡 (§6.1.3 / v1.27) */
   initialMessages: BoardMessage[];
   currentUserId: string;
+  /** 前日に「開いている」のまま終わり、今日まだ報告の無い部屋 (v1.50.4) */
+  carriedRows?: RoomStatusRow[];
 }) {
   const allRooms = useRooms();
   const [rows, setRows] = useState(initialRows);
@@ -141,7 +144,7 @@ export function RoomStatusBoard({
       <section className="rounded-2xl bg-[var(--cell)] p-3" data-tour="room-board">
         <h2 className="text-[17px] font-bold">{formatDateLabel(today)}</h2>
         <p className="mt-1 text-[15px] text-[var(--muted)]">
-          今日は練習場所の予約がありません
+          今日使う練習場所はありません
         </p>
         {/* 予約が無い日でも連絡は残せる (鍵の受け渡しなど) */}
         <BoardMessages
@@ -191,10 +194,15 @@ export function RoomStatusBoard({
 
       <ul className="mt-3 space-y-2">
         {rooms.map((room) => {
-          const row = byRoomId.get(room.id);
+          // 今日の報告が無ければ、前日から開いたままの行を使う (v1.50.4)
+          const carried = byRoomId.has(room.id)
+            ? null
+            : (carriedRows.find((r) => r.room_id === room.id) ?? null);
+          const row = byRoomId.get(room.id) ?? carried ?? undefined;
           // 行が無い = 未設定。UI 上は × (施錠中) を既定とする
           const unlocked = row?.is_unlocked ?? false;
           const stale =
+            !carried &&
             unlocked &&
             row != null &&
             Date.now() - new Date(row.updated_at).getTime() >
@@ -238,10 +246,11 @@ export function RoomStatusBoard({
                         unlocked ? "text-[var(--success-fg)]" : "text-[var(--muted)]"
                       }`}
                     >
-                      {unlocked ? "開いている" : "閉まっている"}
+                      {carried ? "前日から開いたまま" : unlocked ? "開いている" : "閉まっている"}
                     </span>
                     {unlocked && row ? (
                       <span className="break-words text-[var(--muted)]">
+                        {carried ? "前日 " : ""}
                         {formatAsTokyoTime(row.updated_at)} {row.profiles?.username ?? ""}
                         {stale ? " (古いかも)" : ""}
                       </span>

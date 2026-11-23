@@ -152,7 +152,10 @@ export default async function HomePage({
     // 鍵の入口に出す要約だけ (開いている部屋の数)。ボード本体は /keys
     isOb
       ? none
-      : supabase.from("room_status").select("room_id, is_unlocked").eq("date", today),
+      : supabase
+          .from("room_status")
+          .select("room_id, is_unlocked, date")
+          .in("date", [addDays(today, -1), today]),
     isOb
       ? none
       : supabase
@@ -206,9 +209,22 @@ export default async function HomePage({
   const keysSummary: KeysSummary | null = isOb
     ? null
     : {
-        unlocked: ((roomStatusResult.data ?? []) as { is_unlocked: boolean }[]).filter(
-          (row) => row.is_unlocked,
-        ).length,
+        // 今日開いている部屋と、前日から開いたままの部屋 (v1.50.4。§6.1.1)
+        unlocked: (() => {
+          const rows = (roomStatusResult.data ?? []) as {
+            room_id: number;
+            is_unlocked: boolean;
+            date: DateString;
+          }[];
+          const todayRows = rows.filter((row) => row.date === today);
+          const todayIds = todayRows.map((row) => row.room_id);
+          return (
+            todayRows.filter((row) => row.is_unlocked).length +
+            rows.filter(
+              (row) => row.date !== today && row.is_unlocked && !todayIds.includes(row.room_id),
+            ).length
+          );
+        })(),
         holder:
           (
             (keyHolderResult.data ?? []) as unknown as {
