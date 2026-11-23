@@ -775,7 +775,7 @@ function KeysEntry({ summary, href }: { summary: KeysSummary; href: string }) {
     "flex min-w-0 flex-col gap-1.5 rounded-2xl bg-[var(--cell)] px-4 py-3.5 active:opacity-70";
   return (
     <div className="grid grid-cols-2 gap-2" data-tour="room-board">
-      <Link href={`${href}#room`} prefetch className={tile}>
+      <Link href={`${href}/room`} prefetch className={tile}>
         <span className="flex items-center gap-1.5 text-[13px] text-[var(--muted)]">
           <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
             <path d="M3 21h18M5 21V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16M14 12h.01" />
@@ -793,7 +793,7 @@ function KeysEntry({ summary, href }: { summary: KeysSummary; href: string }) {
           <span className="text-[14px] font-semibold">部屋 開錠</span>
         </span>
       </Link>
-      <Link href={`${href}#club-key`} prefetch className={tile}>
+      <Link href={`${href}/club-key`} prefetch className={tile}>
         <span className="flex items-center gap-1.5 text-[13px] text-[var(--muted)]">
           <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
             <circle cx="7.5" cy="15.5" r="4.5" />

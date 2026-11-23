@@ -35,6 +35,8 @@ function demoPath(pathname: string): string | null {
     "/number-cal": "/demo/numbers",
     "/settings": "/demo/settings",
     "/keys": "/demo/keys",
+    "/keys/room": "/demo/keys/room",
+    "/keys/club-key": "/demo/keys/club-key",
     "/notifications": "/demo/notifications",
     "/manage": "/demo/manage",
     "/admin": "/demo/admin",

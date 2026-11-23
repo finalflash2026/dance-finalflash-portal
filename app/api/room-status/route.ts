@@ -6,6 +6,8 @@ import { canWrite } from "@/lib/constants";
 import { hasSupabaseEnv } from "@/lib/env";
 import { activeMemberIds, sendPush } from "@/lib/push";
 import { fetchRoomMap } from "@/lib/rooms-server";
+import { NOTIFY_DELAY_MS, UNDO_ACCEPT_MS, sleep } from "@/lib/key-undo";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { todayInTokyo } from "@/lib/time";
 
@@ -25,10 +27,17 @@ import { todayInTokyo } from "@/lib/time";
  * (SPEC §13.2)。
  */
 export const runtime = "nodejs";
+// 通知は取り消しを待ってから送る (v1.50.4)。応答のあとに約10秒待つので、短すぎない上限にする
+export const maxDuration = 30;
 
 const schema = z.object({
   roomId: z.number().int(),
   isUnlocked: z.boolean(),
+  /**
+   * 押し間違いの取り消し (v1.50.4)。自分が UNDO_ACCEPT_MS 以内に変えた部屋だけ戻せる。
+   * **通知は送らない** (取り消した報告の通知は、待っているあいだに止まる)
+   */
+  undo: z.boolean().optional(),
 });
 
 export async function POST(request: Request) {
@@ -64,7 +73,26 @@ export async function POST(request: Request) {
   }
 
   const today = todayInTokyo();
-  const { error } = await supabase.from("room_status").upsert(
+
+  if (parsed.data.undo) {
+    const { data: current } = await supabase
+      .from("room_status")
+      .select("updated_by, updated_at")
+      .eq("date", today)
+      .eq("room_id", room.id)
+      .maybeSingle();
+    const mine =
+      current?.updated_by === profile.user_id &&
+      Date.now() - new Date(current.updated_at as string).getTime() <= UNDO_ACCEPT_MS;
+    if (!mine) {
+      return Response.json(
+        { error: "取り消せる時間を過ぎました。もう一度報告してください。" },
+        { status: 409 },
+      );
+    }
+  }
+
+  const { data: written, error } = await supabase.from("room_status").upsert(
     {
       date: today,
       room_id: room.id,
@@ -72,7 +100,7 @@ export async function POST(request: Request) {
       updated_by: profile.user_id,
     },
     { onConflict: "date,room_id" },
-  );
+  ).select("updated_at").single();
 
   if (error) {
     return Response.json(
@@ -81,9 +109,23 @@ export async function POST(request: Request) {
     );
   }
 
+  if (parsed.data.undo) return Response.json({ ok: true });
+
   // 応答を返してから送る。150人ぶんの送信を待たせると、
-  // 押してから ○ が変わるまでが目に見えて遅くなる
+  // 押してから ○ が変わるまでが目に見えて遅くなる。
+  // **取り消しを待ってから送る** (v1.50.4)。待つあいだに誰か (取り消した本人を含む) が
+  // 変えていたら送らない。その人の報告の通知が代わりに届く
+  const writtenAt = written?.updated_at as string | undefined;
   after(async () => {
+    await sleep(NOTIFY_DELAY_MS);
+    // 応答のあとはリクエストのクッキーを読めないので、読むだけ service role で行う
+    const { data: latest } = await createAdminClient()
+      .from("room_status")
+      .select("updated_at")
+      .eq("date", today)
+      .eq("room_id", room.id)
+      .maybeSingle();
+    if (!latest || latest.updated_at !== writtenAt) return;
     const recipients = await activeMemberIds(profile.user_id);
     await sendPush({
       category: "room",

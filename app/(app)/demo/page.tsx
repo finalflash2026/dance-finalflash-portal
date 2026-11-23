@@ -14,7 +14,8 @@ const GROUPS: readonly (readonly Screen[])[] = [
     { href: "/demo/calendar", title: "ホーム(現役)", note: "今日・自主練できる部屋・鍵の入口・週の帯・その日" },
     { href: "/demo/calendar?ob=1", title: "ホーム(OB/OG)", note: "鍵や他ジャンルが出ない2タブの見え方" },
     { href: "/demo/calendar?tour=1", title: "初回ツアー", note: "カレンダーの上で吹き出しの案内を始める" },
-    { href: "/demo/keys", title: "鍵と連絡", note: "ホームの「練習場所の鍵・部室の鍵・連絡」から開く画面" },
+    { href: "/demo/keys/room", title: "練習場所", note: "ホームの「練習場所」から開く画面" },
+    { href: "/demo/keys/club-key", title: "部室の鍵", note: "ホームの「部室の鍵」から開く画面" },
     { href: "/demo/notifications", title: "お知らせ", note: "右上のベルから開く画面" },
   ],
   [
