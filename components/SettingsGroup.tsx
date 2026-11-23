@@ -158,7 +158,7 @@ export function SettingsGroup({
             className="absolute left-0 top-0 flex h-dvh w-screen flex-col"
             style={{ opacity: expanded ? 1 : 0, transition: `opacity ${DURATION / 2}ms linear` }}
           >
-            <header className="flex shrink-0 items-center gap-2 px-4 pb-2 pt-[max(env(safe-area-inset-top),12px)]">
+            <header className="app-top flex shrink-0 items-center gap-2 px-4 pb-2">
               <button
                 type="button"
                 onClick={close}

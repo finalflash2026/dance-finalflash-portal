@@ -73,6 +73,7 @@ import type { DateString, MyEvent } from "@/lib/types";
  * 自前でなぞるより iPhone の標準に近く、なめらかに感じる。
  */
 
+const GENRE_ORDER: string[] = GENRES.map((g) => g.code);
 const FILTER_STORAGE_KEY = "calendar-filter-v2";
 const VIEW_STORAGE_KEY = "calendar-day-view-v2";
 const MONTH_OPEN_KEY = "calendar-month-open";
@@ -281,6 +282,38 @@ export function CalendarHome({
     [events],
   );
 
+  // 週の帯と月表示に出す予定。絞り込みで足した他ジャンルの公式練も、ジャンルごとに1件で後ろに足す
+  // (v1.50.4。今までは自分の予定しか出ず、全ジャンルを足しても月表示が変わらなかった)
+  const calendarByDate = useMemo(() => {
+    if (filter.genres.length === 0) return eventsByDate;
+    const map = new Map(eventsByDate);
+    for (const [date, blocks] of Object.entries(blocksByDate)) {
+      const byGenre = new Map<string, DayBlock[]>();
+      for (const block of blocks) {
+        if (block.status !== "genre" || !block.genreCode || mySlotIds.has(block.id)) continue;
+        if (!filter.genres.includes(block.genreCode)) continue;
+        byGenre.set(block.genreCode, [...(byGenre.get(block.genreCode) ?? []), block]);
+      }
+      if (byGenre.size === 0) continue;
+      const others: MyEvent[] = [...byGenre.entries()]
+        .sort(([a], [b]) => GENRE_ORDER.indexOf(a) - GENRE_ORDER.indexOf(b))
+        .map(([genreCode, list]) => ({
+          kind: "genre",
+          sourceId: list[0].id,
+          sourceIds: list.map((block) => block.id),
+          date,
+          startTime: list[0].startTime,
+          endTime: list[0].endTime,
+          title: `${genreCode} 公式練`,
+          location: "",
+          numberId: null,
+          genreCode,
+        }));
+      map.set(date, [...(map.get(date) ?? []), ...others]);
+    }
+    return map;
+  }, [eventsByDate, blocksByDate, filter.genres, mySlotIds]);
+
   const todayBlocks = blocksByDate[today] ?? [];
   const dayBlocks = blocksByDate[selectedDate] ?? [];
   const otherGenres = GENRES.map((g) => g.code as string).filter(
@@ -351,7 +384,7 @@ export function CalendarHome({
                 rangeEnd={rangeEnd}
                 selectedDate={selectedDate}
                 today={today}
-                eventsByDate={eventsByDate}
+                eventsByDate={calendarByDate}
                 onSelect={selectDate}
               />
             </Collapse>
@@ -361,7 +394,8 @@ export function CalendarHome({
                 monthAnchor={startOfMonth(selectedDate)}
                 selectedDate={selectedDate}
                 today={today}
-                eventsByDate={eventsByDate}
+                eventsByDate={calendarByDate}
+                maxLabels={filter.genres.length > 0 ? 3 : 2}
                 // 日を押しても月表示のまま (v1.31.10)。週に戻すのは日付のボタンで
                 onSelectDate={selectDate}
                 onChangeMonth={(diff) => {
@@ -412,6 +446,7 @@ export function CalendarHome({
                 mySlotIds={mySlotIds}
                 onSelect={setSelected}
                 onClaim={(slot, range) => setClaiming({ date: selectedDate, slot, range })}
+                onShowRooms={() => changeView("rooms")}
               />
             )}
           </div>
@@ -740,7 +775,7 @@ function KeysEntry({ summary, href }: { summary: KeysSummary; href: string }) {
     "flex min-w-0 flex-col gap-1.5 rounded-2xl bg-[var(--cell)] px-4 py-3.5 active:opacity-70";
   return (
     <div className="grid grid-cols-2 gap-2" data-tour="room-board">
-      <Link href={`${href}#room`} prefetch className={tile}>
+      <Link href={`${href}/room`} prefetch className={tile}>
         <span className="flex items-center gap-1.5 text-[13px] text-[var(--muted)]">
           <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
             <path d="M3 21h18M5 21V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16M14 12h.01" />
@@ -758,7 +793,7 @@ function KeysEntry({ summary, href }: { summary: KeysSummary; href: string }) {
           <span className="text-[14px] font-semibold">部屋 開錠</span>
         </span>
       </Link>
-      <Link href={`${href}#club-key`} prefetch className={tile}>
+      <Link href={`${href}/club-key`} prefetch className={tile}>
         <span className="flex items-center gap-1.5 text-[13px] text-[var(--muted)]">
           <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
             <circle cx="7.5" cy="15.5" r="4.5" />
@@ -1054,7 +1089,7 @@ function WeekStrip({
                     {parseDate(date).day}
                   </span>
                   <span className="flex h-1.5 gap-0.5">
-                    {dayEvents.slice(0, 3).map((event, i) => (
+                    {dayEvents.slice(0, 4).map((event, i) => (
                       <span
                         key={i}
                         className="h-1.5 w-1.5 rounded-full"
@@ -1207,6 +1242,8 @@ interface Row {
   pale: boolean;
   /** 時間表で右の列に置く (他ジャンルの練習と空き。v1.50.4 で薄さと分けた) */
   side?: boolean;
+  /** 時間表の細い列で使う短い見出し (v1.50.4。「JAZZ 公式練」→「JAZZ」) */
+  shortTitle?: string;
   important?: boolean;
   /** 今日の終わった予定。薄く出す (v1.31.6) */
   ended?: boolean;
@@ -1230,6 +1267,7 @@ function DayContent({
   mySlotIds,
   onSelect,
   onClaim,
+  onShowRooms,
 }: {
   date: DateString;
   today: DateString;
@@ -1240,6 +1278,7 @@ function DayContent({
   mySlotIds: Set<string>;
   onSelect: (event: MyEvent) => void;
   onClaim: (slot: DayBlock, range: TimeRange) => void;
+  onShowRooms: () => void;
 }) {
   const roomById = useRoomById();
   // 今日を選んでいるときは、終わった予定を後ろへ回して薄くする (v1.31.6。
@@ -1299,6 +1338,7 @@ function DayContent({
       endTime: block.endTime,
       wholeDay: false,
       title,
+      shortTitle: block.genreCode ?? title,
       subtitle: location,
       color: GENRE_COLORS[block.genreCode as GenreCode] ?? SLOT_OPEN_COLOR,
       pale: false,
@@ -1320,25 +1360,33 @@ function DayContent({
   });
 
   // ---- 空き (押すと申請) ----
-  const freeRows: Row[] = filter.free
-    ? blocks
-        .filter((block) => block.status === "open")
-        .flatMap((block) =>
-          freeRanges(block, block.claims).map((range) => ({
-            key: `free-${block.id}-${range.startTime}`,
-            startTime: range.startTime,
-            endTime: range.endTime,
-            wholeDay: false,
-            title: "空き",
-            subtitle: roomById.get(block.roomId)?.name ?? "",
-            color: { bg: "rgba(52, 199, 89, 0.35)", fg: "var(--foreground)" },
-            pale: true,
-            side: true,
-            filler: true,
-            onClick: () => onClaim(block, range),
-          })),
-        )
-    : [];
+  // 同じ時間の空きは部屋をまとめて1件にする (v1.50.4。部屋ごとに列が割れて潰れていた)。
+  // 1部屋なら押すと申請、複数なら部屋の表示へ移って部屋を選ぶ
+  const freeGroups = new Map<string, { block: DayBlock; range: TimeRange; rooms: string[] }>();
+  if (filter.free) {
+    for (const block of blocks) {
+      if (block.status !== "open") continue;
+      for (const range of freeRanges(block, block.claims)) {
+        const key = `${range.startTime}|${range.endTime}`;
+        const group = freeGroups.get(key) ?? { block, range, rooms: [] };
+        group.rooms.push(roomById.get(block.roomId)?.name ?? "");
+        freeGroups.set(key, group);
+      }
+    }
+  }
+  const freeRows: Row[] = [...freeGroups.values()].map(({ block, range, rooms }) => ({
+    key: `free-${block.id}-${range.startTime}`,
+    startTime: range.startTime,
+    endTime: range.endTime,
+    wholeDay: false,
+    title: rooms.length > 1 ? `空き ${rooms.length}部屋` : "空き",
+    subtitle: rooms.filter(Boolean).join("・"),
+    color: { bg: "rgba(52, 199, 89, 0.35)", fg: "var(--foreground)" },
+    pale: true,
+    side: true,
+    filler: true,
+    onClick: () => (rooms.length > 1 ? onShowRooms() : onClaim(block, range)),
+  }));
 
   const others = [...otherRows, ...freeRows].sort((a, b) =>
     a.startTime.localeCompare(b.startTime),
@@ -1352,7 +1400,7 @@ function DayContent({
         key: row.key,
         startTime: row.startTime,
         endTime: row.endTime,
-        title: `${row.important ? "【大事】" : ""}${row.title}`,
+        title: `${row.important ? "【大事】" : ""}${row.shortTitle ?? row.title}`,
         subtitle: row.subtitle,
         color: row.color,
         pale: row.pale,
@@ -1425,20 +1473,20 @@ function ListRow({ row }: { row: Row }) {
           </>
         )}
       </span>
+      {/* 予定の色は丸で示す (v1.50.1)。名前と場所の2行の真ん中に置く (v1.50.4) */}
+      <span aria-hidden className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: row.color.bg }} />
       <span className="min-w-0 flex-1">
         <span className="flex items-center gap-1.5 text-[16px] font-semibold leading-[20px]">
-          {/* 予定の色は名前の前の丸で示す (左端の線はやめた。v1.50.1) */}
-          <span aria-hidden className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: row.color.bg }} />
           {row.important ? <ImportantBadge /> : null}
           <span className="truncate">{row.title}</span>
         </span>
         {row.subtitle ? (
-          <span className="block truncate pl-4 text-[14px] leading-[20px] text-[var(--muted)]">{row.subtitle}</span>
+          <span className="block truncate text-[14px] leading-[20px] text-[var(--muted)]">{row.subtitle}</span>
         ) : null}
       </span>
     </>
   );
-  const className = `flex w-full min-h-[56px] items-stretch gap-2.5 px-4 py-2 text-left ${
+  const className = `flex w-full min-h-[60px] items-center gap-3 px-4 py-2.5 text-left ${
     row.pale ? "opacity-55" : row.ended ? "opacity-50" : ""
   }`;
   return (

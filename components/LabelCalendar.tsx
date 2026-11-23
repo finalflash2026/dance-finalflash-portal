@@ -37,6 +37,7 @@ export function LabelCalendar({
   eventsByDate,
   onSelectDate,
   onChangeMonth,
+  maxLabels = MAX_LABELS,
 }: {
   basePath: string;
   monthAnchor: DateString;
@@ -50,6 +51,8 @@ export function LabelCalendar({
    * ページを読み直さずに切り替える。渡さないときは従来どおりリンクで移る
    */
   onChangeMonth?: (diff: -1 | 1) => void;
+  /** 1マスに出すラベルの数。ホームで他ジャンルを足したときは3にする (v1.50.4) */
+  maxLabels?: number;
 }) {
   // 左右スワイプで月を切り替える。縦の動き (画面のスクロール) が大きいときは拾わない
   const touchStart = useRef<{ x: number; y: number } | null>(null);
@@ -151,7 +154,7 @@ export function LabelCalendar({
           const isSelected = date === selectedDate;
           const isToday = date === today;
           const dayEvents = eventsByDate.get(date) ?? [];
-          const shown = dayEvents.slice(0, MAX_LABELS);
+          const shown = dayEvents.slice(0, maxLabels);
           const rest = dayEvents.length - shown.length;
 
           return (

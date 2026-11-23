@@ -11,10 +11,12 @@ import { BoardMessages } from "@/components/BoardMessages";
 import type { BoardMessage } from "@/lib/board-messages";
 import { confirmAction } from "@/lib/confirm";
 import { dbErrorMessage } from "@/lib/error-message";
+import { UNDO_WINDOW_MS } from "@/lib/key-undo";
 import { useCanWrite } from "@/lib/role";
 import { createClient } from "@/lib/supabase/client";
 import { useLiveRefresh } from "@/lib/use-live-refresh";
 import { formatAsTokyoDateTime } from "@/lib/time";
+import { showToast } from "@/lib/toast";
 
 /**
  * 「部室の鍵の所持」ボード (SPEC.md §6.1.2)
@@ -98,11 +100,29 @@ export function ClubKeyBoard({
 
     await refresh();
     setPending(false);
+    // 押し間違いは8秒以内なら戻せる (v1.50.4)。通知はサーバーがそのあいだ待つ
+    showToast("受け取ったと報告しました", {
+      durationMs: UNDO_WINDOW_MS,
+      action: { label: "取り消す", run: () => void undoClaim() },
+    });
+  }
+
+  async function undoClaim() {
+    setPending(true);
+    setError(null);
+    const res = await fetch("/api/club-key/claim", { method: "DELETE" });
+    if (!res.ok) {
+      const data = (await res.json().catch(() => null)) as { error?: string } | null;
+      setError(data?.error ?? "取り消せませんでした。");
+    }
+    await refresh();
+    setPending(false);
   }
 
   return (
     <section className="rounded-2xl bg-[var(--cell)] p-3">
-      <h2 className="text-[17px] font-bold">部室の鍵</h2>
+      {/* 見出しは画面の「部室の鍵」(v1.50.4 で画面を分けた) */}
+      <h2 className="sr-only">部室の鍵</h2>
 
       {error ? (
         <p role="alert" className="mt-1 text-[13px] text-[var(--danger-fg)]">
@@ -111,7 +131,7 @@ export function ClubKeyBoard({
       ) : null}
 
       {/* 持っている人を大きく (v1.31.11)。いつからかは下に小さく */}
-      <div className="mt-2 flex items-center gap-3">
+      <div className="flex items-center gap-3">
         <div className="min-w-0 flex-1">
           {holder ? (
             <>
@@ -154,20 +174,7 @@ export function ClubKeyBoard({
         ) : null}
       </div>
 
-      {rows.length > 1 ? (
-        <details className="mt-2">
-          <summary className="cursor-pointer py-1 text-[14px] text-[var(--tint)]">
-            受け渡しの履歴
-          </summary>
-          <ul className="mt-1 space-y-0.5">
-            {rows.slice(1).map((row) => (
-              <li key={row.id} className="text-[14px] text-[var(--muted)]">
-                {formatAsTokyoDateTime(row.takenAt)} {row.username}
-              </li>
-            ))}
-          </ul>
-        </details>
-      ) : null}
+      {/* 受け渡しの履歴は画面の下の「これまでの記録」へ (v1.50.4) */}
 
       <BoardMessages
         scope="club_key"

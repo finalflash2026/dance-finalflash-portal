@@ -24,7 +24,7 @@ function isStaffPath(pathname: string): boolean {
 export function backTarget(pathname: string): { href: string; label: string } | null {
   const path = pathname.replace(/^\/demo(?=\/)/, "");
   if (path === "/settings") return { href: "/", label: "戻る" };
-  if (path === "/keys" || path === "/notifications") return { href: "/", label: "戻る" };
+  if (path.startsWith("/keys") || path === "/notifications") return { href: "/", label: "戻る" };
   if (path.startsWith("/numbers/") || path === "/number") {
     return { href: "/number-cal", label: "ナンバー" };
   }
@@ -51,7 +51,13 @@ const staffReturn: { href: string; label: string } = {
  * ナンバーの画面などからも開くので、ホームへ決め打ちで戻すと来た画面を見失う。
  * 日程調整はホーム (メンバー) からも設定 (折衝・3役) からも来る
  */
-const BACK_TO_PREVIOUS = ["/keys", "/notifications", "/schedule", "/schedule/plan"];
+const BACK_TO_PREVIOUS = [
+  "/keys/room",
+  "/keys/club-key",
+  "/notifications",
+  "/schedule",
+  "/schedule/plan",
+];
 
 /**
  * このアプリの中で画面を移った回数。0 のとき (通知・URL直打ちで直接開いた) は

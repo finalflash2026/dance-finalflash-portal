@@ -54,7 +54,7 @@ const TIME_COLUMN_WIDTH = 44;
  * 重なった予定の1列の最小幅 (px。v1.50.4)。全ジャンルを足すと右の列が9つに割れ、
  * 潰れて押せなかった。収まらないときは予定の部分だけ横にスクロールする
  */
-const MIN_LANE_WIDTH = 76;
+const MIN_LANE_WIDTH = 84;
 /** 自分の予定の列は右の列より広く取る (重さ。v1.30 の 62% : 37% に近い) */
 const MINE_LANE_WEIGHT = 1.6;
 /** これより低いブロックはタイトルだけにする (2行だと両方切れて読めない) */
@@ -213,7 +213,7 @@ export function DayTimeline({
                 // ボタンは中身を縦の中央に寄せるので、上詰めを明示する。
                 // 長いブロックだと見出しが開始時刻から離れた位置に出てしまう
                 // 予定のブロック (v1.50.1): 色を混ぜた地・濃い文字。左端の線は付けない
-                className="absolute flex flex-col justify-start overflow-hidden rounded-[6px] px-1.5 py-1 text-left text-[12px] leading-[15px]"
+                className={`absolute flex flex-col justify-start gap-0.5 overflow-hidden rounded-[8px] text-left text-[13px] leading-[16px] ${compact ? "px-2 py-0.5" : "px-2.5 py-2"}`}
                 style={{
                   top,
                   height: blockHeight,
@@ -353,25 +353,41 @@ function LaneScroller({
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const [overflows, setOverflows] = useState(false);
+  // 右にまだ隠れている予定があるか。端を影で示す (v1.50.4。横に動かせると気づけなかった)
+  const [moreRight, setMoreRight] = useState(false);
   useEffect(() => {
     const element = ref.current;
     if (!element) return;
-    const check = () => setOverflows(element.scrollWidth > element.clientWidth + 1);
+    const check = () => {
+      setOverflows(element.scrollWidth > element.clientWidth + 1);
+      setMoreRight(element.scrollLeft + element.clientWidth < element.scrollWidth - 1);
+    };
     check();
     const observer = new ResizeObserver(check);
     observer.observe(element);
-    return () => observer.disconnect();
+    element.addEventListener("scroll", check, { passive: true });
+    return () => {
+      observer.disconnect();
+      element.removeEventListener("scroll", check);
+    };
   }, [minWidth]);
 
   return (
-    <div
-      ref={ref}
-      className={`min-w-0 flex-1 overflow-y-hidden ${overflows ? "h-scroll overflow-x-auto" : "overflow-x-hidden"}`}
-      style={{ height }}
-    >
-      <div className="relative h-full" style={{ minWidth }}>
-        {children}
+    <div className="relative min-w-0 flex-1" style={{ height }}>
+      <div
+        ref={ref}
+        className={`h-full overflow-y-hidden ${overflows ? "h-scroll overflow-x-auto" : "overflow-x-hidden"}`}
+      >
+        <div className="relative h-full" style={{ minWidth }}>
+          {children}
+        </div>
       </div>
+      {overflows && moreRight ? (
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-y-0 right-0 w-6 bg-gradient-to-l from-[var(--cell)] to-transparent"
+        />
+      ) : null}
     </div>
   );
 }

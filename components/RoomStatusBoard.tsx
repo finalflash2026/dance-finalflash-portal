@@ -7,11 +7,13 @@ import { Sheet } from "@/components/Sheet";
 import { fillButtonClass, primaryButtonClass } from "@/components/ui";
 import type { BoardMessage } from "@/lib/board-messages";
 import { dbErrorMessage } from "@/lib/error-message";
+import { UNDO_WINDOW_MS } from "@/lib/key-undo";
 import { useCanWrite } from "@/lib/role";
 import { useRooms } from "@/lib/rooms";
 import { createClient } from "@/lib/supabase/client";
 import { useLiveRefresh } from "@/lib/use-live-refresh";
-import { formatAsTokyoTime } from "@/lib/time";
+import { formatAsTokyoTime, formatDateLabel } from "@/lib/time";
+import { showToast } from "@/lib/toast";
 import type { DateString } from "@/lib/types";
 
 /**
@@ -53,6 +55,7 @@ export function RoomStatusBoard({
   initialRows,
   initialMessages,
   currentUserId,
+  carriedRows = [],
 }: {
   today: DateString;
   /** 今日、公開済み slots が1件以上ある部屋 */
@@ -61,6 +64,8 @@ export function RoomStatusBoard({
   /** 今日の連絡 (§6.1.3 / v1.27) */
   initialMessages: BoardMessage[];
   currentUserId: string;
+  /** 前日に「開いている」のまま終わり、今日まだ報告の無い部屋 (v1.50.4) */
+  carriedRows?: RoomStatusRow[];
 }) {
   const allRooms = useRooms();
   const [rows, setRows] = useState(initialRows);
@@ -103,14 +108,14 @@ export function RoomStatusBoard({
    * サーバー側もセッションのクライアントで書くので、RLS の条件
    * (当日のみ・本人・OB 不可) はこれまで通り効く。
    */
-  async function toggle(roomId: number, current: boolean) {
+  async function toggle(roomId: number, current: boolean, undo = false) {
     setPendingRoomId(roomId);
     setError(null);
 
     const res = await fetch("/api/room-status", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ roomId, isUnlocked: !current }),
+      body: JSON.stringify({ roomId, isUnlocked: !current, undo }),
     });
 
     if (!res.ok) {
@@ -123,6 +128,13 @@ export function RoomStatusBoard({
     }
     await refresh();
     setPendingRoomId(null);
+    // 押し間違いは8秒以内なら戻せる (v1.50.4)。通知はサーバーがそのあいだ待つ
+    if (!undo) {
+      showToast(current ? "閉めたと報告しました" : "開けたと報告しました", {
+        durationMs: UNDO_WINDOW_MS,
+        action: { label: "取り消す", run: () => void toggle(roomId, !current, true) },
+      });
+    }
   }
 
   const rooms = allRooms.filter((room) => roomIds.includes(room.id));
@@ -130,9 +142,9 @@ export function RoomStatusBoard({
   if (rooms.length === 0) {
     return (
       <section className="rounded-2xl bg-[var(--cell)] p-3" data-tour="room-board">
-        <h2 className="text-[17px] font-bold">今日の練習場所</h2>
+        <h2 className="text-[17px] font-bold">{formatDateLabel(today)}</h2>
         <p className="mt-1 text-[15px] text-[var(--muted)]">
-          今日は練習場所の予約がありません
+          今日使う練習場所はありません
         </p>
         {/* 予約が無い日でも連絡は残せる (鍵の受け渡しなど) */}
         <BoardMessages
@@ -160,7 +172,7 @@ export function RoomStatusBoard({
      */
     <section className="rounded-2xl bg-[var(--cell)] p-3" data-tour="room-board">
       <header className="flex items-center justify-between gap-2">
-        <h2 className="text-[17px] font-bold">今日の練習場所</h2>
+        <h2 className="text-[17px] font-bold">{formatDateLabel(today)}</h2>
         <button
           type="button"
           onClick={refresh}
@@ -180,12 +192,17 @@ export function RoomStatusBoard({
         </p>
       ) : null}
 
-      <ul className="mt-3 grid grid-cols-2 gap-2">
+      <ul className="mt-3 space-y-2">
         {rooms.map((room) => {
-          const row = byRoomId.get(room.id);
+          // 今日の報告が無ければ、前日から開いたままの行を使う (v1.50.4)
+          const carried = byRoomId.has(room.id)
+            ? null
+            : (carriedRows.find((r) => r.room_id === room.id) ?? null);
+          const row = byRoomId.get(room.id) ?? carried ?? undefined;
           // 行が無い = 未設定。UI 上は × (施錠中) を既定とする
           const unlocked = row?.is_unlocked ?? false;
           const stale =
+            !carried &&
             unlocked &&
             row != null &&
             Date.now() - new Date(row.updated_at).getTime() >
@@ -210,37 +227,36 @@ export function RoomStatusBoard({
                     : `${room.name}: ${unlocked ? "開錠済" : "施錠中"}`
                 }
                 aria-pressed={unlocked}
-                className={`flex min-h-[64px] w-full flex-col items-start justify-between gap-1 rounded-xl border-2 px-3 py-2 text-left active:opacity-70 disabled:cursor-default ${
+                className={`flex min-h-[64px] w-full items-center gap-3 rounded-xl border-2 px-3 py-2.5 text-left transition-colors active:opacity-70 disabled:cursor-default ${
                   unlocked
                     ? "border-[var(--success-fg)] bg-[var(--success-bg)]"
                     : "border-transparent bg-[var(--background)]"
                 } ${stale ? "opacity-60" : ""} ${pendingRoomId === room.id ? "opacity-40" : ""}`}
               >
-                {/* 建物の括弧は落とす (「練習室2(フレスコ)」→「練習室2」)。細いカードで2行に折れないように */}
-                <span className="w-full truncate text-[15px] font-semibold leading-snug">
-                  {room.name.replace(/[(（][^)）]*[)）]$/, "") || room.name}
-                </span>
-                <span className="flex w-full items-center gap-1.5">
-                  <span
-                    aria-hidden
-                    className={`h-2.5 w-2.5 shrink-0 rounded-full ${
-                      unlocked ? "bg-[var(--success-fg)]" : "bg-[var(--muted)] opacity-60"
-                    }`}
-                  />
-                  <span
-                    className={`text-[14px] font-semibold ${
-                      unlocked ? "text-[var(--success-fg)]" : "text-[var(--muted)]"
-                    }`}
-                  >
-                    {unlocked ? "開いている" : "閉まっている"}
+                {/* 状態は錠前の絵で示す (v1.50.4)。開いていれば、つるの外れた錠前を緑の丸に */}
+                <LockBadge unlocked={unlocked} />
+                {/* 1列にして、部屋と開けた人の名前は切らずに折り返す (v1.50.4) */}
+                <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+                  <span className="break-words text-[16px] font-semibold leading-snug">
+                    {room.name}
+                  </span>
+                  <span className="flex flex-wrap items-baseline gap-x-2 text-[13px] leading-snug">
+                    <span
+                      className={`shrink-0 font-semibold ${
+                        unlocked ? "text-[var(--success-fg)]" : "text-[var(--muted)]"
+                      }`}
+                    >
+                      {carried ? "前日から開いたまま" : unlocked ? "開いている" : "閉まっている"}
+                    </span>
+                    {unlocked && row ? (
+                      <span className="break-words text-[var(--muted)]">
+                        {carried ? "前日 " : ""}
+                        {formatAsTokyoTime(row.updated_at)} {row.profiles?.username ?? ""}
+                        {stale ? " (古いかも)" : ""}
+                      </span>
+                    ) : null}
                   </span>
                 </span>
-                {unlocked && row ? (
-                  <span className="w-full truncate text-[12px] text-[var(--muted)]">
-                    {formatAsTokyoTime(row.updated_at)} {row.profiles?.username ?? ""}
-                    {stale ? " (古いかも)" : ""}
-                  </span>
-                ) : null}
               </button>
             </li>
           );
@@ -295,5 +311,35 @@ export function RoomStatusBoard({
         currentUserId={currentUserId}
       />
     </section>
+  );
+}
+
+/** 錠前の絵 (v1.50.4)。開いている = つるが外れて緑、閉まっている = 閉じて灰色 */
+function LockBadge({ unlocked }: { unlocked: boolean }) {
+  return (
+    <span
+      aria-hidden
+      className={`grid h-11 w-11 shrink-0 place-items-center rounded-full transition-colors ${
+        unlocked ? "bg-[var(--success-fg)] text-white" : "bg-[var(--fill)] text-[var(--muted)]"
+      }`}
+    >
+      <svg
+        viewBox="0 0 24 24"
+        width="22"
+        height="22"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2.2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      >
+        <rect x="4.5" y="10.5" width="15" height="10" rx="2.5" fill="currentColor" stroke="none" />
+        {/* つる。開いているときは右の足を上げて外す */}
+        <path
+          d={unlocked ? "M8 10.5V7a4 4 0 0 1 7.6-1.7" : "M8 10.5V7a4 4 0 0 1 8 0v3.5"}
+          className="transition-[d] duration-300"
+        />
+      </svg>
+    </span>
   );
 }
